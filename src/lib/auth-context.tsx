@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
-import { usePathname } from "next/navigation";
 import { User, UserRole, Branch, UserSession } from "./types";
 import { Permission, hasPermission as checkPerm, getBranchScope } from "./permissions";
 
@@ -32,7 +31,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState<User>(ANONYMOUS_USER);
   const [session, setSession] = useState<UserSession | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -100,13 +98,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Periodic heartbeat & tab focus check only when authenticated and on protected pages
   useEffect(() => {
-    const isAuthPage =
-      pathname?.startsWith("/login") ||
-      pathname?.startsWith("/register") ||
-      pathname?.startsWith("/forgot-password");
+    if (!isAuthenticated) {
+      return;
+    }
 
-    // Don't poll heartbeat if user is not authenticated or is on a public auth page
-    if (!isAuthenticated || isAuthPage) {
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+    const isAuthPage =
+      currentPath.startsWith("/login") ||
+      currentPath.startsWith("/register") ||
+      currentPath.startsWith("/forgot-password");
+
+    // Don't poll heartbeat if user is on a public auth page
+    if (isAuthPage) {
       return;
     }
 
@@ -137,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("visibilitychange", onFocus);
     };
-  }, [checkSession, isAuthenticated, pathname]);
+  }, [checkSession, isAuthenticated]);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);

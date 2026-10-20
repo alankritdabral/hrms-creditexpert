@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Suspense } from "react";
 import { AuthProvider } from "@/lib/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 
@@ -42,9 +43,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#f8fafc] text-[#0a2540]">
-        <AuthProvider>
-          <AppShell>{children}</AppShell>
-        </AuthProvider>
+        <Suspense fallback={<div className="min-h-screen bg-[#f8fafc]" />}>
+          <AuthProvider>
+            <AppShell>{children}</AppShell>
+          </AuthProvider>
+        </Suspense>
       </body>
     </html>
   );
