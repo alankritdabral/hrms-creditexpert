@@ -36,6 +36,20 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Guard protected routes: do not render children until authentication is verified
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-medium text-slate-500 font-mono tracking-wide">
+            {isLoading ? "Verifying Credit Expert Workspace..." : "Redirecting to secure login..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen bg-[#f8fafc] text-[#0a2540] antialiased">

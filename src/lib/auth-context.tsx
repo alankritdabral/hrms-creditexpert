@@ -1,9 +1,20 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { User, UserRole, Branch, UserSession } from "./types";
 import { Permission, hasPermission as checkPerm, getBranchScope } from "./permissions";
-import { SEED_USERS } from "./db/seed-data";
+
+const ANONYMOUS_USER: User = {
+  id: "guest",
+  name: "Guest",
+  email: "",
+  role: "employee",
+  employeeId: "",
+  branch: "Delhi",
+  department: "Unassigned",
+  avatar: "/img/logo.webp",
+};
 
 interface AuthContextType {
   currentUser: User;
@@ -21,14 +32,21 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User>(SEED_USERS[0]);
+  const pathname = usePathname();
+  const [currentUser, setCurrentUser] = useState<User>(ANONYMOUS_USER);
   const [session, setSession] = useState<UserSession | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [sessionRevokedError, setSessionRevokedError] = useState<string | null>(null);
 
+  const isCheckingRef = useRef(false);
+  const isNavigatingRef = useRef(false);
+
   // Checks the active session status with the server
   const checkSession = useCallback(async () => {
+    if (isNavigatingRef.current || isCheckingRef.current) return;
+    isCheckingRef.current = true;
+
     try {
       const res = await fetch("/api/auth/session");
       const data = await res.json();
@@ -46,42 +64,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSessionRevokedError(reasonMsg);
           setIsAuthenticated(false);
           setSession(null);
+          setCurrentUser(ANONYMOUS_USER);
 
           // If currently inside the application, redirect to login
           if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+            isNavigatingRef.current = true;
             window.location.href = "/login?reason=another_device";
           }
         } else if (res.status === 401) {
           setIsAuthenticated(false);
           setSession(null);
+          setCurrentUser(ANONYMOUS_USER);
         }
       }
-    } catch (e) {
+    } catch (e: any) {
+      // Ignore network abort/cancellation caused by window navigation, unmount, or tab unload
+      if (
+        isNavigatingRef.current ||
+        e?.name === "AbortError" ||
+        (e instanceof TypeError && e.message?.toLowerCase().includes("failed to fetch"))
+      ) {
+        return;
+      }
       console.warn("Session check error:", e);
     } finally {
+      isCheckingRef.current = false;
       setIsLoading(false);
     }
   }, []);
 
+  // Initial check on mount
   useEffect(() => {
     checkSession();
+  }, [checkSession]);
 
-    // Heartbeat every 12 seconds to instantly catch if user logged in on another device
-    const interval = setInterval(checkSession, 12000);
+  // Periodic heartbeat & tab focus check only when authenticated and on protected pages
+  useEffect(() => {
+    const isAuthPage =
+      pathname?.startsWith("/login") ||
+      pathname?.startsWith("/register") ||
+      pathname?.startsWith("/forgot-password");
 
-    // Also check immediately when window / tab regains focus
-    const onFocus = () => checkSession();
+    // Don't poll heartbeat if user is not authenticated or is on a public auth page
+    if (!isAuthenticated || isAuthPage) {
+      return;
+    }
+
+    // Heartbeat every 15 seconds to catch if user logged in on another device
+    const interval = setInterval(() => {
+      if (!isNavigatingRef.current && !isCheckingRef.current) {
+        checkSession();
+      }
+    }, 15000);
+
+    // Also check when window / tab regains focus
+    const onFocus = () => {
+      if (
+        !isNavigatingRef.current &&
+        !isCheckingRef.current &&
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible"
+      ) {
+        checkSession();
+      }
+    };
+
     window.addEventListener("focus", onFocus);
+    window.addEventListener("visibilitychange", onFocus);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("visibilitychange", onFocus);
     };
-  }, [checkSession]);
+  }, [checkSession, isAuthenticated, pathname]);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setIsLoading(true);
     setSessionRevokedError(null);
+    isNavigatingRef.current = false;
+
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -108,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    isNavigatingRef.current = true;
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch (e) {
@@ -115,6 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsAuthenticated(false);
       setSession(null);
+      setCurrentUser(ANONYMOUS_USER);
       if (typeof window !== "undefined") {
         window.location.href = "/login";
       }

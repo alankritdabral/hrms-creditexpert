@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { seedAllToFirestore, getFirestoreFreePlanMetrics } from "@/lib/firestore-service";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
+import { isLocalEnvironment } from "@/lib/env";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -20,6 +21,17 @@ export async function POST(req: NextRequest) {
 
   const permError = requirePermission(auth, "settings:manage");
   if (permError) return permError;
+
+  // Strict guard: Demo batch seeding is only permitted on local development hosts
+  if (!isLocalEnvironment(req)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Forbidden: Batch demo seeding is restricted to localhost environments.",
+      },
+      { status: 403 }
+    );
+  }
 
   try {
     const result = await seedAllToFirestore();

@@ -5,6 +5,7 @@ import { AttendancePolicy } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
+import { useIsLocalhost } from "@/lib/use-is-localhost";
 import {
   Sliders,
   Database,
@@ -21,6 +22,7 @@ import {
 
 export default function SettingsPage() {
   const { currentUser } = useAuth();
+  const isLocalhost = useIsLocalhost();
   const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
@@ -190,16 +192,18 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <Button
-            size="sm"
-            variant="outline"
-            icon={<UploadCloud className="w-4 h-4" />}
-            onClick={handleSyncFirestore}
-            isLoading={isSyncingFirestore}
-            className="w-full text-xs"
-          >
-            Batch Seed / Sync Collections to Firestore
-          </Button>
+          {isLocalhost && (
+            <Button
+              size="sm"
+              variant="outline"
+              icon={<UploadCloud className="w-4 h-4" />}
+              onClick={handleSyncFirestore}
+              isLoading={isSyncingFirestore}
+              className="w-full text-xs"
+            >
+              Batch Seed / Sync Collections to Firestore (Localhost Only)
+            </Button>
+          )}
         </div>
 
         {/* Firebase Spark Plan Quota & Optimization */}

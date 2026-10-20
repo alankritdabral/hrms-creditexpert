@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserAccountByEmail } from "@/lib/db/db-adapter";
 import { sendPasswordResetOtp } from "@/lib/email";
+import { isLocalEnvironment } from "@/lib/env";
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: result.message,
-      devOtp: result.devOtp,
+      devOtp: isLocalEnvironment(req) ? result.devOtp : undefined,
     });
   } catch (error: any) {
     console.error("forgot-password/send-otp error:", error);

@@ -1,4 +1,10 @@
 import nodemailer from "nodemailer";
+import {
+  saveDocumentToFirestore,
+  getDocumentFromFirestore,
+  deleteDocumentFromFirestore,
+} from "./firestore-service";
+import { isLocalEnvironment } from "./env";
 
 // In-memory OTP storage with TTL and rate limiting
 interface StoredOtp {
@@ -9,11 +15,20 @@ interface StoredOtp {
   createdAt: number;
 }
 
-// Global store to retain OTPs across requests during execution
-const otpStore = new Map<string, StoredOtp>();
+// Global store to retain OTPs across requests during Next.js dev execution
+const globalForOtp = globalThis as unknown as {
+  __hrms_otp_store?: Map<string, StoredOtp>;
+  __hrms_pwd_reset_otp_store?: Map<string, StoredOtp>;
+};
+
+const otpStore = (globalForOtp.__hrms_otp_store ??= new Map<string, StoredOtp>());
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS = 5;
+
+function getOtpDocId(email: string): string {
+  return "otp_" + email.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, "_");
+}
 
 // Check if SMTP is configured
 function getTransporter() {
@@ -53,13 +68,24 @@ export async function sendEmailOtp(
   const code = generateOtp();
   const now = Date.now();
 
-  otpStore.set(normalizedEmail, {
+  const record: StoredOtp = {
     otp: code,
     expiresAt: now + OTP_TTL_MS,
     attempts: 0,
     verified: false,
     createdAt: now,
-  });
+  };
+
+  otpStore.set(normalizedEmail, record);
+  saveDocumentToFirestore("otps", getOtpDocId(normalizedEmail), record).catch(() => {});
+
+  // Always log OTP in development console for fast verification & debugging
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`\n==================================================`);
+    console.log(`🔑 [DEV HRMS OTP] Recipient: ${normalizedEmail}`);
+    console.log(`🔑 [DEV HRMS OTP] 6-Digit Code: ${code} (Valid for 10 mins)`);
+    console.log(`==================================================\n`);
+  }
 
   const transporter = getTransporter();
   const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS" <no-reply@creditexpertindia.com>`;
@@ -101,35 +127,23 @@ export async function sendEmailOtp(
       return {
         success: true,
         message: `Verification code sent to ${normalizedEmail}.`,
+        devOtp: isLocalEnvironment() ? code : undefined,
       };
     } catch (error: any) {
       console.error("SMTP sendMail failed:", error);
-      // Fallback to dev log so testing never blocks
-      console.log(`\n==================================================`);
-      console.log(`🔑 [DEV HRMS OTP] Email: ${normalizedEmail}`);
-      console.log(`🔑 [DEV HRMS OTP] Code:  ${code} (Valid for 10 mins)`);
-      console.log(`==================================================\n`);
-
       return {
         success: true,
         message: `OTP logged to development console (SMTP failed: ${error.message}).`,
-        devOtp: process.env.NODE_ENV !== "production" ? code : undefined,
+        devOtp: isLocalEnvironment() ? code : undefined,
       };
     }
   }
 
   // Dev mode console fallback
-  console.log(`\n==================================================`);
-  console.log(`📧 [DEV EMAIL SIMULATOR] Recipient: ${normalizedEmail}`);
-  console.log(`🔑 [DEV EMAIL SIMULATOR] 6-Digit OTP: ${code}`);
-  console.log(`⏱️ [DEV EMAIL SIMULATOR] Valid for 10 minutes`);
-  console.log(`ℹ️ [DEV EMAIL SIMULATOR] Configure SMTP in .env.local to send real emails`);
-  console.log(`==================================================\n`);
-
   return {
     success: true,
     message: `Verification code generated. (Check server terminal for code).`,
-    devOtp: code,
+    devOtp: isLocalEnvironment() ? code : undefined,
   };
 }
 
@@ -141,7 +155,20 @@ export async function verifyEmailOtp(
   submittedOtp: string
 ): Promise<{ success: boolean; error?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
-  const record = otpStore.get(normalizedEmail);
+  let record = otpStore.get(normalizedEmail);
+
+  // Fallback to Firestore if memory store was refreshed
+  if (!record) {
+    try {
+      const doc = await getDocumentFromFirestore<StoredOtp>("otps", getOtpDocId(normalizedEmail));
+      if (doc) {
+        record = doc;
+        otpStore.set(normalizedEmail, record);
+      }
+    } catch (e) {
+      console.warn("Firestore OTP fetch fallback:", e);
+    }
+  }
 
   if (!record) {
     return {
@@ -152,6 +179,7 @@ export async function verifyEmailOtp(
 
   if (Date.now() > record.expiresAt) {
     otpStore.delete(normalizedEmail);
+    deleteDocumentFromFirestore("otps", getOtpDocId(normalizedEmail)).catch(() => {});
     return {
       success: false,
       error: "Verification code has expired. Please request a new one.",
@@ -160,6 +188,7 @@ export async function verifyEmailOtp(
 
   if (record.attempts >= MAX_ATTEMPTS) {
     otpStore.delete(normalizedEmail);
+    deleteDocumentFromFirestore("otps", getOtpDocId(normalizedEmail)).catch(() => {});
     return {
       success: false,
       error: "Maximum verification attempts exceeded. Please request a new OTP.",
@@ -170,6 +199,7 @@ export async function verifyEmailOtp(
 
   if (record.otp !== submittedOtp.trim()) {
     const remaining = MAX_ATTEMPTS - record.attempts;
+    saveDocumentToFirestore("otps", getOtpDocId(normalizedEmail), record).catch(() => {});
     return {
       success: false,
       error: `Invalid verification code. ${remaining} attempt(s) remaining.`,
@@ -177,16 +207,28 @@ export async function verifyEmailOtp(
   }
 
   record.verified = true;
+  saveDocumentToFirestore("otps", getOtpDocId(normalizedEmail), record).catch(() => {});
   return { success: true };
 }
 
 /**
  * Checks if an email has recently been verified via OTP
  */
-export function isEmailOtpVerified(email: string): boolean {
+export async function isEmailOtpVerified(email: string): Promise<boolean> {
   const normalizedEmail = email.toLowerCase().trim();
-  const record = otpStore.get(normalizedEmail);
-  return Boolean(record && record.verified && Date.now() <= record.expiresAt + 30 * 60 * 1000);
+  let record = otpStore.get(normalizedEmail);
+
+  if (!record) {
+    try {
+      const doc = await getDocumentFromFirestore<StoredOtp>("otps", getOtpDocId(normalizedEmail));
+      if (doc) {
+        record = doc;
+        otpStore.set(normalizedEmail, record);
+      }
+    } catch {}
+  }
+
+  return Boolean(record && record.verified && Date.now() <= record.expiresAt + 60 * 60 * 1000);
 }
 
 /**
@@ -261,7 +303,7 @@ export async function sendAccountApprovedEmail(
 // PASSWORD RESET OTP & NOTIFICATION ENGINE
 // ============================================================================
 
-const passwordResetOtpStore = new Map<string, StoredOtp>();
+const passwordResetOtpStore = (globalForOtp.__hrms_pwd_reset_otp_store ??= new Map<string, StoredOtp>());
 
 /**
  * Sends a 6-digit password reset OTP to the user's email address.
@@ -281,6 +323,13 @@ export async function sendPasswordResetOtp(
     verified: false,
     createdAt: now,
   });
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`\n==================================================`);
+    console.log(`🔑 [DEV HRMS RESET OTP] Recipient: ${normalizedEmail}`);
+    console.log(`🔑 [DEV HRMS RESET OTP] Code:      ${code} (Valid for 10 mins)`);
+    console.log(`==================================================\n`);
+  }
 
   const transporter = getTransporter();
   const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS Security" <security@creditexpertindia.com>`;
@@ -323,33 +372,30 @@ export async function sendPasswordResetOtp(
       return {
         success: true,
         message: `Password reset verification code sent to ${normalizedEmail}.`,
+        devOtp: isLocalEnvironment() ? code : undefined,
       };
     } catch (error: any) {
       console.error("SMTP sendMail failed for password reset:", error);
-      console.log(`\n==================================================`);
-      console.log(`🔑 [DEV HRMS RESET OTP] Email: ${normalizedEmail}`);
-      console.log(`🔑 [DEV HRMS RESET OTP] Code:  ${code} (Valid for 10 mins)`);
-      console.log(`==================================================\n`);
+      if (isLocalEnvironment()) {
+        console.log(`\n==================================================`);
+        console.log(`🔑 [DEV HRMS RESET OTP] Email: ${normalizedEmail}`);
+        console.log(`🔑 [DEV HRMS RESET OTP] Code:  ${code} (Valid for 10 mins)`);
+        console.log(`==================================================\n`);
+      }
 
       return {
         success: true,
         message: `Reset OTP logged to development console (SMTP failed: ${error.message}).`,
-        devOtp: process.env.NODE_ENV !== "production" ? code : undefined,
+        devOtp: isLocalEnvironment() ? code : undefined,
       };
     }
   }
 
   // Dev mode console fallback
-  console.log(`\n==================================================`);
-  console.log(`📧 [DEV EMAIL SIMULATOR - PASSWORD RESET] Recipient: ${normalizedEmail}`);
-  console.log(`🔑 [DEV EMAIL SIMULATOR - PASSWORD RESET] 6-Digit OTP: ${code}`);
-  console.log(`⏱️ [DEV EMAIL SIMULATOR - PASSWORD RESET] Valid for 10 minutes`);
-  console.log(`==================================================\n`);
-
   return {
     success: true,
     message: `Password reset code generated. (Check server terminal for code).`,
-    devOtp: code,
+    devOtp: isLocalEnvironment() ? code : undefined,
   };
 }
 

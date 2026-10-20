@@ -7,6 +7,17 @@ export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
 
   if (!auth.authenticated) {
+    if (auth.code === "UNAUTHENTICATED") {
+      return NextResponse.json(
+        {
+          success: false,
+          authenticated: false,
+          user: null,
+          session: null,
+        },
+        { status: 200 }
+      );
+    }
     return authFailureResponse(auth);
   }
 

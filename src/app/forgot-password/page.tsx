@@ -18,9 +18,11 @@ import {
   Sparkles,
   RefreshCw,
 } from "lucide-react";
+import { useIsLocalhost } from "@/lib/use-is-localhost";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const isLocalhost = useIsLocalhost();
 
   // Step: 1 = Email Input, 2 = OTP Verification, 3 = New Password, 4 = Success
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -266,8 +268,8 @@ export default function ForgotPasswordPage() {
                 </p>
               </div>
 
-              {/* Dev mode code helper */}
-              {devOtpCode && (
+              {/* Dev mode code helper (Only rendered on localhost) */}
+              {isLocalhost && devOtpCode && (
                 <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between">
                   <span>
                     🛠️ <strong>Dev Mode Code:</strong>{" "}

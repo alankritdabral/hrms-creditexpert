@@ -57,8 +57,11 @@ interface UploadedKycItem {
   error?: string;
 }
 
+import { useIsLocalhost } from "@/lib/use-is-localhost";
+
 export default function RegisterPage() {
   const router = useRouter();
+  const isLocalhost = useIsLocalhost();
 
   // Wizard Step: 1 = Account/OTP, 2 = Personal, 3 = Statutory, 4 = KYC Uploads, 5 = Done/Pending
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -374,8 +377,9 @@ export default function RegisterPage() {
   };
 
   // Step 1: Verify OTP
-  const handleVerifyOtp = async () => {
-    if (!otpCode || otpCode.trim().length !== 6) {
+  const handleVerifyOtp = async (codeOverride?: string) => {
+    const codeToVerify = (typeof codeOverride === "string" ? codeOverride : otpCode || "").trim();
+    if (!codeToVerify || codeToVerify.length !== 6) {
       setGlobalError("Please enter the 6-digit code received on your email.");
       return;
     }
@@ -387,7 +391,7 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp: otpCode.trim() }),
+        body: JSON.stringify({ email: email.trim(), otp: codeToVerify }),
       });
       const data = await res.json();
 
@@ -920,17 +924,20 @@ export default function RegisterPage() {
                       <span className="text-[11px] text-slate-400 font-mono">Valid 10 mins</span>
                     </div>
 
-                    {devOtpCode && (
+                    {isLocalhost && devOtpCode && (
                       <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between">
                         <span>
                           🛠️ <strong>Dev Mode Code:</strong> <span className="font-mono text-base font-bold">{devOtpCode}</span>
                         </span>
                         <button
                           type="button"
-                          onClick={() => setOtpCode(devOtpCode)}
-                          className="text-[11px] underline font-semibold text-amber-200 hover:text-white"
+                          onClick={() => {
+                            setOtpCode(devOtpCode);
+                            handleVerifyOtp(devOtpCode);
+                          }}
+                          className="text-[11px] underline font-semibold text-amber-200 hover:text-white cursor-pointer"
                         >
-                          Auto-fill
+                          Auto-fill & Confirm
                         </button>
                       </div>
                     )}
@@ -938,9 +945,23 @@ export default function RegisterPage() {
                     <div className="flex gap-2">
                       <input
                         type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
                         maxLength={6}
                         value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleVerifyOtp();
+                          }
+                        }}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                          setOtpCode(val);
+                          if (val.length === 6) {
+                            handleVerifyOtp(val);
+                          }
+                        }}
                         placeholder="••••••"
                         className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-center text-lg font-mono tracking-widest text-white focus:outline-none focus:border-indigo-400"
                       />
@@ -948,7 +969,7 @@ export default function RegisterPage() {
                         type="button"
                         variant="primary"
                         isLoading={isVerifyingOtp}
-                        onClick={handleVerifyOtp}
+                        onClick={() => handleVerifyOtp()}
                         className="text-xs"
                       >
                         Confirm OTP

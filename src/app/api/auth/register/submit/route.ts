@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Verify OTP was confirmed
-    const isOtpDone = isEmailOtpVerified(normalizedEmail);
+    const isOtpDone = await isEmailOtpVerified(normalizedEmail);
     if (!isOtpDone) {
       return NextResponse.json(
         {
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 10. Clean up any saved incomplete draft
-    deleteRegistrationDraft(normalizedEmail).catch(() => {});
+    deleteRegistrationDraft(normalizedEmail).catch(() => { });
 
     return NextResponse.json({
       success: true,

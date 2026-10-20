@@ -51,30 +51,33 @@ import {
   saveDocumentToFirestore,
   deleteDocumentFromFirestore,
 } from "../firestore-service";
+import { isLocalEnvironment } from "../env";
 
 // Memory storage for fallback/dev cache
 class MemoryStore {
-  users: User[] = [...SEED_USERS];
-  userAccounts: UserAccount[] = [...SEED_USER_ACCOUNTS];
+  // Only load seed/mock demo data on local development workstation
+  users: User[] = isLocalEnvironment() ? [...SEED_USERS] : [];
+  userAccounts: UserAccount[] = isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : [];
   sessions: UserSession[] = [];
-  employees: Employee[] = [...INITIAL_EMPLOYEES];
-  attendance: AttendanceRecord[] = [...INITIAL_ATTENDANCE];
-  leaves: LeaveRequest[] = [...INITIAL_LEAVES];
-  incentiveSchemes: IncentiveScheme[] = [...INITIAL_INCENTIVE_SCHEMES];
-  employeeIncentives: EmployeeIncentiveRecord[] = [...INITIAL_EMPLOYEE_INCENTIVES];
-  assets: AssetRecord[] = [...INITIAL_ASSETS];
-  requests: EmployeeRequestItem[] = [...INITIAL_REQUESTS];
-  announcements: AnnouncementItem[] = [...INITIAL_ANNOUNCEMENTS];
-  documents: EmployeeDocument[] = [...INITIAL_DOCUMENTS];
-  auditLogs: AuditLogItem[] = [...INITIAL_AUDIT_LOGS];
-  payrollRuns: PayrollRun[] = [...INITIAL_PAYROLL_RUNS];
+  employees: Employee[] = isLocalEnvironment() ? [...INITIAL_EMPLOYEES] : [];
+  attendance: AttendanceRecord[] = isLocalEnvironment() ? [...INITIAL_ATTENDANCE] : [];
+  leaves: LeaveRequest[] = isLocalEnvironment() ? [...INITIAL_LEAVES] : [];
+  incentiveSchemes: IncentiveScheme[] = isLocalEnvironment() ? [...INITIAL_INCENTIVE_SCHEMES] : [];
+  employeeIncentives: EmployeeIncentiveRecord[] = isLocalEnvironment() ? [...INITIAL_EMPLOYEE_INCENTIVES] : [];
+  assets: AssetRecord[] = isLocalEnvironment() ? [...INITIAL_ASSETS] : [];
+  requests: EmployeeRequestItem[] = isLocalEnvironment() ? [...INITIAL_REQUESTS] : [];
+  announcements: AnnouncementItem[] = isLocalEnvironment() ? [...INITIAL_ANNOUNCEMENTS] : [];
+  documents: EmployeeDocument[] = isLocalEnvironment() ? [...INITIAL_DOCUMENTS] : [];
+  auditLogs: AuditLogItem[] = isLocalEnvironment() ? [...INITIAL_AUDIT_LOGS] : [];
+  payrollRuns: PayrollRun[] = isLocalEnvironment() ? [...INITIAL_PAYROLL_RUNS] : [];
   policy: AttendancePolicy = { ...INITIAL_POLICY };
-  holidays: Holiday[] = [...INITIAL_HOLIDAYS];
-  onboardingRecords: OnboardingRecord[] = [...INITIAL_ONBOARDING_RECORDS];
+  holidays: Holiday[] = isLocalEnvironment() ? [...INITIAL_HOLIDAYS] : [];
+  onboardingRecords: OnboardingRecord[] = isLocalEnvironment() ? [...INITIAL_ONBOARDING_RECORDS] : [];
   registrationDrafts: Map<string, RegistrationDraft> = new Map();
 }
 
-const memory = new MemoryStore();
+const globalForMemory = globalThis as unknown as { __hrms_memory_store?: MemoryStore };
+const memory = (globalForMemory.__hrms_memory_store ??= new MemoryStore());
 
 // Helper to log audit events
 export async function recordAuditLog({
@@ -990,8 +993,6 @@ export async function deleteHoliday(
 
 export async function getUserAccountByEmail(email: string): Promise<UserAccount | null> {
   const normalized = email.toLowerCase().trim();
-  const memoryUser = memory.userAccounts.find((u) => u.email.toLowerCase() === normalized);
-  if (memoryUser) return memoryUser;
 
   try {
     const firestoreUsers = await getCollectionFromFirestore<UserAccount>("users");
@@ -1001,18 +1002,27 @@ export async function getUserAccountByEmail(email: string): Promise<UserAccount 
     console.warn("Firestore getUserAccountByEmail fallback:", e);
   }
 
+  // Only allow demo/seed account fallback on local host
+  if (isLocalEnvironment()) {
+    const memoryUser = memory.userAccounts.find((u) => u.email.toLowerCase() === normalized);
+    if (memoryUser) return memoryUser;
+  }
+
   return null;
 }
 
 export async function getUserAccountById(uid: string): Promise<UserAccount | null> {
-  const memoryUser = memory.userAccounts.find((u) => u.uid === uid);
-  if (memoryUser) return memoryUser;
-
   try {
     const doc = await getDocumentFromFirestore<UserAccount>("users", uid);
     if (doc) return doc;
   } catch (e) {
     console.warn("Firestore getUserAccountById fallback:", e);
+  }
+
+  // Only allow demo/seed account fallback on local host
+  if (isLocalEnvironment()) {
+    const memoryUser = memory.userAccounts.find((u) => u.uid === uid);
+    if (memoryUser) return memoryUser;
   }
 
   return null;
@@ -1522,7 +1532,7 @@ export async function activateOnboardedEmployee(
   saveDocumentToFirestore("onboarding", onboardingId, record).catch(() => {});
 
   // 1. Activate or create official UserAccount
-  let userAccount = await getUserAccountByEmail(record.email);
+  const userAccount = await getUserAccountByEmail(record.email);
   if (userAccount) {
     userAccount.status = "Active";
     userAccount.employeeId = newEmpId;

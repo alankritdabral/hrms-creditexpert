@@ -142,7 +142,7 @@ export async function authenticateRequest(req: Request | NextRequest): Promise<A
  * Helper to build an immediate error Response when authentication fails.
  */
 export function authFailureResponse(failure: AuthFailure): NextResponse {
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       success: false,
       error: failure.error,
@@ -151,6 +151,25 @@ export function authFailureResponse(failure: AuthFailure): NextResponse {
     },
     { status: failure.status }
   );
+
+  // Clear dead or revoked session cookie from browser
+  if (
+    failure.code === "SESSION_REVOKED" ||
+    failure.code === "SESSION_EXPIRED" ||
+    failure.code === "UNAUTHENTICATED"
+  ) {
+    response.cookies.set({
+      name: "hrms_session_id",
+      value: "",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+  }
+
+  return response;
 }
 
 /**
