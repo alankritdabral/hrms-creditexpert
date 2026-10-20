@@ -24,9 +24,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   }, [isLoading, isAuthenticated, isAuthPage, pathname, router]);
 
   if (isAuthPage) {
+    if (pathname === "/register") {
+      return <>{children}</>;
+    }
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#f0f7ff] via-[#ffffff] to-[#e6f0fa] text-[#0a2540] flex items-center justify-center p-3 sm:p-4">
-        <div className={`w-full ${pathname === "/register" ? "max-w-4xl" : "max-w-md"}`}>
+        <div className="w-full max-w-md">
           {children}
         </div>
       </div>

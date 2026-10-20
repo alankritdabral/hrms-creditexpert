@@ -26,9 +26,24 @@ import {
   AlertTriangle,
   RefreshCw,
   Home,
+  Save,
+  Bookmark,
+  RotateCcw,
+  Check,
+  X,
 } from "lucide-react";
-import { Branch, BRANCHES } from "@/lib/types";
+import { Branch, BRANCHES, RegistrationDraft } from "@/lib/types";
 import { validateKycFile, MAX_KYC_FILE_SIZE_LABEL } from "@/lib/upload-validation";
+import {
+  saveLocalDraft,
+  getLocalDraft,
+  clearLocalDraft,
+  saveServerDraft,
+  fetchServerDraft,
+  deleteServerDraft,
+  formatTimeAgo,
+  STEP_NAMES,
+} from "@/lib/registration-draft";
 
 interface UploadedKycItem {
   type: "pan_card" | "aadhaar_card" | "cancelled_cheque" | "photograph";
@@ -113,6 +128,213 @@ export default function RegisterPage() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
+
+  // Incomplete Registration Draft Persistence
+  const [pendingResumeDraft, setPendingResumeDraft] = useState<RegistrationDraft | null>(null);
+  const [lastSavedNotice, setLastSavedNotice] = useState<string | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [highestStep, setHighestStep] = useState<number>(1);
+  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+  const [emailDraftChecked, setEmailDraftChecked] = useState(false);
+
+  // 1. Initial Load: Check for saved draft in localStorage
+  React.useEffect(() => {
+    const local = getLocalDraft();
+    if (local && (local.candidateName || local.email || (local.currentStep && local.currentStep > 1))) {
+      setPendingResumeDraft(local);
+      setHighestStep(local.highestStep || local.currentStep || 1);
+      setLastSavedNotice(`Saved ${formatTimeAgo(local.lastSavedAt)}`);
+    }
+    setIsInitialLoaded(true);
+  }, []);
+
+  // 2. Debounced Auto-Save
+  React.useEffect(() => {
+    if (!isInitialLoaded || currentStep >= 5 || submissionSuccess) return;
+    if (!candidateName && !email) return;
+
+    const timer = setTimeout(() => {
+      saveDraftState(false);
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [
+    candidateName,
+    email,
+    password,
+    confirmPassword,
+    phone,
+    branch,
+    currentStep,
+    highestStep,
+    otpVerified,
+    dob,
+    gender,
+    parentsName,
+    currentAddress,
+    permanentAddress,
+    emergencyName,
+    emergencyRelation,
+    emergencyPhone,
+    panNumber,
+    aadhaarNumber,
+    bankName,
+    bankAccountNumber,
+    ifscCode,
+    kycDocs,
+    isInitialLoaded,
+    submissionSuccess,
+  ]);
+
+  // Saves current draft to localStorage and optionally server
+  const saveDraftState = async (explicit: boolean = false) => {
+    if (currentStep >= 5) return;
+    if (explicit) setIsSavingDraft(true);
+
+    const newHighest = Math.max(highestStep, currentStep);
+    setHighestStep(newHighest);
+
+    const draftData: RegistrationDraft = {
+      candidateName,
+      email,
+      password,
+      confirmPassword,
+      phone,
+      branch,
+      currentStep,
+      highestStep: newHighest,
+      otpVerified,
+      personalDetails: {
+        dob,
+        gender,
+        parentsName,
+        currentAddress,
+        permanentAddress,
+        emergencyName,
+        emergencyRelation,
+        emergencyPhone,
+      },
+      statutoryDetails: {
+        panNumber,
+        aadhaarNumber,
+        bankName,
+        bankAccountNumber,
+        ifscCode,
+      },
+      kycDocuments: kycDocs,
+      lastSavedAt: new Date().toISOString(),
+    };
+
+    saveLocalDraft(draftData);
+
+    if (email && email.includes("@")) {
+      saveServerDraft(email, draftData).catch(() => {});
+    }
+
+    setLastSavedNotice("Saved just now");
+
+    if (explicit) {
+      setIsSavingDraft(false);
+      setShowSaveModal(true);
+    }
+  };
+
+  // Restore draft handler
+  const handleResumeDraft = () => {
+    if (!pendingResumeDraft) return;
+
+    setCandidateName(pendingResumeDraft.candidateName || "");
+    setEmail(pendingResumeDraft.email || "");
+    setPassword(pendingResumeDraft.password || "");
+    setConfirmPassword(pendingResumeDraft.confirmPassword || pendingResumeDraft.password || "");
+    setPhone(pendingResumeDraft.phone || "");
+    setBranch(pendingResumeDraft.branch || "Delhi");
+
+    if (pendingResumeDraft.otpVerified) {
+      setOtpVerified(true);
+      setOtpSent(true);
+    }
+
+    if (pendingResumeDraft.personalDetails) {
+      setDob(pendingResumeDraft.personalDetails.dob || "1996-05-15");
+      setGender(pendingResumeDraft.personalDetails.gender || "Male");
+      setParentsName(pendingResumeDraft.personalDetails.parentsName || "");
+      setCurrentAddress(pendingResumeDraft.personalDetails.currentAddress || "");
+      setPermanentAddress(pendingResumeDraft.personalDetails.permanentAddress || "");
+      setEmergencyName(pendingResumeDraft.personalDetails.emergencyName || "");
+      setEmergencyRelation(pendingResumeDraft.personalDetails.emergencyRelation || "Parent");
+      setEmergencyPhone(pendingResumeDraft.personalDetails.emergencyPhone || "");
+    }
+
+    if (pendingResumeDraft.statutoryDetails) {
+      setPanNumber(pendingResumeDraft.statutoryDetails.panNumber || "");
+      setAadhaarNumber(pendingResumeDraft.statutoryDetails.aadhaarNumber || "");
+      setBankName(pendingResumeDraft.statutoryDetails.bankName || "");
+      setBankAccountNumber(pendingResumeDraft.statutoryDetails.bankAccountNumber || "");
+      setIfscCode(pendingResumeDraft.statutoryDetails.ifscCode || "");
+    }
+
+    if (pendingResumeDraft.kycDocuments) {
+      setKycDocs((prev) => ({
+        ...prev,
+        ...pendingResumeDraft.kycDocuments,
+      }));
+    }
+
+    const targetStep = pendingResumeDraft.currentStep || pendingResumeDraft.highestStep || 1;
+    setCurrentStep(targetStep);
+    setHighestStep(pendingResumeDraft.highestStep || targetStep);
+    setPendingResumeDraft(null);
+    setGlobalError(null);
+  };
+
+  // Discard draft handler
+  const handleDiscardDraft = () => {
+    clearLocalDraft();
+    if (pendingResumeDraft?.email) {
+      deleteServerDraft(pendingResumeDraft.email).catch(() => {});
+    }
+    setPendingResumeDraft(null);
+    setCandidateName("");
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+    setPhone("");
+    setBranch("Delhi");
+    setOtpCode("");
+    setOtpSent(false);
+    setOtpVerified(false);
+    setDevOtpCode(null);
+    setDob("1996-05-15");
+    setGender("Male");
+    setParentsName("");
+    setCurrentAddress("");
+    setPermanentAddress("");
+    setEmergencyName("");
+    setEmergencyPhone("");
+    setPanNumber("");
+    setAadhaarNumber("");
+    setBankName("");
+    setBankAccountNumber("");
+    setIfscCode("");
+    setCurrentStep(1);
+    setHighestStep(1);
+    setLastSavedNotice(null);
+    setGlobalError(null);
+  };
+
+  // Check server draft when typing email in Step 1
+  const handleCheckEmailDraft = async (inputEmail: string) => {
+    if (!inputEmail || !inputEmail.includes("@") || pendingResumeDraft || emailDraftChecked) return;
+    try {
+      const serverDraft = await fetchServerDraft(inputEmail);
+      if (serverDraft && (serverDraft.currentStep > 1 || serverDraft.candidateName || serverDraft.otpVerified)) {
+        setPendingResumeDraft(serverDraft);
+        setEmailDraftChecked(true);
+      }
+    } catch {}
+  };
 
   // Step 1: Send OTP
   const handleSendOtp = async () => {
@@ -207,6 +429,7 @@ export default function RegisterPage() {
       return;
     }
 
+    setHighestStep((h) => Math.max(h, 2));
     setCurrentStep(2);
   };
 
@@ -220,6 +443,7 @@ export default function RegisterPage() {
       return;
     }
 
+    setHighestStep((h) => Math.max(h, 3));
     setCurrentStep(3);
   };
 
@@ -246,6 +470,7 @@ export default function RegisterPage() {
       return;
     }
 
+    setHighestStep((h) => Math.max(h, 4));
     setCurrentStep(4);
   };
 
@@ -400,6 +625,9 @@ export default function RegisterPage() {
       } else {
         setSubmissionSuccess(true);
         setCurrentStep(5);
+        clearLocalDraft();
+        deleteServerDraft(email).catch(() => {});
+        setPendingResumeDraft(null);
       }
     } catch (err: any) {
       setGlobalError(err.message || "An unexpected error occurred while submitting.");
@@ -454,16 +682,31 @@ export default function RegisterPage() {
               ].map((item) => {
                 const isActive = currentStep === item.step;
                 const isDone = currentStep > item.step;
+                const isAccessible = item.step <= highestStep;
 
                 return (
-                  <div key={item.step} className="flex flex-col items-center">
+                  <button
+                    key={item.step}
+                    type="button"
+                    disabled={!isAccessible}
+                    onClick={() => {
+                      if (isAccessible) {
+                        setCurrentStep(item.step);
+                      }
+                    }}
+                    className={`flex flex-col items-center group transition-all ${
+                      isAccessible ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+                    }`}
+                  >
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all mb-2 ${
                         isDone
-                          ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                          ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20 group-hover:ring-2 group-hover:ring-emerald-400"
                           : isActive
                           ? "bg-indigo-600 text-white ring-4 ring-indigo-500/20"
-                          : "bg-slate-800 text-slate-400 border border-slate-700"
+                          : isAccessible
+                          ? "bg-slate-800 text-indigo-300 border border-indigo-500/40 group-hover:border-indigo-400"
+                          : "bg-slate-800 text-slate-500 border border-slate-700"
                       }`}
                     >
                       {isDone ? <CheckCircle2 className="w-4 h-4" /> : item.step}
@@ -479,7 +722,7 @@ export default function RegisterPage() {
                     >
                       {item.title}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -492,6 +735,53 @@ export default function RegisterPage() {
           </div>
         )}
 
+        {/* Incomplete Registration Detected Banner */}
+        {pendingResumeDraft && (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-blue-900/60 via-indigo-900/50 to-slate-900/80 border border-blue-500/40 shadow-xl shadow-blue-900/20 backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-400/30 shrink-0">
+                  <Bookmark className="w-5 h-5 text-blue-300" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white tracking-tight">
+                      Incomplete Registration Found
+                    </h3>
+                    <span className="text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-400/30">
+                      Step {pendingResumeDraft.currentStep || pendingResumeDraft.highestStep || 1} of 4
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1">
+                    Applicant: <strong className="text-white">{pendingResumeDraft.candidateName || "Candidate"}</strong> ({pendingResumeDraft.email}) • Saved {formatTimeAgo(pendingResumeDraft.lastSavedAt)}
+                  </p>
+                  <p className="text-[11px] text-blue-300/80 mt-0.5">
+                    {STEP_NAMES[pendingResumeDraft.currentStep || pendingResumeDraft.highestStep || 1] || "Registration Progress"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={handleResumeDraft}
+                  className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Resume Step {pendingResumeDraft.currentStep || pendingResumeDraft.highestStep || 1}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDiscardDraft}
+                  className="px-3 py-2 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-slate-800/80 text-xs font-medium border border-slate-700/60 transition-colors cursor-pointer"
+                  title="Discard this draft and start a new registration"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Global Error Banner */}
         {globalError && (
           <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-rose-300 text-xs animate-shake">
@@ -500,6 +790,27 @@ export default function RegisterPage() {
               <span className="font-semibold block text-rose-200">Registration Notice</span>
               {globalError}
             </div>
+          </div>
+        )}
+
+        {/* Auto-save bar and Save & Continue Later button */}
+        {currentStep < 5 && (
+          <div className="flex items-center justify-between mb-3 px-1 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-slate-400 font-mono text-[11px]">
+                {lastSavedNotice || "Draft auto-saved locally"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => saveDraftState(true)}
+              disabled={isSavingDraft}
+              className="inline-flex items-center gap-1.5 text-xs text-slate-300 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all cursor-pointer shadow-xs"
+            >
+              <Save className="w-3.5 h-3.5 text-blue-400" />
+              <span>{isSavingDraft ? "Saving..." : "Save & Continue Later"}</span>
+            </button>
           </div>
         )}
 
@@ -574,6 +885,7 @@ export default function RegisterPage() {
                         disabled={otpVerified}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                        onBlur={(e) => handleCheckEmailDraft(e.target.value)}
                         placeholder="e.g. ramesh.sharma@gmail.com"
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60 transition-colors"
                       />
@@ -700,13 +1012,23 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end">
+              <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => saveDraftState(true)}
+                  disabled={isSavingDraft || (!candidateName && !email)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5 text-indigo-400" />
+                  {isSavingDraft ? "Saving..." : "Save & Continue Later"}
+                </button>
                 <Button
                   type="submit"
                   variant="primary"
                   size="md"
                   icon={<ArrowRight className="w-4 h-4" />}
                   disabled={!otpVerified}
+                  className="w-full sm:w-auto"
                 >
                   Continue to Personal Details
                 </Button>
@@ -864,24 +1186,37 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+              <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <Button
                   type="button"
                   variant="ghost"
                   size="md"
                   icon={<ArrowLeft className="w-4 h-4" />}
                   onClick={() => setCurrentStep(1)}
+                  className="w-full sm:w-auto"
                 >
                   Back
                 </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="md"
-                  icon={<ArrowRight className="w-4 h-4" />}
-                >
-                  Continue to Bank & Statutory Details
-                </Button>
+                <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => saveDraftState(true)}
+                    disabled={isSavingDraft}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5 text-indigo-400" />
+                    {isSavingDraft ? "Saving..." : "Save & Continue Later"}
+                  </button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    icon={<ArrowRight className="w-4 h-4" />}
+                    className="w-full sm:w-auto"
+                  >
+                    Continue to Bank & Statutory Details
+                  </Button>
+                </div>
               </div>
             </form>
           )}
@@ -986,24 +1321,37 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+              <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <Button
                   type="button"
                   variant="ghost"
                   size="md"
                   icon={<ArrowLeft className="w-4 h-4" />}
                   onClick={() => setCurrentStep(2)}
+                  className="w-full sm:w-auto"
                 >
                   Back
                 </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="md"
-                  icon={<ArrowRight className="w-4 h-4" />}
-                >
-                  Continue to Document Uploads
-                </Button>
+                <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => saveDraftState(true)}
+                    disabled={isSavingDraft}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5 text-indigo-400" />
+                    {isSavingDraft ? "Saving..." : "Save & Continue Later"}
+                  </button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    icon={<ArrowRight className="w-4 h-4" />}
+                    className="w-full sm:w-auto"
+                  >
+                    Continue to Document Uploads
+                  </Button>
+                </div>
               </div>
             </form>
           )}
@@ -1150,26 +1498,39 @@ export default function RegisterPage() {
                 </span>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+              <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <Button
                   type="button"
                   variant="ghost"
                   size="md"
                   icon={<ArrowLeft className="w-4 h-4" />}
                   onClick={() => setCurrentStep(3)}
+                  className="w-full sm:w-auto"
                 >
                   Back
                 </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  isLoading={isSubmittingFinal}
-                  onClick={handleSubmitApplication}
-                  icon={<CheckCircle2 className="w-4 h-4" />}
-                >
-                  Submit Application for HR Approval
-                </Button>
+                <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => saveDraftState(true)}
+                    disabled={isSavingDraft}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5 text-indigo-400" />
+                    {isSavingDraft ? "Saving..." : "Save & Continue Later"}
+                  </button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    isLoading={isSubmittingFinal}
+                    onClick={handleSubmitApplication}
+                    icon={<CheckCircle2 className="w-4 h-4" />}
+                    className="w-full sm:w-auto"
+                  >
+                    Submit Application for HR Approval
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -1239,6 +1600,62 @@ export default function RegisterPage() {
           )}
         </div>
       </main>
+
+      {/* Draft Saved Confirmation Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl text-slate-200">
+            <button
+              type="button"
+              onClick={() => setShowSaveModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                <Check className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Registration Progress Saved</h3>
+                <p className="text-xs text-slate-400">Step {currentStep} of 4 • {STEP_NAMES[currentStep]}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed mb-4">
+              Your registration progress has been securely saved. You can safely close your browser or navigate away. When you return to the registration page, your inputs and uploaded documents will be waiting for you.
+            </p>
+
+            {email && (
+              <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/20 text-xs text-indigo-200 flex items-start gap-2.5 mb-5">
+                <Mail className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                <span>
+                  Synchronized with <strong>{email}</strong>. Entering this email on any device will allow you to continue.
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => router.push("/login")}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80 transition-colors cursor-pointer"
+              >
+                Exit to Sign In
+              </button>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => setShowSaveModal(false)}
+              >
+                Continue Editing
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-900 bg-slate-950 px-6 py-4 text-center text-xs text-slate-500">

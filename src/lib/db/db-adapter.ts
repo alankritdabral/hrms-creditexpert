@@ -41,6 +41,7 @@ import {
   KycDocumentItem,
   STANDARD_ONBOARDING_CHECKLIST,
   EmploymentStatus,
+  RegistrationDraft,
 } from "../types";
 import { calculateSalaryBreakdown } from "../payroll-engine";
 import { sendAccountApprovedEmail } from "../email";
@@ -70,6 +71,7 @@ class MemoryStore {
   policy: AttendancePolicy = { ...INITIAL_POLICY };
   holidays: Holiday[] = [...INITIAL_HOLIDAYS];
   onboardingRecords: OnboardingRecord[] = [...INITIAL_ONBOARDING_RECORDS];
+  registrationDrafts: Map<string, RegistrationDraft> = new Map();
 }
 
 const memory = new MemoryStore();
@@ -1560,3 +1562,66 @@ export async function activateOnboardedEmployee(
 
   return { onboarding: record, employee: newEmployee };
 }
+
+// ============================================================================
+// INCOMPLETE REGISTRATION DRAFT ENGINE
+// ============================================================================
+
+export async function saveRegistrationDraft(
+  email: string,
+  draft: RegistrationDraft
+): Promise<void> {
+  const normalized = email.toLowerCase().trim();
+  const safeId = normalized.replace(/[^a-z0-9]/g, "_");
+  memory.registrationDrafts.set(normalized, draft);
+
+  try {
+    await saveDocumentToFirestore("registration_drafts", safeId, {
+      ...draft,
+      email: normalized,
+      id: safeId,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn("Firestore saveRegistrationDraft fallback:", e);
+  }
+}
+
+export async function getRegistrationDraft(
+  email: string
+): Promise<RegistrationDraft | null> {
+  const normalized = email.toLowerCase().trim();
+  const safeId = normalized.replace(/[^a-z0-9]/g, "_");
+
+  const memDraft = memory.registrationDrafts.get(normalized);
+  if (memDraft) return memDraft;
+
+  try {
+    const firestoreDraft = await getDocumentFromFirestore<RegistrationDraft>(
+      "registration_drafts",
+      safeId
+    );
+    if (firestoreDraft) {
+      memory.registrationDrafts.set(normalized, firestoreDraft);
+      return firestoreDraft;
+    }
+  } catch (e) {
+    console.warn("Firestore getRegistrationDraft fallback:", e);
+  }
+
+  return null;
+}
+
+export async function deleteRegistrationDraft(email: string): Promise<void> {
+  const normalized = email.toLowerCase().trim();
+  const safeId = normalized.replace(/[^a-z0-9]/g, "_");
+
+  memory.registrationDrafts.delete(normalized);
+
+  try {
+    await deleteDocumentFromFirestore("registration_drafts", safeId);
+  } catch (e) {
+    console.warn("Firestore deleteRegistrationDraft fallback:", e);
+  }
+}
+

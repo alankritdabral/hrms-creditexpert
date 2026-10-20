@@ -4,6 +4,7 @@ import {
   createUserAccount,
   createOnboardingRecord,
   recordAuditLog,
+  deleteRegistrationDraft,
 } from "@/lib/db/db-adapter";
 import { isEmailOtpVerified } from "@/lib/email";
 import { MAX_KYC_FILE_SIZE_BYTES } from "@/lib/upload-validation";
@@ -208,6 +209,9 @@ export async function POST(req: NextRequest) {
       action: "CANDIDATE_SELF_REGISTERED",
       details: `Candidate self-registered from ${branch} branch. 4 KYC documents uploaded (each <= 2MB). Application status: Pending HR/Admin verification.`,
     });
+
+    // 10. Clean up any saved incomplete draft
+    deleteRegistrationDraft(normalizedEmail).catch(() => {});
 
     return NextResponse.json({
       success: true,

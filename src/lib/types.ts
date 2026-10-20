@@ -481,3 +481,46 @@ export const LIFECYCLE_STAGES: { status: EmploymentStatus; label: string; step: 
   { status: "Exited", label: "Exited", step: 11, description: "Full & Final settlement completed" },
 ];
 
+export interface RegistrationDraft {
+  candidateName: string;
+  email: string;
+  password?: string;
+  confirmPassword?: string;
+  phone: string;
+  branch: Branch;
+  currentStep: number;
+  highestStep: number;
+  otpVerified: boolean;
+  personalDetails: {
+    dob: string;
+    gender: "Male" | "Female" | "Other";
+    parentsName: string;
+    currentAddress: string;
+    permanentAddress: string;
+    emergencyName: string;
+    emergencyRelation: string;
+    emergencyPhone: string;
+  };
+  statutoryDetails: {
+    panNumber: string;
+    aadhaarNumber: string;
+    bankName: string;
+    bankAccountNumber: string;
+    ifscCode: string;
+  };
+  kycDocuments: Record<
+    string,
+    {
+      type: "pan_card" | "aadhaar_card" | "cancelled_cheque" | "photograph";
+      title: string;
+      fileUrl: string;
+      publicId?: string;
+      fileSize?: number;
+      formattedSize?: string;
+      uploadedAt: string;
+    }
+  >;
+  lastSavedAt: string;
+}
+
+
