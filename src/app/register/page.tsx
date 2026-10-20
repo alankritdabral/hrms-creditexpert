@@ -486,14 +486,17 @@ export default function RegisterPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 1. Client-Side Strict 2 MB Limit Validation
+    // 1. Client-Side Strict 2 MB Limit and Format Validation
     const validation = validateKycFile({
       name: file.name,
       size: file.size,
       type: file.type,
+      documentType: docKey,
     });
 
     if (!validation.valid) {
+      // Reset input element so user can re-select
+      e.target.value = "";
       setKycDocs((prev) => ({
         ...prev,
         [docKey]: {
@@ -1412,12 +1415,12 @@ export default function RegisterPage() {
                   {
                     key: "cancelled_cheque" as const,
                     title: "3. Cancelled Cheque / Passbook *",
-                    desc: "Proof of bank account showing name, account & IFSC",
+                    desc: "Proof of bank account showing name, account & IFSC (PDF, JPG, PNG, WEBP)",
                   },
                   {
                     key: "photograph" as const,
                     title: "4. Passport Size Photograph *",
-                    desc: "Recent formal face portrait on plain background",
+                    desc: "Recent formal face portrait (JPG, PNG, WEBP only — no PDFs)",
                   },
                 ].map((item) => {
                   const doc = kycDocs[item.key];
@@ -1472,7 +1475,11 @@ export default function RegisterPage() {
                       <label className="cursor-pointer block">
                         <input
                           type="file"
-                          accept=".pdf,.png,.jpg,.jpeg,.webp"
+                          accept={
+                            item.key === "photograph"
+                              ? ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                              : ".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                          }
                           className="hidden"
                           disabled={doc.uploading}
                           onChange={(e) => handleFileUpload(item.key, e)}

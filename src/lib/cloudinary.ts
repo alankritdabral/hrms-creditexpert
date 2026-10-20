@@ -41,7 +41,8 @@ export async function uploadKycDocument(
   const sanitizedIdentifier = userIdentifier.replace(/[^a-zA-Z0-9_-]/g, "_");
   const folder = `hrms_kyc/${sanitizedIdentifier}`;
   const baseName = path.parse(filename).name.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const publicId = `${folder}/${baseName}_${Date.now()}`;
+  // Cloudinary automatically prefixes `folder` when folder option is provided
+  const publicId = `${baseName}_${Date.now()}`;
 
   // If Cloudinary is fully configured in .env.local
   if (isCloudinaryConfigured) {

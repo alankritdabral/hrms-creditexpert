@@ -96,13 +96,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Enforce 2 MB limit on each submitted file metadata
+    // 5. Enforce 2 MB limit and allowed format on each submitted file metadata
     for (const doc of docList) {
       if (doc.fileSize && doc.fileSize > MAX_KYC_FILE_SIZE_BYTES) {
         return NextResponse.json(
           {
             success: false,
             error: `Document "${doc.title || doc.type}" exceeds the 2 MB limit.`,
+          },
+          { status: 400 }
+        );
+      }
+      const title = (doc.title || "").toLowerCase();
+      const ext = "." + (title.split(".").pop() || "");
+      if (doc.type === "photograph" && (ext === ".pdf" || doc.fileUrl?.includes(".pdf"))) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Passport photograph must be an image format (JPG, PNG, or WEBP), not a PDF.",
           },
           { status: 400 }
         );

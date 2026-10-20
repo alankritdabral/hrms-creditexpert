@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateKycFile, MAX_KYC_FILE_SIZE_LABEL } from "@/lib/upload-validation";
+import {
+  validateKycFile,
+  validateFileBufferSignature,
+  MAX_KYC_FILE_SIZE_LABEL,
+} from "@/lib/upload-validation";
 import { uploadKycDocument } from "@/lib/cloudinary";
 
 export async function POST(req: NextRequest) {
@@ -16,11 +20,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Enforce strict 2 MB file size limit and MIME validation
+    // 1. Enforce strict 2 MB file size limit, document type rules, and format/extension validation
     const validation = validateKycFile({
       name: file.name,
       size: file.size,
       type: file.type,
+      documentType,
     });
 
     if (!validation.valid) {
@@ -38,6 +43,18 @@ export async function POST(req: NextRequest) {
     // 2. Read file buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    // 2b. Verify binary file signature (magic bytes) to prevent spoofed/renamed files
+    const signatureValidation = validateFileBufferSignature(buffer, file.name, documentType);
+    if (!signatureValidation.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: signatureValidation.error || "Invalid file content format.",
+        },
+        { status: 400 }
+      );
+    }
 
     // 3. Upload to Cloudinary (with local fallback if keys not configured)
     const result = await uploadKycDocument(buffer, file.name, file.type, userIdentifier);
