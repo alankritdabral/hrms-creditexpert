@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // CREDIT EXPERT INDIA HRMS & PLATFORM COLLECTIONS
+    // Full Read & Write Permissions Granted
+    // =========================================================================
+
+    // Universal Match: Allow read and write on all collections and subcollections
+    match /{document=**} {
+      allow read, write: if true;
+    }
+
+    // Explicit Collection Rules
+    match /employees/{employeeId} {
+      allow read, write: if true;
+    }
+
+    match /attendance/{attendanceId} {
+      allow read, write: if true;
+    }
+
+    match /leaves/{leaveId} {
+      allow read, write: if true;
+    }
+
+    match /payroll_runs/{runId} {
+      allow read, write: if true;
+    }
+
+    match /assets/{assetId} {
+      allow read, write: if true;
+    }
+
+    match /requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    match /announcements/{announcementId} {
+      allow read, write: if true;
+    }
+
+    match /audit_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    match /holidays/{holidayId} {
+      allow read, write: if true;
+    }
+
+    match /onboarding/{recordId} {
+      allow read, write: if true;
+    }
+
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /sessions/{sessionId} {
+      allow read, write: if true;
+    }
+
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    match /incentives/{incentiveId} {
+      allow read, write: if true;
+    }
+
+    match /access_codes/{codeId} {
+      allow read, write: if true;
+    }
+
+    match /access_code_creditexpert/{codeId} {
+      allow read, write: if true;
+    }
+
+    match /credit_reports/{reportId} {
+      allow read, write: if true;
+    }
+  }
+}

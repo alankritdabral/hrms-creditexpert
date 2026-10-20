@@ -1,0 +1,247 @@
+@import "tailwindcss";
+
+:root {
+  /* Credit Expert India Core Color Palette */
+  --icy-blue: #add7f6;
+  --navy-electric: #090c9b;
+  --baby-blue-ice: #87bfff;
+  --blue-energy: #3f8efc;
+  --black: #000001;
+  --white: #ffffff;
+  --surface-alternate: #f6f9fc;
+  --surface-tint: #e5edf5;
+  --ink-deep: #0a2540;
+  --ink-secondary: #061b31;
+  --body-slate: #3c4f69;
+  --muted-slate: #64748d;
+
+  /* Brand / Action Colors */
+  --primary-brand: #2563eb;
+  --primary-strong: #1d4ed8;
+  --primary-hover: #1e40af;
+  --secondary-border: #bfdbfe;
+
+  /* Accent / Status Colors */
+  --success-green: #15be53;
+  --warning-lemon: #9b6829;
+  --error-ruby: #df1b41;
+  --magenta-midpoint: #f96bee;
+  
+  /* White & Blue Theme Variables */
+  --background: #f8fafc;
+  --foreground: #0a2540;
+  --card: #ffffff;
+  --card-foreground: #0a2540;
+  --border: #e2e8f0;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --accent: #3b82f6;
+}
+
+@theme inline {
+  --color-white: #ffffff;
+  --color-surface-alt: #f8fafc;
+  --color-surface-tint: #e5edf5;
+  --color-ink-deep: #0a2540;
+  --color-ink-secondary: #1e293b;
+  --color-body-slate: #334155;
+  --color-muted-slate: #64748d;
+  --color-icy-blue: #e0f2fe;
+  --color-navy-electric: #090c9b;
+  --color-blue-energy: #2563eb;
+  --color-baby-blue-ice: #93c5fd;
+  
+  --color-primary-brand: #2563eb;
+  --color-primary-strong: #1d4ed8;
+  --color-primary-hover: #1e40af;
+
+  --color-success-green: #15be53;
+  --color-error-ruby: #df1b41;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0a2540;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings across portal in deep ink */
+h1, h2, h3, h4 {
+  color: #0a2540;
+}
+
+/* General text-white remapping for white and blue theme */
+body .text-white {
+  color: #0a2540;
+}
+
+/* Credit Expert White & Blue Glassmorphism Panels */
+.glass-panel,
+.glass-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
+  color: #0a2540;
+}
+
+.glass-card:hover {
+  border-color: #93c5fd !important;
+  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.08), 0 8px 10px -6px rgba(37, 99, 235, 0.05) !important;
+}
+
+/* Map legacy dark utility backgrounds and borders to crisp light white and blue */
+.bg-slate-950,
+.bg-slate-900,
+.bg-slate-900\/80,
+.bg-slate-900\/90,
+.bg-slate-900\/60,
+.bg-slate-900\/70,
+.bg-slate-950\/90 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.bg-slate-800,
+.bg-slate-800\/80,
+.bg-slate-800\/60,
+.bg-slate-800\/40,
+.bg-slate-800\/30 {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+.border-slate-800,
+.border-slate-800\/80,
+.border-slate-800\/60,
+.border-slate-700,
+.border-slate-700\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+.divide-slate-800,
+.divide-slate-800\/60,
+.divide-slate-800\/80 {
+  border-color: #f1f5f9 !important;
+}
+
+/* High-contrast text mapping for white and blue theme */
+.text-slate-100,
+.text-slate-200,
+.text-slate-300 {
+  color: #1e293b !important;
+}
+
+.text-slate-400 {
+  color: #64748d !important;
+}
+
+.text-slate-500 {
+  color: #64748d !important;
+}
+
+/* Inputs and Selects */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+select,
+textarea {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0a2540 !important;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):focus,
+select:focus,
+textarea:focus {
+  background-color: #ffffff !important;
+  border-color: #2563eb !important;
+  outline: none !important;
+}
+
+/* Table rows */
+tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Keep white text white inside vibrant badges, primary buttons, and hero gradients */
+.btn-primary,
+.btn-primary *,
+.btn-danger,
+.btn-danger *,
+button.from-blue-600,
+button.from-blue-600 *,
+button.bg-blue-600,
+button.bg-blue-600 *,
+button.bg-rose-600,
+button.bg-rose-600 *,
+.sidebar-active,
+.sidebar-active *,
+.hero-banner h1,
+.hero-banner p,
+.hero-banner span.banner-pill {
+  color: #ffffff !important;
+}
+
+/* Outline & Secondary Buttons contrast */
+.btn-outline,
+.btn-outline * {
+  color: #2563eb !important;
+}
+.btn-outline:hover,
+.btn-outline:hover * {
+  color: #1d4ed8 !important;
+}
+
+.btn-secondary,
+.btn-secondary * {
+  color: #1e293b !important;
+}
+
+.btn-ghost,
+.btn-ghost * {
+  color: #334155 !important;
+}
+
+/* Hero banner internal white buttons */
+.btn-banner-white,
+.btn-banner-white * {
+  color: #1d4ed8 !important;
+  background-color: #ffffff !important;
+}
+.btn-banner-white:hover,
+.btn-banner-white:hover * {
+  color: #1e40af !important;
+  background-color: #f0f7ff !important;
+}
+
+/* Gradient Texts */
+.text-gradient-brand {
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-emerald {
+  background: linear-gradient(135deg, #15be53 0%, #10b981 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
