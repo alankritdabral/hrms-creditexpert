@@ -1,18 +1,33 @@
 "use client";
 
-import React, { Suspense } from "react";
-import { usePathname } from "next/navigation";
+import React, { Suspense, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { useAuth } from "@/lib/auth-context";
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isLoginPage = pathname === "/login";
+  const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  if (isLoginPage) {
+  const isAuthPage =
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/forgot-password";
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !isAuthPage) {
+      router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+    }
+  }, [isLoading, isAuthenticated, isAuthPage, pathname, router]);
+
+  if (isAuthPage) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#f0f7ff] via-[#ffffff] to-[#e6f0fa] text-[#0a2540] flex items-center justify-center p-4">
-        <div className="w-full max-w-md">{children}</div>
+        <div className={`w-full ${pathname === "/register" ? "max-w-4xl" : "max-w-md"}`}>
+          {children}
+        </div>
       </div>
     );
   }
