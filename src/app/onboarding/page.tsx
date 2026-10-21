@@ -654,27 +654,76 @@ export default function OnboardingPage() {
           <div className="bg-white rounded-2xl max-w-3xl w-full border border-slate-200 shadow-xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="space-y-1.5 flex-1 pr-4">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full">
                     15-Point Onboarding Checklist
                   </span>
-                  <span className="text-xs text-slate-500 font-medium">
+                  <span className="text-xs text-slate-600 font-medium px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">
                     {activeChecklistRecord.branch} Branch
                   </span>
+                  {activeChecklistRecord.employeeId ? (
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
+                      Emp No: {activeChecklistRecord.employeeId}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                      Emp No: Pending Allocation
+                    </span>
+                  )}
+                  {activeChecklistRecord.selfRegistered && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Self-Registered
+                    </span>
+                  )}
                 </div>
+
                 <h2 className="text-xl font-bold text-slate-900 mt-1">
                   {activeChecklistRecord.candidateName}
                 </h2>
-                <p className="text-xs text-slate-600 mt-0.5">
+
+                <p className="text-xs text-slate-600">
                   {activeChecklistRecord.designation} • {activeChecklistRecord.department} • Target Joining:{" "}
                   <span className="font-semibold text-slate-800">{activeChecklistRecord.joiningDate}</span>
                 </p>
+
+                {/* Candidate Contact & Employee Credentials */}
+                <div className="flex items-center gap-3 pt-1 text-xs flex-wrap">
+                  {/* Employee Number Badge */}
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 font-semibold font-mono shadow-2xs">
+                    <span className="text-slate-500 font-sans font-normal text-[11px]">Emp No:</span>
+                    <span className={activeChecklistRecord.employeeId ? "text-emerald-700 font-bold" : "text-amber-700 font-sans font-medium"}>
+                      {activeChecklistRecord.employeeId || "Pending Allocation"}
+                    </span>
+                  </span>
+
+                  {/* Email */}
+                  <a
+                    href={`mailto:${activeChecklistRecord.email}`}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50/80 hover:bg-blue-100 text-blue-700 border border-blue-200 font-medium transition-colors shadow-2xs"
+                    title="Send Email"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>{activeChecklistRecord.email}</span>
+                  </a>
+
+                  {/* Phone / Contact Number */}
+                  {activeChecklistRecord.phone && (
+                    <a
+                      href={`tel:${activeChecklistRecord.phone}`}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/80 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-medium transition-colors shadow-2xs"
+                      title="Call Number"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{activeChecklistRecord.phone}</span>
+                    </a>
+                  )}
+                </div>
               </div>
 
               <button
                 onClick={() => setActiveChecklistRecord(null)}
-                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -713,6 +762,67 @@ export default function OnboardingPage() {
                   {activating ? "Activating..." : "Approve & Activate Profile"}
                 </button>
               )}
+            </div>
+
+            {/* Candidate Profile Details Snapshot Card */}
+            <div className="mx-6 mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                  Employee Number / ID
+                </span>
+                <span className="font-mono font-bold text-slate-900 flex items-center gap-1 mt-0.5">
+                  {activeChecklistRecord.employeeId ? (
+                    <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      {activeChecklistRecord.employeeId}
+                    </span>
+                  ) : (
+                    <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-sans font-medium text-[11px]">
+                      Pending Allocation
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                  Email Address
+                </span>
+                <a
+                  href={`mailto:${activeChecklistRecord.email}`}
+                  className="font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 mt-0.5 truncate"
+                  title={activeChecklistRecord.email}
+                >
+                  <Mail className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <span className="truncate">{activeChecklistRecord.email}</span>
+                </a>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                  Contact Number
+                </span>
+                {activeChecklistRecord.phone ? (
+                  <a
+                    href={`tel:${activeChecklistRecord.phone}`}
+                    className="font-medium text-slate-800 hover:text-slate-900 hover:underline flex items-center gap-1 mt-0.5"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>{activeChecklistRecord.phone}</span>
+                  </a>
+                ) : (
+                  <span className="text-slate-400 mt-0.5 block">Not provided</span>
+                )}
+              </div>
+
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+                  Designation & Branch
+                </span>
+                <span className="font-medium text-slate-800 flex items-center gap-1 mt-0.5 truncate">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate">{activeChecklistRecord.designation} ({activeChecklistRecord.branch})</span>
+                </span>
+              </div>
             </div>
 
             {/* Candidate Submitted KYC Documents & Details Review */}
