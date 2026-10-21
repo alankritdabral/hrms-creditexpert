@@ -60,6 +60,8 @@ export async function PUT(
       monthlySalary,
       salaryBasis,
       includePf = true,
+      pfType = "percentage",
+      pfValue = 12,
       revisionReason,
     } = body;
 
@@ -84,8 +86,10 @@ export async function PUT(
       {
         newAnnualCtc: newAnnualCtc ? Number(newAnnualCtc) : undefined,
         monthlySalary: monthlySalary ? Number(monthlySalary) : undefined,
-        salaryBasis: salaryBasis || "monthly_gross",
+        salaryBasis: salaryBasis || "monthly_net",
         includePf: Boolean(includePf),
+        pfType: pfType === "fixed" ? "fixed" : "percentage",
+        pfValue: typeof pfValue === "number" ? pfValue : Number(pfValue) || 12,
         revisionReason,
       },
       revisionReason,

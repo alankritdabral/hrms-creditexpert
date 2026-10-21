@@ -210,15 +210,15 @@ export default function EmployeesPage() {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Monthly Gross</span>
-                <span className="text-indigo-600 font-bold font-mono">
-                  ₹{emp.currentSalary.grossSalary.toLocaleString("en-IN")}/mo
+                <span className="text-slate-500">Net Salary (In-Hand)</span>
+                <span className="text-emerald-600 font-bold font-mono">
+                  ₹{(emp.currentSalary.netSalary || Math.max(0, emp.currentSalary.grossSalary - (emp.currentSalary.employeePf || 0))).toLocaleString("en-IN")}/mo
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Annual CTC</span>
-                <span className="text-slate-600 font-medium font-mono text-[11px]">
-                  ₹{emp.currentSalary.annualCtc.toLocaleString("en-IN")}
+                <span className="text-slate-500">Provident Fund (PF)</span>
+                <span className="text-slate-700 font-medium font-mono text-[11px]">
+                  {emp.currentSalary.employeePf > 0 ? `₹${emp.currentSalary.employeePf.toLocaleString("en-IN")}/mo` : "Excluded"}
                 </span>
               </div>
               <div className="flex items-center justify-between">

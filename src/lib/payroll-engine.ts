@@ -2,16 +2,27 @@ import { SalaryComponent, PayrollItemSnapshot, Employee, AttendanceRecord, Emplo
 
 export function calculateSalaryBreakdown(
   annualCtc: number,
-  includePf: boolean = true
+  includePf: boolean = true,
+  pfType: "percentage" | "fixed" = "percentage",
+  pfValue: number = 12
 ): SalaryComponent {
   const monthlyCtc = Math.round(annualCtc / 12);
   
-  // Standard Indian Payroll structure:
-  // Gross + Employer PF (capped at 1,800/mo) = Monthly CTC
-  const employerPf = includePf ? Math.min(1800, Math.round(monthlyCtc * 0.05)) : 0;
+  // Calculate PF contribution
+  let employerPf = 0;
+  if (includePf) {
+    if (pfType === "fixed") {
+      employerPf = Math.max(0, Math.round(Number(pfValue) || 0));
+    } else {
+      const pct = typeof pfValue === "number" && !isNaN(pfValue) && pfValue >= 0 ? pfValue : 12;
+      // In CTC-first model, basic is estimated at ~45-50% of monthly CTC
+      const estimatedBasic = Math.round(monthlyCtc * 0.45);
+      employerPf = Math.round(estimatedBasic * (pct / 100));
+    }
+  }
+
   const employerEsic = monthlyCtc <= 21000 ? Math.round(monthlyCtc * 0.0325) : 0;
-  
-  const grossSalary = monthlyCtc - employerPf - employerEsic;
+  const grossSalary = Math.max(0, monthlyCtc - employerPf - employerEsic);
   
   // Basic is typically 50% of gross
   const basic = Math.round(grossSalary * 0.50);
@@ -22,13 +33,15 @@ export function calculateSalaryBreakdown(
   // Other allowances balances the gross
   const otherAllowance = Math.max(0, grossSalary - basic - hra - specialAllowance);
 
-  // Employee statutory deductions
-  const employeePf = includePf ? employerPf : 0; // Equal employee contribution
+  // Employee statutory deductions: equal to employer PF
+  const employeePf = includePf ? employerPf : 0;
   const professionalTax = 0;
+  const netSalary = Math.max(0, grossSalary - employeePf);
 
   return {
     annualCtc,
     monthlyCtc,
+    netSalary,
     grossSalary,
     basic,
     hra,
@@ -39,36 +52,75 @@ export function calculateSalaryBreakdown(
     employeePf,
     professionalTax,
     includePf,
+    pfType,
+    pfValue,
   };
 }
 
 export function calculateSalaryFromMonthly({
   monthlyAmount,
-  salaryBasis = "monthly_gross",
+  salaryBasis = "monthly_net",
   includePf = true,
+  pfType = "percentage",
+  pfValue = 12,
 }: {
   monthlyAmount: number;
-  salaryBasis?: "monthly_gross" | "monthly_ctc";
+  salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc";
   includePf?: boolean;
+  pfType?: "percentage" | "fixed";
+  pfValue?: number;
 }): SalaryComponent {
   const amount = Math.max(0, Math.round(monthlyAmount));
 
   if (salaryBasis === "monthly_ctc") {
-    return calculateSalaryBreakdown(amount * 12, includePf);
+    return calculateSalaryBreakdown(amount * 12, includePf, pfType, pfValue);
   }
 
-  // Monthly Gross basis:
-  // User specifies gross fixed monthly pay
-  const grossSalary = amount;
-  const basic = Math.round(grossSalary * 0.50);
+  let grossSalary = 0;
+  let netSalary = 0;
+  let employerPf = 0;
+  let basic = 0;
+
+  if (salaryBasis === "monthly_net") {
+    netSalary = amount;
+    if (!includePf) {
+      employerPf = 0;
+      grossSalary = netSalary;
+      basic = Math.round(grossSalary * 0.50);
+    } else if (pfType === "fixed") {
+      employerPf = Math.max(0, Math.round(Number(pfValue) || 0));
+      grossSalary = netSalary + employerPf;
+      basic = Math.round(grossSalary * 0.50);
+    } else {
+      // Percentage mode: PF is pct% of Basic (Basic = 50% of gross)
+      // Net = Gross - (0.5 * Gross * pct/100) = Gross * (1 - pct/200)
+      const pct = typeof pfValue === "number" && !isNaN(pfValue) && pfValue >= 0 ? pfValue : 12;
+      const factor = Math.max(0.01, 1 - pct / 200);
+      grossSalary = Math.round(netSalary / factor);
+      basic = Math.round(grossSalary * 0.50);
+      employerPf = Math.round(basic * (pct / 100));
+      netSalary = grossSalary - employerPf;
+    }
+  } else {
+    // monthly_gross basis
+    grossSalary = amount;
+    basic = Math.round(grossSalary * 0.50);
+    if (!includePf) {
+      employerPf = 0;
+    } else if (pfType === "fixed") {
+      employerPf = Math.max(0, Math.round(Number(pfValue) || 0));
+    } else {
+      const pct = typeof pfValue === "number" && !isNaN(pfValue) && pfValue >= 0 ? pfValue : 12;
+      employerPf = Math.round(basic * (pct / 100));
+    }
+    netSalary = Math.max(0, grossSalary - employerPf);
+  }
+
   const hra = Math.round(basic * 0.50);
   const specialAllowance = Math.round(grossSalary * 0.15);
   const otherAllowance = Math.max(0, grossSalary - basic - hra - specialAllowance);
 
-  // Statutory PF: 12% of basic, capped at ₹1,800/mo
-  const employerPf = includePf ? Math.min(1800, Math.round(basic * 0.12)) : 0;
   const employerEsic = grossSalary <= 21000 ? Math.round(grossSalary * 0.0325) : 0;
-
   const employeePf = includePf ? employerPf : 0;
   const professionalTax = 0;
 
@@ -78,6 +130,7 @@ export function calculateSalaryFromMonthly({
   return {
     annualCtc,
     monthlyCtc,
+    netSalary,
     grossSalary,
     basic,
     hra,
@@ -88,6 +141,8 @@ export function calculateSalaryFromMonthly({
     employeePf,
     professionalTax,
     includePf,
+    pfType,
+    pfValue,
   };
 }
 

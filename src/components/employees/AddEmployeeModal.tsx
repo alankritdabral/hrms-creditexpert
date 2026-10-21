@@ -36,6 +36,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     dateOfJoining: "2026-10-17",
     annualCtc: 480000,
     includePf: true,
+    pfType: "percentage" as "percentage" | "fixed",
+    pfValue: 12,
     pan: "",
     aadhaar: "",
     bankAccountNumber: "",
@@ -97,6 +99,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
           annualCtc: Number(formData.annualCtc),
           monthlySalary: Math.round(Number(formData.annualCtc) / 12),
           includePf: formData.includePf,
+          pfType: formData.pfType,
+          pfValue: Number(formData.pfValue) || 12,
           actor: { name: currentUser.name, role: currentUser.role },
         }),
       });
@@ -343,7 +347,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Monthly Salary (₹/month) *
+                  Monthly Net Salary (₹ In-Hand) *
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-slate-400 font-mono text-xs">₹</span>
@@ -382,25 +386,138 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               </div>
             </div>
 
-            <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-700/80 cursor-pointer hover:border-indigo-500/50 transition-colors">
-              <input
-                type="checkbox"
-                checked={formData.includePf}
-                onChange={(e) => setFormData((prev) => ({ ...prev, includePf: e.target.checked }))}
-                className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-600 cursor-pointer"
-              />
-              <div className="flex-1 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-white">Include Provident Fund (PF)</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${formData.includePf ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-slate-800 text-slate-400 border border-slate-700"}`}>
-                    {formData.includePf ? "12% Statutory PF Enabled" : "PF Excluded (₹0)"}
-                  </span>
-                </div>
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  Auto-computes Basic (50%), HRA (25%), Special Allowance, PT, and statutory PF deduction & matching employer contribution.
-                </p>
+            {/* Include PF Card with % or Fixed Number Option */}
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-700/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={formData.includePf}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, includePf: e.target.checked }))}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-600 cursor-pointer"
+                  />
+                  <span className="font-semibold text-white text-xs">Include Provident Fund (PF)</span>
+                </label>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                    formData.includePf
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                      : "bg-slate-800 text-slate-400 border border-slate-700"
+                  }`}
+                >
+                  {formData.includePf
+                    ? formData.pfType === "percentage"
+                      ? `${formData.pfValue}% of Basic`
+                      : `₹${Number(formData.pfValue || 0).toLocaleString("en-IN")}/mo Fixed`
+                    : "PF Excluded (₹0)"}
+                </span>
               </div>
-            </label>
+
+              {formData.includePf && (
+                <div className="pt-2 border-t border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-medium">PF Basis:</span>
+                    <div className="inline-flex rounded-lg bg-slate-800 p-0.5 border border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            pfType: "percentage",
+                            pfValue: prev.pfType !== "percentage" ? 12 : prev.pfValue,
+                          }))
+                        }
+                        className={`px-2 py-0.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                          formData.pfType === "percentage"
+                            ? "bg-indigo-600 text-white"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        % Percentage
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            pfType: "fixed",
+                            pfValue: prev.pfType !== "fixed" ? 1800 : prev.pfValue,
+                          }))
+                        }
+                        className={`px-2 py-0.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                          formData.pfType === "fixed"
+                            ? "bg-indigo-600 text-white"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        ₹ Fixed Number
+                      </button>
+                    </div>
+                  </div>
+
+                  {formData.pfType === "percentage" ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] text-slate-300 font-medium">
+                          Percentage of Basic Salary (%)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev) => ({ ...prev, pfValue: 12 }))}
+                          className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 cursor-pointer"
+                        >
+                          Default 12%
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          value={formData.pfValue}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, pfValue: Number(e.target.value) }))
+                          }
+                          className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                          placeholder="12"
+                        />
+                        <span className="absolute right-3 top-2 text-slate-400 font-mono text-xs">%</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] text-slate-300 font-medium">
+                          Fixed Monthly PF Amount (₹)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setFormData((prev) => ({ ...prev, pfValue: 1800 }))}
+                          className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 cursor-pointer"
+                        >
+                          Statutory Cap ₹1,800
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2 text-slate-400 font-mono text-xs">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={formData.pfValue}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, pfValue: Number(e.target.value) }))
+                          }
+                          className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                          placeholder="1800"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

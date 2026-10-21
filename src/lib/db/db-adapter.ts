@@ -208,8 +208,10 @@ export async function updateEmployee(
 export type SalaryRevisionInput = {
   newAnnualCtc?: number;
   monthlySalary?: number;
-  salaryBasis?: "monthly_gross" | "monthly_ctc";
+  salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc";
   includePf?: boolean;
+  pfType?: "percentage" | "fixed";
+  pfValue?: number;
   revisionReason?: string;
 };
 
@@ -221,7 +223,9 @@ export async function reviseSalary(
   optionsArg?: {
     monthlySalary?: number;
     includePf?: boolean;
-    salaryBasis?: "monthly_gross" | "monthly_ctc";
+    salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc";
+    pfType?: "percentage" | "fixed";
+    pfValue?: number;
   }
 ): Promise<Employee | null> {
   let index = memory.employees.findIndex(
@@ -240,8 +244,10 @@ export async function reviseSalary(
 
   let newAnnualCtc = 0;
   let monthlySalary: number | undefined;
-  let salaryBasis: "monthly_gross" | "monthly_ctc" = "monthly_gross";
+  let salaryBasis: "monthly_net" | "monthly_gross" | "monthly_ctc" = "monthly_net";
   let includePf = true;
+  let pfType: "percentage" | "fixed" = "percentage";
+  let pfValue = 12;
   let revisionReason = "Salary Revision";
   let actor = actorArg || { name: "System", role: "admin" };
 
@@ -252,12 +258,16 @@ export async function reviseSalary(
       monthlySalary = optionsArg.monthlySalary;
       if (optionsArg.includePf !== undefined) includePf = optionsArg.includePf;
       if (optionsArg.salaryBasis) salaryBasis = optionsArg.salaryBasis;
+      if (optionsArg.pfType) pfType = optionsArg.pfType;
+      if (optionsArg.pfValue !== undefined) pfValue = optionsArg.pfValue;
     }
   } else {
     newAnnualCtc = salaryParam.newAnnualCtc || 0;
     monthlySalary = salaryParam.monthlySalary;
     if (salaryParam.includePf !== undefined) includePf = salaryParam.includePf;
     if (salaryParam.salaryBasis) salaryBasis = salaryParam.salaryBasis;
+    if (salaryParam.pfType) pfType = salaryParam.pfType;
+    if (salaryParam.pfValue !== undefined) pfValue = salaryParam.pfValue;
     revisionReason = salaryParam.revisionReason || revisionReasonArg || "Salary Revision";
   }
 
@@ -267,9 +277,11 @@ export async function reviseSalary(
       monthlyAmount: monthlySalary,
       salaryBasis,
       includePf,
+      pfType,
+      pfValue,
     });
   } else {
-    newComponents = calculateSalaryBreakdown(newAnnualCtc, includePf);
+    newComponents = calculateSalaryBreakdown(newAnnualCtc, includePf, pfType, pfValue);
   }
 
   const revisionRecord: SalaryRevisionRecord = {
@@ -277,7 +289,10 @@ export async function reviseSalary(
     effectiveFrom: new Date().toISOString().split("T")[0],
     annualCtc: newComponents.annualCtc,
     monthlySalary: newComponents.grossSalary,
+    netSalary: newComponents.netSalary,
     includePf: Boolean(newComponents.includePf),
+    pfType: newComponents.pfType,
+    pfValue: newComponents.pfValue,
     components: newComponents,
     revisionReason,
     updatedBy: actor.name,
@@ -294,13 +309,17 @@ export async function reviseSalary(
   memory.employees[index] = updatedEmp;
   saveDocumentToFirestore("employees", updatedEmp.employeeId, updatedEmp).catch(() => {});
 
+  const pfDescription = includePf
+    ? (pfType === "fixed" ? `₹${newComponents.employeePf} Fixed` : `${pfValue}% of Basic (₹${newComponents.employeePf})`)
+    : "Excluded";
+
   await recordAuditLog({
     who: actor.name,
     role: actor.role,
     action: "SALARY_REVISED",
     employeeId: updatedEmp.employeeId,
     employeeName: updatedEmp.personal.fullName,
-    details: `Revised salary to ₹${newComponents.grossSalary.toLocaleString("en-IN")}/mo (Annual CTC: ₹${newComponents.annualCtc.toLocaleString("en-IN")}, PF: ${includePf ? "Included" : "Excluded"}) - ${revisionReason}`,
+    details: `Revised salary: Net In-Hand ₹${(newComponents.netSalary || 0).toLocaleString("en-IN")}/mo, PF: ${pfDescription}, Gross ₹${newComponents.grossSalary.toLocaleString("en-IN")}/mo - ${revisionReason}`,
   });
 
   return updatedEmp;

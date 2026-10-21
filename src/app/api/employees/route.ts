@@ -49,7 +49,16 @@ export async function POST(req: NextRequest) {
 
 
     const body = await req.json();
-    const { personal, employment, statutory, annualCtc, monthlySalary, includePf = true } = body;
+    const {
+      personal,
+      employment,
+      statutory,
+      annualCtc,
+      monthlySalary,
+      includePf = true,
+      pfType = "percentage",
+      pfValue = 12,
+    } = body;
 
     if (!personal?.firstName || !employment?.department || !employment?.designation) {
       return NextResponse.json(
@@ -63,8 +72,18 @@ export async function POST(req: NextRequest) {
     if (branchErr) return branchErr;
 
     const salary = monthlySalary
-      ? calculateSalaryFromMonthly({ monthlyAmount: Number(monthlySalary), includePf: Boolean(includePf) })
-      : calculateSalaryBreakdown(annualCtc || 480000, Boolean(includePf));
+      ? calculateSalaryFromMonthly({
+          monthlyAmount: Number(monthlySalary),
+          includePf: Boolean(includePf),
+          pfType: pfType === "fixed" ? "fixed" : "percentage",
+          pfValue: typeof pfValue === "number" ? pfValue : Number(pfValue) || 12,
+        })
+      : calculateSalaryBreakdown(
+          annualCtc || 480000,
+          Boolean(includePf),
+          pfType === "fixed" ? "fixed" : "percentage",
+          typeof pfValue === "number" ? pfValue : Number(pfValue) || 12
+        );
     const ctc = salary.annualCtc;
     const count = (await getEmployees()).length;
     const empId = `EMP-${String(count + 1).padStart(4, "0")}`;

@@ -144,16 +144,19 @@ export interface StatutoryInfo {
 export interface SalaryComponent {
   annualCtc: number;
   monthlyCtc: number;
+  netSalary?: number;
+  grossSalary: number;
   basic: number;
   hra: number;
   specialAllowance: number;
   otherAllowance: number;
-  grossSalary: number;
   employerPf: number;
   employerEsic: number;
   employeePf: number;
   professionalTax: number;
   includePf?: boolean;
+  pfType?: "percentage" | "fixed";
+  pfValue?: number;
 }
 
 export interface SalaryRevisionRecord {
@@ -161,7 +164,10 @@ export interface SalaryRevisionRecord {
   effectiveFrom: string;
   annualCtc: number;
   monthlySalary?: number;
+  netSalary?: number;
   includePf?: boolean;
+  pfType?: "percentage" | "fixed";
+  pfValue?: number;
   components: SalaryComponent;
   revisionReason: string;
   updatedBy: string;
