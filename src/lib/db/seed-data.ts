@@ -15,6 +15,7 @@ import {
   EmployeeDocument,
   Holiday,
   OnboardingRecord,
+  OfficeLocation,
 } from "../types";
 
 export const SEED_USERS: User[] = [];
@@ -130,3 +131,46 @@ export const INITIAL_HOLIDAYS: Holiday[] = [
 ];
 
 export const INITIAL_ONBOARDING_RECORDS: OnboardingRecord[] = [];
+
+export const INITIAL_OFFICES: OfficeLocation[] = [
+  {
+    id: "office-delhi",
+    name: "Credit Expert - Delhi Branch",
+    branch: "Delhi",
+    latitude: 28.6289,
+    longitude: 77.2065,
+    allowedRadiusMeters: 150,
+    maxAccuracyMeters: 100,
+    address: "Connaught Place, Central Delhi, Delhi 110001",
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "office-dehradun",
+    name: "Credit Expert - Dehradun Branch",
+    branch: "Dehradun",
+    latitude: 30.3165,
+    longitude: 78.0322,
+    allowedRadiusMeters: 150,
+    maxAccuracyMeters: 100,
+    address: "Rajpur Road, Dehradun, Uttarakhand 248001",
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "office-rudrapur",
+    name: "Credit Expert - Rudrapur Branch",
+    branch: "Rudrapur",
+    latitude: 28.9800,
+    longitude: 79.4000,
+    allowedRadiusMeters: 150,
+    maxAccuracyMeters: 100,
+    address: "Kashipur Bypass Road, Rudrapur, Uttarakhand 263153",
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+];
+

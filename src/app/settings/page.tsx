@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { AttendancePolicy } from "@/lib/types";
+import { AttendancePolicy, OfficeLocation, Branch, BRANCHES } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
@@ -18,6 +18,10 @@ import {
   Layers,
   UploadCloud,
   Check,
+  MapPin,
+  Crosshair,
+  Trash2,
+  Plus,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -38,7 +42,120 @@ export default function SettingsPage() {
   const [fullDayHours, setFullDayHours] = useState(8);
   const [halfDayHours, setHalfDayHours] = useState(4);
 
+  // Office Geofence State
+  const [offices, setOffices] = useState<OfficeLocation[]>([]);
+  const [selectedOfficeId, setSelectedOfficeId] = useState<string>("");
+  const [officeName, setOfficeName] = useState("");
+  const [officeBranch, setOfficeBranch] = useState<Branch>("Delhi");
+  const [officeLat, setOfficeLat] = useState<number>(28.6289);
+  const [officeLon, setOfficeLon] = useState<number>(77.2065);
+  const [officeRadius, setOfficeRadius] = useState<number>(150);
+  const [officeMaxAccuracy, setOfficeMaxAccuracy] = useState<number>(100);
+  const [officeAddress, setOfficeAddress] = useState("");
+  const [officeActive, setOfficeActive] = useState<boolean>(true);
+  const [isSavingOffice, setIsSavingOffice] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [officeStatusMessage, setOfficeStatusMessage] = useState("");
+
   const canEdit = ["admin", "hr"].includes(currentUser.role);
+
+  const loadOffices = async () => {
+    try {
+      const res = await fetch("/api/offices");
+      const data = await res.json();
+      if (data.success && data.data && data.data.length > 0) {
+        setOffices(data.data);
+        selectOffice(data.data[0]);
+      }
+    } catch (e) {
+      console.error("Error loading offices:", e);
+    }
+  };
+
+  const selectOffice = (off: OfficeLocation) => {
+    setSelectedOfficeId(off.id);
+    setOfficeName(off.name);
+    setOfficeBranch((off.branch as Branch) || "Delhi");
+    setOfficeLat(off.latitude);
+    setOfficeLon(off.longitude);
+    setOfficeRadius(off.allowedRadiusMeters || 150);
+    setOfficeMaxAccuracy(off.maxAccuracyMeters || 100);
+    setOfficeAddress(off.address || "");
+    setOfficeActive(off.isActive);
+  };
+
+  const handleNewOffice = () => {
+    setSelectedOfficeId("");
+    setOfficeName("Credit Expert - New Branch");
+    setOfficeBranch("Delhi");
+    setOfficeLat(28.6289);
+    setOfficeLon(77.2065);
+    setOfficeRadius(150);
+    setOfficeMaxAccuracy(100);
+    setOfficeAddress("");
+    setOfficeActive(true);
+  };
+
+  const handleDetectCurrentGPS = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsDetectingLocation(false);
+        setOfficeLat(Number(pos.coords.latitude.toFixed(6)));
+        setOfficeLon(Number(pos.coords.longitude.toFixed(6)));
+        setOfficeStatusMessage(`Acquired device GPS! Accuracy: ±${Math.round(pos.coords.accuracy)}m`);
+        setTimeout(() => setOfficeStatusMessage(""), 5000);
+      },
+      (err) => {
+        setIsDetectingLocation(false);
+        alert(`Could not acquire GPS: ${err.message}. Please verify device location permissions.`);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const handleSaveOffice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingOffice(true);
+    setOfficeStatusMessage("");
+    try {
+      const payload: Partial<OfficeLocation> = {
+        id: selectedOfficeId || undefined,
+        name: officeName,
+        branch: officeBranch,
+        latitude: Number(officeLat),
+        longitude: Number(officeLon),
+        allowedRadiusMeters: Number(officeRadius),
+        maxAccuracyMeters: Number(officeMaxAccuracy),
+        address: officeAddress,
+        isActive: officeActive,
+      };
+
+      const res = await fetch("/api/offices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setOfficeStatusMessage("Office geofence successfully saved!");
+        await loadOffices();
+        setTimeout(() => setOfficeStatusMessage(""), 4000);
+      } else {
+        alert(data.error || "Failed to save office");
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Error saving office");
+    } finally {
+      setIsSavingOffice(false);
+    }
+  };
 
   useEffect(() => {
     async function loadPolicy() {
@@ -58,6 +175,7 @@ export default function SettingsPage() {
       }
     }
     loadPolicy();
+    loadOffices();
   }, []);
 
   const handleSavePolicy = async (e: React.FormEvent) => {
@@ -327,6 +445,202 @@ export default function SettingsPage() {
               <Button type="submit" size="sm" isLoading={isSaving} icon={<Save className="w-4 h-4" />}>
                 Save Policy Configurations
               </Button>
+            </div>
+          )}
+        </form>
+      </div>
+
+      {/* Office Geofences & GPS Attendance Configuration */}
+      <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-base">Office Geofences & GPS Attendance</h3>
+              <p className="text-xs text-slate-400">
+                Configure GPS coordinates, allowed radius, and maximum acceptable accuracy for each office branch.
+              </p>
+            </div>
+          </div>
+          {canEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              icon={<Plus className="w-3.5 h-3.5" />}
+              onClick={handleNewOffice}
+            >
+              Add Office Location
+            </Button>
+          )}
+        </div>
+
+        {officeStatusMessage && (
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{officeStatusMessage}</span>
+          </div>
+        )}
+
+        {/* Office Selection Pills */}
+        <div className="flex flex-wrap gap-2">
+          {offices.map((off) => (
+            <button
+              key={off.id}
+              type="button"
+              onClick={() => selectOffice(off)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+                selectedOfficeId === off.id
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                  : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+              }`}
+            >
+              <MapPin className="w-3 h-3" />
+              <span>{off.name}</span>
+              <span className="text-[10px] opacity-75">({off.allowedRadiusMeters}m)</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Edit Form */}
+        <form onSubmit={handleSaveOffice} className="space-y-4 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Office Name *</label>
+              <input
+                type="text"
+                required
+                disabled={!canEdit}
+                value={officeName}
+                onChange={(e) => setOfficeName(e.target.value)}
+                placeholder="Credit Expert - Delhi Branch"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Associated Branch *</label>
+              <select
+                disabled={!canEdit}
+                value={officeBranch}
+                onChange={(e) => setOfficeBranch(e.target.value as Branch)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+              >
+                {BRANCHES.map((b) => (
+                  <option key={b} value={b}>
+                    {b} Branch
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-300">Latitude (GPS) *</label>
+              </div>
+              <input
+                type="number"
+                step="0.000001"
+                required
+                disabled={!canEdit}
+                value={officeLat}
+                onChange={(e) => setOfficeLat(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-slate-300">Longitude (GPS) *</label>
+              </div>
+              <input
+                type="number"
+                step="0.000001"
+                required
+                disabled={!canEdit}
+                value={officeLon}
+                onChange={(e) => setOfficeLon(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Allowed Radius (Meters)</label>
+              <input
+                type="number"
+                min="10"
+                max="5000"
+                required
+                disabled={!canEdit}
+                value={officeRadius}
+                onChange={(e) => setOfficeRadius(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+              />
+              <span className="text-[10px] text-slate-500 mt-1 block">Geofence boundary around office</span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Max GPS Accuracy (Meters)</label>
+              <input
+                type="number"
+                min="10"
+                max="500"
+                required
+                disabled={!canEdit}
+                value={officeMaxAccuracy}
+                onChange={(e) => setOfficeMaxAccuracy(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+              />
+              <span className="text-[10px] text-slate-500 mt-1 block">Rejects clock-in if GPS drift &gt; value</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Office Street Address</label>
+            <input
+              type="text"
+              disabled={!canEdit}
+              value={officeAddress}
+              onChange={(e) => setOfficeAddress(e.target.value)}
+              placeholder="e.g. Connaught Place, New Delhi"
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="officeActive"
+              disabled={!canEdit}
+              checked={officeActive}
+              onChange={(e) => setOfficeActive(e.target.checked)}
+              className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="officeActive" className="text-xs text-slate-300 select-none cursor-pointer">
+              Active Location (Enforce attendance geofence for this office)
+            </label>
+          </div>
+
+          {canEdit && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                isLoading={isDetectingLocation}
+                icon={<Crosshair className="w-4 h-4 text-emerald-400" />}
+                onClick={handleDetectCurrentGPS}
+              >
+                Use My Current Device GPS
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button type="submit" size="sm" isLoading={isSavingOffice} icon={<Save className="w-4 h-4" />}>
+                  Save Office Geofence
+                </Button>
+              </div>
             </div>
           )}
         </form>

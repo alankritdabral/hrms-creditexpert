@@ -186,13 +186,35 @@ export interface Employee {
   updatedAt: string;
 }
 
+export type LocationVerificationStatus =
+  | "VERIFIED"
+  | "OUTSIDE_RADIUS"
+  | "LOW_ACCURACY"
+  | "NO_OFFICE_ASSIGNED"
+  | "LOCATION_DENIED"
+  | "MANUAL_OVERRIDE";
+
+export interface OfficeLocation {
+  id: string;
+  name: string;
+  branch: Branch | string;
+  latitude: number;
+  longitude: number;
+  allowedRadiusMeters: number;
+  maxAccuracyMeters: number;
+  address?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AttendanceRecord {
   id: string;
   employeeId: string;
   employeeName: string;
   date: string; // YYYY-MM-DD
   checkIn?: string; // HH:mm:ss
-  checkOut?: string; // HH:mm:ss
+  checkOut?: string; // HH:mm:ss (legacy/optional)
   totalWorkingHours: number;
   breakDurationMinutes: number;
   status: AttendanceStatus;
@@ -200,6 +222,15 @@ export interface AttendanceRecord {
   earlyDeparture: boolean;
   overtimeHours: number;
   remarks?: string;
+
+  // --- Location Audit Fields (Clock-In Only) ---
+  checkInLatitude?: number;
+  checkInLongitude?: number;
+  checkInAccuracy?: number;
+  checkInDistanceMeters?: number;
+  checkInLocationStatus?: LocationVerificationStatus;
+  checkInOfficeId?: string;
+  checkInOfficeName?: string;
 }
 
 export interface AttendancePolicy {

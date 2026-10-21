@@ -356,6 +356,55 @@ export async function deleteDocumentFromFirestore(
 }
 
 /**
+ * Purges all documents in a collection from Firestore and clears cache
+ */
+export async function clearCollectionInFirestore(collectionName: string): Promise<number> {
+  invalidateFirestoreCache(collectionName);
+  let deletedCount = 0;
+
+  // 1. Try Admin SDK
+  const adminDb = getFirebaseAdminFirestore();
+  if (adminDb) {
+    try {
+      const snapshot = await adminDb.collection(collectionName).get();
+      if (!snapshot.empty) {
+        const batch = adminDb.batch();
+        snapshot.docs.forEach((d: any) => {
+          batch.delete(d.ref);
+          deletedCount++;
+        });
+        await batch.commit();
+      }
+      return deletedCount;
+    } catch (err: any) {
+      console.warn(`Admin clear collection "${collectionName}" error:`, err.message);
+    }
+  }
+
+  // 2. Try Client SDK
+  const clientDb = getFirebaseFirestore();
+  if (clientDb) {
+    try {
+      const q = collection(clientDb, collectionName);
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const batch = writeBatch(clientDb);
+        snapshot.docs.forEach((docSnap) => {
+          batch.delete(docSnap.ref);
+          deletedCount++;
+        });
+        await batch.commit();
+      }
+      return deletedCount;
+    } catch (err: any) {
+      console.warn(`Client clear collection "${collectionName}" error:`, err.message);
+    }
+  }
+
+  return deletedCount;
+}
+
+/**
  * High-performance atomic batch seeding for the Free (Spark) Plan.
  * Groups records into atomic batches (< 500 per batch) to respect write quotas
  * and minimize network round-trips.

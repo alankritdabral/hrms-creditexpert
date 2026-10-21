@@ -65,31 +65,75 @@ export function EmployeeDashboard() {
     load();
   }, [currentUser, today]);
 
-  const handlePunch = async (type: "checkIn" | "checkOut") => {
-    setIsPunching(true);
-    try {
-      const res = await fetch("/api/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employeeId: currentUser.employeeId,
-          type,
-          actor: { name: currentUser.name, role: currentUser.role },
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setTodayAttendance(data.data);
-      }
-    } catch (e) {
-      console.error("Punch error:", e);
-    } finally {
-      setIsPunching(false);
+  const [punchStatusMessage, setPunchStatusMessage] = useState<string | null>(null);
+  const [punchError, setPunchError] = useState<string | null>(null);
+
+  const handleClockIn = () => {
+    setPunchError(null);
+
+    if (!navigator.geolocation) {
+      setPunchError("Geolocation is not supported by your browser.");
+      return;
     }
+
+    setIsPunching(true);
+    setPunchStatusMessage("Accessing device GPS...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          setPunchStatusMessage("Verifying office location...");
+          const { latitude, longitude, accuracy } = pos.coords;
+
+          const res = await fetch("/api/attendance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "checkIn",
+              latitude,
+              longitude,
+              accuracy,
+            }),
+          });
+
+          const data = await res.json();
+          if (data.success) {
+            setTodayAttendance(data.data);
+            setPunchStatusMessage(null);
+          } else {
+            setPunchError(data.error || "Failed to mark attendance.");
+            setPunchStatusMessage(null);
+          }
+        } catch (e: any) {
+          console.error("Punch error:", e);
+          setPunchError(e.message || "Failed to mark attendance.");
+          setPunchStatusMessage(null);
+        } finally {
+          setIsPunching(false);
+        }
+      },
+      (err) => {
+        setIsPunching(false);
+        setPunchStatusMessage(null);
+        if (err.code === err.PERMISSION_DENIED) {
+          setPunchError("Location permission denied. Please enable location access in your browser to clock in.");
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setPunchError("Location information unavailable. Please turn on device GPS and retry.");
+        } else if (err.code === err.TIMEOUT) {
+          setPunchError("GPS location request timed out. Please try again.");
+        } else {
+          setPunchError("Unable to acquire GPS coordinates. Please try again.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0,
+      }
+    );
   };
 
-  const hasCheckedIn = !!todayAttendance?.checkIn;
-  const hasCheckedOut = !!todayAttendance?.checkOut;
+  const hasCheckedIn = !!todayAttendance?.checkIn && todayAttendance.checkIn !== "--";
 
   // On-demand marked leaves calculation
   const approvedLeaves = leaves.filter((l) => l.status === "Approved");
@@ -123,49 +167,62 @@ export function EmployeeDashboard() {
           </p>
         </div>
 
-        {/* Live Attendance Clock-In Widget */}
-        <div className="p-4 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 shadow-lg flex flex-col sm:flex-row items-center gap-4">
-          <div className="text-center sm:text-left">
-            <div className="text-[11px] text-blue-100 font-semibold uppercase tracking-wider">Today&apos;s Shift</div>
-            <div className="text-sm font-bold text-white mt-0.5">
-              {hasCheckedIn ? (
-                <span className="text-emerald-200 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 inline" /> Checked In: {todayAttendance.checkIn}
-                </span>
+        {/* Live Attendance Clock-In Widget (Clock-In Only) */}
+        <div className="p-4 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 shadow-lg flex flex-col gap-3 min-w-[280px]">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-[11px] text-blue-100 font-semibold uppercase tracking-wider">Today&apos;s Attendance</div>
+              <div className="text-sm font-bold text-white mt-0.5">
+                {hasCheckedIn ? (
+                  <span className="text-emerald-200 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 inline text-emerald-300" />
+                    Clocked In: {todayAttendance.checkIn}
+                  </span>
+                ) : (
+                  <span className="text-amber-200">Not clocked in today</span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              {!hasCheckedIn ? (
+                <button
+                  onClick={handleClockIn}
+                  disabled={isPunching}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-blue-700 hover:bg-blue-50 shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+                >
+                  <MapPin className="w-4 h-4 text-blue-600 animate-pulse" />
+                  {isPunching ? "Verifying..." : "Clock In"}
+                </button>
               ) : (
-                <span className="text-amber-200">Not clocked in yet</span>
+                <span className="py-1.5 px-3 rounded-full text-xs font-semibold bg-emerald-500/25 text-emerald-100 border border-emerald-400/40 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {todayAttendance.status}
+                </span>
               )}
             </div>
-            {hasCheckedOut && (
-              <div className="text-xs text-blue-100 mt-0.5">Checked out: {todayAttendance.checkOut}</div>
-            )}
           </div>
 
-          <div className="flex items-center gap-2">
-            {!hasCheckedIn ? (
-              <button
-                onClick={() => handlePunch("checkIn")}
-                disabled={isPunching}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-white text-blue-700 hover:bg-blue-50 shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <LogIn className="w-4 h-4" />
-                Clock In
-              </button>
-            ) : !hasCheckedOut ? (
-              <button
-                onClick={() => handlePunch("checkOut")}
-                disabled={isPunching}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-                Clock Out
-              </button>
-            ) : (
-              <span className="py-1.5 px-3 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-100 border border-emerald-400/30">
-                Shift Completed ({todayAttendance.totalWorkingHours} hrs)
-              </span>
-            )}
-          </div>
+          {/* Verification / Location feedback */}
+          {hasCheckedIn && todayAttendance.checkInLocationStatus === "VERIFIED" && (
+            <div className="text-[11px] text-emerald-100/90 flex items-center gap-1 pt-1 border-t border-white/10">
+              <MapPin className="w-3 h-3 text-emerald-300" />
+              <span>Location Verified • {todayAttendance.checkInDistanceMeters ?? 0}m from {todayAttendance.checkInOfficeName || "Office"}</span>
+            </div>
+          )}
+
+          {punchStatusMessage && (
+            <div className="text-xs text-blue-100 flex items-center gap-1.5 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-amber-300 animate-ping" />
+              {punchStatusMessage}
+            </div>
+          )}
+
+          {punchError && (
+            <div className="text-xs text-rose-200 bg-rose-950/40 border border-rose-500/30 p-2 rounded-lg">
+              {punchError}
+            </div>
+          )}
         </div>
       </div>
 

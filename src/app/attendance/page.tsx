@@ -11,12 +11,15 @@ import {
   Calendar,
   Sliders,
   LogIn,
-  LogOut,
   Edit2,
   CheckCircle2,
   AlertTriangle,
   UserCheck,
   TrendingUp,
+  MapPin,
+  ExternalLink,
+  ShieldCheck,
+  Trash2,
 } from "lucide-react";
 
 export default function AttendancePage() {
@@ -25,15 +28,17 @@ export default function AttendancePage() {
   const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>("2026-10-17");
   const [isLoading, setIsLoading] = useState(true);
+  const [isClearing, setIsClearing] = useState(false);
 
   // Punch state
   const [isPunching, setIsPunching] = useState(false);
+  const [punchStatusMessage, setPunchStatusMessage] = useState<string | null>(null);
+  const [punchError, setPunchError] = useState<string | null>(null);
 
   // Manual Adjustment Modal State
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [adjustStatus, setAdjustStatus] = useState<AttendanceStatus>("Present");
   const [adjustCheckIn, setAdjustCheckIn] = useState("");
-  const [adjustCheckOut, setAdjustCheckOut] = useState("");
   const [adjustRemarks, setAdjustRemarks] = useState("");
   const [isAdjusting, setIsAdjusting] = useState(false);
 
@@ -77,34 +82,75 @@ export default function AttendancePage() {
     (a) => a.employeeId === currentUser.employeeId
   );
 
-  const handlePunch = async (type: "checkIn" | "checkOut") => {
-    setIsPunching(true);
-    try {
-      const res = await fetch("/api/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employeeId: currentUser.employeeId,
-          type,
-          actor: { name: currentUser.name, role: currentUser.role },
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        loadData();
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsPunching(false);
+  const handleClockIn = () => {
+    setPunchError(null);
+
+    if (!navigator.geolocation) {
+      setPunchError("Geolocation is not supported by your browser.");
+      return;
     }
+
+    setIsPunching(true);
+    setPunchStatusMessage("Accessing device GPS...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          setPunchStatusMessage("Verifying office location...");
+          const { latitude, longitude, accuracy } = pos.coords;
+
+          const res = await fetch("/api/attendance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "checkIn",
+              latitude,
+              longitude,
+              accuracy,
+            }),
+          });
+
+          const data = await res.json();
+          if (data.success) {
+            setPunchStatusMessage(null);
+            loadData();
+          } else {
+            setPunchError(data.error || "Failed to mark attendance.");
+            setPunchStatusMessage(null);
+          }
+        } catch (e: any) {
+          console.error("Punch error:", e);
+          setPunchError(e.message || "Failed to mark attendance.");
+          setPunchStatusMessage(null);
+        } finally {
+          setIsPunching(false);
+        }
+      },
+      (err) => {
+        setIsPunching(false);
+        setPunchStatusMessage(null);
+        if (err.code === err.PERMISSION_DENIED) {
+          setPunchError("Location permission denied. Please allow location access in your browser to clock in.");
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setPunchError("Location information unavailable. Please turn on device GPS and retry.");
+        } else if (err.code === err.TIMEOUT) {
+          setPunchError("GPS location request timed out. Please try again.");
+        } else {
+          setPunchError("Unable to acquire GPS coordinates. Please try again.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0,
+      }
+    );
   };
 
   const handleOpenAdjust = (rec: AttendanceRecord) => {
     setEditingRecord(rec);
     setAdjustStatus(rec.status);
     setAdjustCheckIn(rec.checkIn || "");
-    setAdjustCheckOut(rec.checkOut || "");
     setAdjustRemarks(rec.remarks || "");
   };
 
@@ -121,7 +167,6 @@ export default function AttendancePage() {
           updates: {
             status: adjustStatus,
             checkIn: adjustCheckIn,
-            checkOut: adjustCheckOut,
             remarks: adjustRemarks,
           },
           actor: { name: currentUser.name, role: currentUser.role },
@@ -168,6 +213,27 @@ export default function AttendancePage() {
     }
   };
 
+  const handleClearAttendance = async () => {
+    if (!confirm("Are you sure you want to clear all attendance records? This will delete all attendance records for a fresh start.")) {
+      return;
+    }
+    setIsClearing(true);
+    try {
+      const res = await fetch("/api/attendance", { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || "All attendance data cleared!");
+        loadData();
+      } else {
+        alert(data.error || "Failed to clear attendance data");
+      }
+    } catch (e: any) {
+      alert("Error: " + e.message);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   const presentCount = attendance.filter((a) => a.status === "Present" || a.status === "Work From Home").length;
   const lateCount = attendance.filter((a) => a.lateArrival).length;
   const overtimeHours = attendance.reduce((acc, curr) => acc + (curr.overtimeHours || 0), 0);
@@ -187,14 +253,26 @@ export default function AttendancePage() {
         </div>
         <div className="flex items-center gap-3">
           {canManage && (
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<Sliders className="w-4 h-4" />}
-              onClick={() => setIsPolicyModalOpen(true)}
-            >
-              Configure Policy
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<Sliders className="w-4 h-4" />}
+                onClick={() => setIsPolicyModalOpen(true)}
+              >
+                Configure Policy
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                isLoading={isClearing}
+                icon={<Trash2 className="w-4 h-4" />}
+                onClick={handleClearAttendance}
+                title="Purge all attendance records for a fresh start"
+              >
+                Reset Attendance Data
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -221,31 +299,42 @@ export default function AttendancePage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex flex-col gap-2 pt-2">
             {!myRecord?.checkIn ? (
               <Button
-                onClick={() => handlePunch("checkIn")}
+                onClick={handleClockIn}
                 isLoading={isPunching}
                 size="sm"
-                icon={<LogIn className="w-4 h-4" />}
+                icon={<MapPin className="w-4 h-4" />}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
               >
-                Clock In Now
-              </Button>
-            ) : !myRecord?.checkOut ? (
-              <Button
-                onClick={() => handlePunch("checkOut")}
-                isLoading={isPunching}
-                size="sm"
-                variant="danger"
-                icon={<LogOut className="w-4 h-4" />}
-                className="w-full"
-              >
-                Clock Out (End Shift)
+                {isPunching ? "Verifying GPS..." : "Clock In Now"}
               </Button>
             ) : (
-              <div className="w-full text-center py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-emerald-400 font-semibold">
-                Shift Finished ({myRecord.totalWorkingHours} hrs)
+              <div className="w-full text-center py-2.5 px-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-200 flex flex-col gap-1 items-center">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  Attendance Recorded ({myRecord.status})
+                </div>
+                {myRecord.checkInLocationStatus === "VERIFIED" && (
+                  <span className="text-[11px] text-emerald-300/90 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-emerald-400" />
+                    Verified • {myRecord.checkInDistanceMeters ?? 0}m from {myRecord.checkInOfficeName || "Office"}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {punchStatusMessage && (
+              <div className="text-xs text-blue-400 flex items-center justify-center gap-1.5 animate-pulse pt-1">
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
+                {punchStatusMessage}
+              </div>
+            )}
+
+            {punchError && (
+              <div className="text-xs text-rose-300 bg-rose-950/40 border border-rose-500/30 p-2 rounded-lg text-center">
+                {punchError}
               </div>
             )}
           </div>
@@ -332,12 +421,12 @@ export default function AttendancePage() {
               <tr className="border-b border-slate-800 text-slate-400">
                 <th className="pb-3 font-medium">Employee</th>
                 <th className="pb-3 font-medium">Check-In</th>
-                <th className="pb-3 font-medium">Check-Out</th>
-                <th className="pb-3 font-medium">Total Hours</th>
-                <th className="pb-3 font-medium">Overtime</th>
+                <th className="pb-3 font-medium">Assigned Office</th>
+                <th className="pb-3 font-medium">GPS Distance</th>
+                <th className="pb-3 font-medium">Verification</th>
                 <th className="pb-3 font-medium">Status</th>
                 <th className="pb-3 font-medium">Remarks</th>
-                {canManage && <th className="pb-3 font-medium text-right">Actions</th>}
+                <th className="pb-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -347,11 +436,31 @@ export default function AttendancePage() {
                     <div>{rec.employeeName}</div>
                     <span className="text-[10px] text-slate-500 font-mono">{rec.employeeId}</span>
                   </td>
-                  <td className="py-3 font-mono text-slate-300">{rec.checkIn || "—"}</td>
-                  <td className="py-3 font-mono text-slate-300">{rec.checkOut || "—"}</td>
-                  <td className="py-3 text-slate-200 font-medium">{rec.totalWorkingHours} hrs</td>
-                  <td className="py-3 text-emerald-400 font-mono">
-                    {rec.overtimeHours > 0 ? `+${rec.overtimeHours}h` : "—"}
+                  <td className="py-3 font-mono text-slate-300 font-semibold">{rec.checkIn || "—"}</td>
+                  <td className="py-3 text-slate-300">{rec.checkInOfficeName || "—"}</td>
+                  <td className="py-3 font-mono text-slate-300">
+                    {rec.checkInDistanceMeters !== undefined ? `${rec.checkInDistanceMeters}m` : "—"}
+                  </td>
+                  <td className="py-3">
+                    <Badge
+                      variant={
+                        rec.checkInLocationStatus === "VERIFIED"
+                          ? "success"
+                          : rec.checkInLocationStatus === "OUTSIDE_RADIUS"
+                          ? "danger"
+                          : rec.checkInLocationStatus === "LOW_ACCURACY"
+                          ? "warning"
+                          : "neutral"
+                      }
+                    >
+                      {rec.checkInLocationStatus === "VERIFIED"
+                        ? "Verified"
+                        : rec.checkInLocationStatus === "OUTSIDE_RADIUS"
+                        ? "Outside Area"
+                        : rec.checkInLocationStatus === "LOW_ACCURACY"
+                        ? "Low GPS"
+                        : rec.checkInLocationStatus || "Manual"}
+                    </Badge>
                   </td>
                   <td className="py-3">
                     <Badge
@@ -370,20 +479,34 @@ export default function AttendancePage() {
                       {rec.status}
                     </Badge>
                   </td>
-                  <td className="py-3 text-slate-400">{rec.remarks || "—"}</td>
-                  {canManage && (
-                    <td className="py-3 text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        icon={<Edit2 className="w-3.5 h-3.5" />}
-                        onClick={() => handleOpenAdjust(rec)}
-                        className="text-xs py-1 px-2.5"
-                      >
-                        Adjust
-                      </Button>
-                    </td>
-                  )}
+                  <td className="py-3 text-slate-400 max-w-[180px] truncate">{rec.remarks || "—"}</td>
+                  <td className="py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {rec.checkInLatitude !== undefined && rec.checkInLongitude !== undefined && (
+                        <a
+                          href={`https://www.openstreetmap.org/?mlat=${rec.checkInLatitude}&mlon=${rec.checkInLongitude}#map=18/${rec.checkInLatitude}/${rec.checkInLongitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-400 hover:text-blue-300 bg-blue-950/40 border border-blue-800/40 px-2 py-1 rounded-md transition-colors"
+                          title="Inspect GPS location on OpenStreetMap"
+                        >
+                          <MapPin className="w-3 h-3 text-blue-400" />
+                          Map
+                        </a>
+                      )}
+                      {canManage && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          icon={<Edit2 className="w-3.5 h-3.5" />}
+                          onClick={() => handleOpenAdjust(rec)}
+                          className="text-xs py-1 px-2.5"
+                        >
+                          Adjust
+                        </Button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -416,27 +539,15 @@ export default function AttendancePage() {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Check-In Time</label>
-              <input
-                type="text"
-                value={adjustCheckIn}
-                onChange={(e) => setAdjustCheckIn(e.target.value)}
-                placeholder="10:00:00"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Check-Out Time</label>
-              <input
-                type="text"
-                value={adjustCheckOut}
-                onChange={(e) => setAdjustCheckOut(e.target.value)}
-                placeholder="19:00:00"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Check-In Time</label>
+            <input
+              type="text"
+              value={adjustCheckIn}
+              onChange={(e) => setAdjustCheckIn(e.target.value)}
+              placeholder="10:00:00"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+            />
           </div>
 
           <div>

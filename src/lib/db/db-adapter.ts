@@ -13,6 +13,7 @@ import {
   INITIAL_POLICY,
   INITIAL_HOLIDAYS,
   INITIAL_ONBOARDING_RECORDS,
+  INITIAL_OFFICES,
   SEED_USERS,
   SEED_USER_ACCOUNTS,
 } from "./seed-data";
@@ -43,6 +44,8 @@ import {
   STANDARD_ONBOARDING_CHECKLIST,
   EmploymentStatus,
   RegistrationDraft,
+  OfficeLocation,
+  LocationVerificationStatus,
 } from "../types";
 import { calculateSalaryBreakdown, calculateSalaryFromMonthly } from "../payroll-engine";
 import { sendAccountApprovedEmail } from "../email";
@@ -51,8 +54,10 @@ import {
   getDocumentFromFirestore,
   saveDocumentToFirestore,
   deleteDocumentFromFirestore,
+  clearCollectionInFirestore,
 } from "../firestore-service";
 import { isLocalEnvironment } from "../env";
+import { calculateHaversineDistance } from "../attendance/geolocation";
 
 // Memory storage for fallback/dev cache
 class MemoryStore {
@@ -62,6 +67,7 @@ class MemoryStore {
   sessions: UserSession[] = [];
   employees: Employee[] = isLocalEnvironment() ? [...INITIAL_EMPLOYEES] : [];
   attendance: AttendanceRecord[] = isLocalEnvironment() ? [...INITIAL_ATTENDANCE] : [];
+  offices: OfficeLocation[] = isLocalEnvironment() ? [...INITIAL_OFFICES] : [];
   leaves: LeaveRequest[] = isLocalEnvironment() ? [...INITIAL_LEAVES] : [];
   incentiveSchemes: IncentiveScheme[] = isLocalEnvironment() ? [...INITIAL_INCENTIVE_SCHEMES] : [];
   employeeIncentives: EmployeeIncentiveRecord[] = isLocalEnvironment() ? [...INITIAL_EMPLOYEE_INCENTIVES] : [];
@@ -79,6 +85,7 @@ class MemoryStore {
 
 const globalForMemory = globalThis as unknown as { __hrms_memory_store?: MemoryStore };
 const memory = (globalForMemory.__hrms_memory_store ??= new MemoryStore());
+memory.offices ??= isLocalEnvironment() ? [...INITIAL_OFFICES] : [];
 
 // Helper to log audit events
 export async function recordAuditLog({
@@ -401,96 +408,217 @@ export async function updateAttendanceRecord(
   return updated;
 }
 
+export async function clearAttendanceRecords(actor?: { name: string; role: string }): Promise<number> {
+  memory.attendance = [];
+  const deletedCount = await clearCollectionInFirestore("attendance");
+
+  await recordAuditLog({
+    who: actor?.name || "System Admin",
+    role: actor?.role || "admin",
+    action: "ATTENDANCE_CLEARED",
+    details: `Purged all attendance records for a fresh start (${deletedCount} documents deleted from Firestore)`,
+  });
+
+  return deletedCount;
+}
+
+export async function getOffices(): Promise<OfficeLocation[]> {
+  try {
+    const firestoreDocs = await getCollectionFromFirestore<OfficeLocation>("offices");
+    if (firestoreDocs && firestoreDocs.length > 0) {
+      return firestoreDocs;
+    }
+  } catch (e) {
+    console.warn("Firestore getOffices fallback:", e);
+  }
+  if (!memory.offices) {
+    memory.offices = isLocalEnvironment() ? [...INITIAL_OFFICES] : [];
+  }
+  return memory.offices;
+}
+
+export async function getOfficeById(id: string): Promise<OfficeLocation | null> {
+  const offices = await getOffices();
+  return offices.find((o) => o.id === id) || null;
+}
+
+export async function saveOffice(
+  office: OfficeLocation,
+  actor: { name: string; role: string }
+): Promise<OfficeLocation> {
+  if (!memory.offices) {
+    memory.offices = isLocalEnvironment() ? [...INITIAL_OFFICES] : [];
+  }
+  const index = memory.offices.findIndex((o) => o.id === office.id);
+  const now = new Date().toISOString();
+  const updatedOffice: OfficeLocation = {
+    ...office,
+    updatedAt: now,
+    createdAt: office.createdAt || now,
+  };
+
+  if (index >= 0) {
+    memory.offices[index] = updatedOffice;
+  } else {
+    memory.offices.push(updatedOffice);
+  }
+
+  saveDocumentToFirestore("offices", updatedOffice.id, updatedOffice).catch(() => {});
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "OFFICE_SAVED",
+    details: `Configured office geofence for ${updatedOffice.name} (Radius: ${updatedOffice.allowedRadiusMeters}m)`,
+  });
+
+  return updatedOffice;
+}
+
+export async function deleteOffice(
+  id: string,
+  actor: { name: string; role: string }
+): Promise<boolean> {
+  if (!memory.offices) {
+    memory.offices = isLocalEnvironment() ? [...INITIAL_OFFICES] : [];
+  }
+  const index = memory.offices.findIndex((o) => o.id === id);
+  if (index === -1) return false;
+
+  const office = memory.offices[index];
+  memory.offices.splice(index, 1);
+  deleteDocumentFromFirestore("offices", id).catch(() => {});
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "OFFICE_DELETED",
+    details: `Deleted office geofence for ${office.name}`,
+  });
+
+  return true;
+}
+
 export async function punchAttendance(
   employeeId: string,
   type: "checkIn" | "checkOut",
-  actor: { name: string; role: string }
+  actor: { name: string; role: string },
+  locationData?: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+  }
 ): Promise<AttendanceRecord> {
+  // Reject clock-out since Credit Expert India operations only use clock-in
+  if (type === "checkOut") {
+    throw new Error("Clock-out is disabled. Attendance is automatically completed upon Clock-In.");
+  }
+
   const today = new Date().toISOString().split("T")[0];
   const nowTime = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
 
   const emp = memory.employees.find(
     (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
   );
-  const employeeName = emp?.personal.fullName || actor.name;
+  const employeeName = emp?.personal?.fullName || actor.name;
 
-  let record = memory.attendance.find(
+  // Single-punch-per-day enforcement
+  const existingRecord = memory.attendance.find(
     (a) => a.employeeId.toLowerCase() === employeeId.toLowerCase() && a.date === today
   );
 
-  if (type === "checkIn") {
-    if (record) {
-      record.checkIn = nowTime;
-      record.status = "Present";
-    } else {
-      const isLate = nowTime > "10:15";
-      const newRec: AttendanceRecord = {
-        id: `att-${Date.now()}`,
-        employeeId: emp?.employeeId || employeeId,
-        employeeName,
-        date: today,
-        checkIn: nowTime,
-        checkOut: "--",
-        totalWorkingHours: 0,
-        breakDurationMinutes: 0,
-        status: isLate ? "Late" : "Present",
-        lateArrival: isLate,
-        earlyDeparture: false,
-        overtimeHours: 0,
-        remarks: "Web Check-In",
-      };
-      memory.attendance.unshift(newRec);
-      record = newRec;
-    }
-  } else {
-    // checkOut
-    if (!record) {
-      const newRec: AttendanceRecord = {
-        id: `att-${Date.now()}`,
-        employeeId: emp?.employeeId || employeeId,
-        employeeName,
-        date: today,
-        checkIn: "10:00",
-        checkOut: nowTime,
-        totalWorkingHours: 8,
-        breakDurationMinutes: 60,
-        status: "Present",
-        lateArrival: false,
-        earlyDeparture: false,
-        overtimeHours: 0,
-        remarks: "Web Check-Out",
-      };
-      memory.attendance.unshift(newRec);
-      record = newRec;
-    } else {
-      record.checkOut = nowTime;
-      if (record.checkIn && record.checkIn !== "--") {
-        const [inH, inM] = record.checkIn.split(":").map(Number);
-        const [outH, outM] = nowTime.split(":").map(Number);
-        const diffHours = Math.max(0, (outH * 60 + outM - (inH * 60 + inM)) / 60);
-        record.totalWorkingHours = Number(diffHours.toFixed(1));
-        record.overtimeHours = Number(Math.max(0, diffHours - 8).toFixed(1));
-        if (diffHours < 4) {
-          record.status = "Half Day";
-        } else if (record.status !== "Late") {
-          record.status = "Present";
-        }
-      }
-    }
+  if (existingRecord && existingRecord.checkIn && existingRecord.checkIn !== "--") {
+    throw new Error("You have already clocked in for today.");
   }
 
-  saveDocumentToFirestore("attendance", record.id, record).catch(() => {});
+  let distanceMeters: number | undefined;
+  let verificationStatus: LocationVerificationStatus = "MANUAL_OVERRIDE";
+  let matchedOffice: OfficeLocation | undefined;
+
+  // Perform Server-Side GPS & Geofence Validation if location is supplied
+  if (locationData) {
+    const offices = await getOffices();
+    const activeOffices = offices.filter((o) => o.isActive);
+
+    const empBranch = emp?.employment?.branch;
+    matchedOffice = activeOffices.find((o) => o.branch === empBranch) || activeOffices[0];
+
+    if (!matchedOffice) {
+      throw new Error("No active office location is assigned to your branch. Please contact HR.");
+    }
+
+    // Check accuracy limit
+    const maxAccuracy = matchedOffice.maxAccuracyMeters || 100;
+    if (locationData.accuracy > maxAccuracy) {
+      throw new Error(
+        `GPS accuracy is too low (${Math.round(locationData.accuracy)}m). Maximum allowed is ${maxAccuracy}m. Please step outdoors or enable high-accuracy GPS and try again.`
+      );
+    }
+
+    // Calculate server distance
+    distanceMeters = calculateHaversineDistance(
+      locationData.latitude,
+      locationData.longitude,
+      matchedOffice.latitude,
+      matchedOffice.longitude
+    );
+
+    // Geofence check
+    if (distanceMeters > matchedOffice.allowedRadiusMeters) {
+      throw new Error(
+        `You are outside the allowed office attendance area. Current distance: ${distanceMeters}m. Allowed radius: ${matchedOffice.allowedRadiusMeters}m from ${matchedOffice.name}.`
+      );
+    }
+
+    verificationStatus = "VERIFIED";
+  }
+
+  // Calculate Late vs Present status per policy
+  const startTime = memory.policy.officeStartTime || "10:00";
+  const grace = memory.policy.gracePeriodMinutes ?? 15;
+  const [startH, startM] = startTime.split(":").map(Number);
+  const [curH, curM] = nowTime.split(":").map(Number);
+  const punchMinutes = curH * 60 + curM;
+  const cutoffMinutes = startH * 60 + startM + grace;
+  const isLate = punchMinutes > cutoffMinutes;
+
+  const newRec: AttendanceRecord = {
+    id: `att-${Date.now()}`,
+    employeeId: emp?.employeeId || employeeId,
+    employeeName,
+    date: today,
+    checkIn: nowTime,
+    totalWorkingHours: memory.policy.fullDayMinHours || 8,
+    breakDurationMinutes: (memory.policy.standardBreakHours || 1) * 60,
+    status: isLate ? "Late" : "Present",
+    lateArrival: isLate,
+    earlyDeparture: false,
+    overtimeHours: 0,
+    remarks: locationData
+      ? `GPS Clock-In (${distanceMeters}m from ${matchedOffice?.name || "Office"})`
+      : "Manual / Admin Check-In",
+    checkInLatitude: locationData?.latitude,
+    checkInLongitude: locationData?.longitude,
+    checkInAccuracy: locationData ? Math.round(locationData.accuracy) : undefined,
+    checkInDistanceMeters: distanceMeters,
+    checkInLocationStatus: verificationStatus,
+    checkInOfficeId: matchedOffice?.id,
+    checkInOfficeName: matchedOffice?.name,
+  };
+
+  memory.attendance.unshift(newRec);
+  saveDocumentToFirestore("attendance", newRec.id, newRec).catch(() => {});
 
   await recordAuditLog({
     who: actor.name,
     role: actor.role,
-    action: `ATTENDANCE_${type.toUpperCase()}`,
-    employeeId: record.employeeId,
-    employeeName: record.employeeName,
-    details: `${type === "checkIn" ? "Clocked in" : "Clocked out"} at ${nowTime} on ${today}`,
+    action: "ATTENDANCE_CLOCK_IN",
+    employeeId: newRec.employeeId,
+    employeeName: newRec.employeeName,
+    details: `Clocked in at ${nowTime} on ${today} (Distance: ${distanceMeters ?? "N/A"}m, Status: ${newRec.status})`,
   });
 
-  return record;
+  return newRec;
 }
 
 export const adjustAttendance = updateAttendanceRecord;
