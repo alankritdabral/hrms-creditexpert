@@ -46,7 +46,7 @@ import {
 } from "@/lib/registration-draft";
 
 interface UploadedKycItem {
-  type: "pan_card" | "aadhaar_card" | "cancelled_cheque" | "photograph";
+  type: "pan_card" | "aadhaar_card" | "photograph" | "cancelled_cheque";
   title: string;
   fileUrl: string;
   publicId?: string;
@@ -110,12 +110,6 @@ export default function RegisterPage() {
     aadhaar_card: {
       type: "aadhaar_card",
       title: "Aadhaar Card",
-      fileUrl: "",
-      uploadedAt: "",
-    },
-    cancelled_cheque: {
-      type: "cancelled_cheque",
-      title: "Bank Proof (Cancelled Cheque / Passbook)",
       fileUrl: "",
       uploadedAt: "",
     },
@@ -480,7 +474,7 @@ export default function RegisterPage() {
 
   // Step 4: Handle File Upload with 2 MB Limit & Cloudinary
   const handleFileUpload = async (
-    docKey: "pan_card" | "aadhaar_card" | "cancelled_cheque" | "photograph",
+    docKey: "pan_card" | "aadhaar_card" | "photograph",
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
@@ -564,17 +558,16 @@ export default function RegisterPage() {
   const handleSubmitApplication = async () => {
     setGlobalError(null);
 
-    // Validate that all 4 mandatory KYC documents are uploaded
-    const requiredKeys: ("pan_card" | "aadhaar_card" | "cancelled_cheque" | "photograph")[] = [
+    // Validate that all 3 mandatory KYC documents are uploaded
+    const requiredKeys: ("pan_card" | "aadhaar_card" | "photograph")[] = [
       "pan_card",
       "aadhaar_card",
-      "cancelled_cheque",
       "photograph",
     ];
 
     for (const key of requiredKeys) {
-      if (!kycDocs[key].fileUrl) {
-        setGlobalError(`Please upload the mandatory document: ${kycDocs[key].title}.`);
+      if (!kycDocs[key]?.fileUrl) {
+        setGlobalError(`Please upload the mandatory document: ${kycDocs[key]?.title || key}.`);
         return;
       }
     }
@@ -1400,7 +1393,7 @@ export default function RegisterPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
                   {
                     key: "pan_card" as const,
@@ -1413,13 +1406,8 @@ export default function RegisterPage() {
                     desc: "Front and back side or masked e-Aadhaar PDF",
                   },
                   {
-                    key: "cancelled_cheque" as const,
-                    title: "3. Cancelled Cheque / Passbook *",
-                    desc: "Proof of bank account showing name, account & IFSC (PDF, JPG, PNG, WEBP)",
-                  },
-                  {
                     key: "photograph" as const,
-                    title: "4. Passport Size Photograph *",
+                    title: "3. Passport Size Photograph *",
                     desc: "Recent formal face portrait (JPG, PNG, WEBP only — no PDFs)",
                   },
                 ].map((item) => {

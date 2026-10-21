@@ -13,7 +13,6 @@ import { STANDARD_ONBOARDING_CHECKLIST, UserAccount, Branch } from "@/lib/types"
 const REQUIRED_DOC_TYPES = [
   { type: "pan_card", label: "PAN Card" },
   { type: "aadhaar_card", label: "Aadhaar Card" },
-  { type: "cancelled_cheque", label: "Bank Proof (Cancelled Cheque / Passbook)" },
   { type: "photograph", label: "Passport Photograph" },
 ];
 
@@ -157,12 +156,8 @@ export async function POST(req: NextRequest) {
       } else if (item.key === "aadhaar_card" && uploadedTypes.has("aadhaar_card")) {
         isCompleted = true;
         docUrl = docList.find((d: any) => d.type === "aadhaar_card")?.fileUrl;
-      } else if (
-        (item.key === "bank_details" || item.key === "cancelled_cheque") &&
-        uploadedTypes.has("cancelled_cheque")
-      ) {
-        isCompleted = true;
-        docUrl = docList.find((d: any) => d.type === "cancelled_cheque")?.fileUrl;
+      } else if (item.key === "bank_details") {
+        isCompleted = Boolean(statutoryDetails?.bankAccountNumber && statutoryDetails?.ifscCode);
       } else if (item.key === "photograph" && uploadedTypes.has("photograph")) {
         isCompleted = true;
         docUrl = docList.find((d: any) => d.type === "photograph")?.fileUrl;

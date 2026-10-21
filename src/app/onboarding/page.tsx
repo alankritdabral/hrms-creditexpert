@@ -235,7 +235,7 @@ export default function OnboardingPage() {
           notes: "",
         });
         setActiveChecklistRecord(data.data);
-        setActionSuccessMessage("15-item onboarding checklist initialized for candidate!");
+        setActionSuccessMessage("Onboarding checklist initialized for candidate!");
         setTimeout(() => setActionSuccessMessage(null), 5000);
       } else {
         alert(data.error || "Failed to create onboarding record");
@@ -296,7 +296,7 @@ export default function OnboardingPage() {
             Employee Onboarding & Lifecycle Management
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Standardized 15-item candidate onboarding checklist, document verification, IT provisioning, and employee activation.
+            Candidate onboarding checklist, document verification, IT provisioning, and employee activation.
           </p>
         </div>
 
@@ -632,7 +632,7 @@ export default function OnboardingPage() {
                           }`}
                           title={
                             isFullyDone
-                              ? "All 15 checklist items complete! Click to activate permanent employee record."
+                              ? "All checklist items complete! Click to activate permanent employee record."
                               : "Activate employee profile with current onboarding data."
                           }
                         >
@@ -648,7 +648,7 @@ export default function OnboardingPage() {
         )}
       </div>
 
-      {/* MODAL 1: Interactive 15-Item Checklist Drawer / Modal */}
+      {/* MODAL 1: Interactive Checklist Drawer / Modal */}
       {activeChecklistRecord && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-3xl w-full border border-slate-200 shadow-xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
@@ -657,7 +657,7 @@ export default function OnboardingPage() {
               <div className="space-y-1.5 flex-1 pr-4">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full">
-                    15-Point Onboarding Checklist
+                    Onboarding Checklist
                   </span>
                   <span className="text-xs text-slate-600 font-medium px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">
                     {activeChecklistRecord.branch} Branch
@@ -736,7 +736,7 @@ export default function OnboardingPage() {
                   <span className="text-slate-700">Verification Progress</span>
                   <span className="text-blue-700 font-bold">
                     {activeChecklistRecord.progressPercentage}% Completed (
-                    {activeChecklistRecord.checklist.filter((i) => i.completed).length} of 15)
+                    {activeChecklistRecord.checklist.filter((i) => i.completed).length} of {activeChecklistRecord.checklist.length})
                   </span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
@@ -895,12 +895,12 @@ export default function OnboardingPage() {
             {/* Category Filter Tabs */}
             <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
               {[
-                { id: "all", label: "All 15 Items" },
-                { id: "statutory", label: "Statutory & Bank (4)" },
-                { id: "compliance", label: "Legal & Contracts (4)" },
-                { id: "documentation", label: "Documents & Certificates (3)" },
-                { id: "it_setup", label: "IT Asset Allocation (1)" },
-                { id: "account", label: "Account Provisioning (2)" },
+                { id: "all", label: `All Items (${activeChecklistRecord.checklist.length})` },
+                { id: "statutory", label: `Statutory & Bank (${activeChecklistRecord.checklist.filter((i) => i.category === "statutory").length})` },
+                { id: "compliance", label: `Legal & Contracts (${activeChecklistRecord.checklist.filter((i) => i.category === "compliance").length})` },
+                { id: "documentation", label: `Documents (${activeChecklistRecord.checklist.filter((i) => i.category === "documentation").length})` },
+                { id: "it_setup", label: `IT Setup (${activeChecklistRecord.checklist.filter((i) => i.category === "it_setup").length})` },
+                { id: "account", label: `Account Provisioning (${activeChecklistRecord.checklist.filter((i) => i.category === "account").length})` },
               ].map((cat) => (
                 <button
                   key={cat.id}
@@ -1058,7 +1058,7 @@ export default function OnboardingPage() {
               <div>
                 <h3 className="text-base font-bold text-slate-900">Initiate Candidate Onboarding</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Generates the standard 15-item onboarding checklist and candidate profile.
+                  Generates the standard onboarding checklist and candidate profile.
                 </p>
               </div>
               <button
@@ -1201,7 +1201,7 @@ export default function OnboardingPage() {
                   className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  {submitting ? "Initializing..." : "Initialize 15-Item Checklist"}
+                  {submitting ? "Initializing..." : "Initialize Checklist"}
                 </button>
               </div>
             </form>
