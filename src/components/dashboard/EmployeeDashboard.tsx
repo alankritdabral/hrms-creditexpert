@@ -29,12 +29,13 @@ export function EmployeeDashboard() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [isPunching, setIsPunching] = useState(false);
 
-  const today = "2026-10-17";
+  const today = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
     async function load() {
       try {
-        const empId = currentUser.employeeId || "EMP-0012";
+        const empId = currentUser.employeeId;
+        if (!empId) return;
         const [empRes, attRes, levRes, annRes, holRes] = await Promise.all([
           fetch(`/api/employees/${empId}`).then((r) => r.json()),
           fetch(`/api/attendance?date=${today}`).then((r) => r.json()),
@@ -71,7 +72,7 @@ export function EmployeeDashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: currentUser.employeeId || "EMP-0012",
+          employeeId: currentUser.employeeId,
           type,
           actor: { name: currentUser.name, role: currentUser.role },
         }),

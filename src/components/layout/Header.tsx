@@ -40,32 +40,14 @@ export function Header() {
     return () => clearInterval(interval);
   }, []);
 
-  const notifications = [
-    {
-      id: "notif-1",
-      icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
-      title: "Document Expiry Alert",
-      desc: "Sneha Patel's Passport / Visa expires in 29 days",
-      time: "Action required",
-      urgent: true,
-    },
-    {
-      id: "notif-2",
-      icon: <Cake className="w-4 h-4 text-blue-600" />,
-      title: "Upcoming Birthday",
-      desc: "Ananya Deshmukh celebrates birthday next week",
-      time: "HR Notice",
-      urgent: false,
-    },
-    {
-      id: "notif-3",
-      icon: <CalendarCheck className="w-4 h-4 text-indigo-600" />,
-      title: "Pending Leave Requests",
-      desc: "2 leave requests awaiting manager approval",
-      time: "Today",
-      urgent: false,
-    },
-  ];
+  const notifications: Array<{
+    id: string;
+    icon: React.ReactNode;
+    title: string;
+    desc: string;
+    time: string;
+    urgent?: boolean;
+  }> = [];
 
   const roleStyles = {
     admin: { label: "ADMIN", color: "bg-blue-50 text-blue-700 border-blue-200" },

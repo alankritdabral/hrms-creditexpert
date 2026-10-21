@@ -191,19 +191,6 @@ export default function SettingsPage() {
               <span>{firestoreSyncResult}</span>
             </div>
           )}
-
-          {isLocalhost && (
-            <Button
-              size="sm"
-              variant="outline"
-              icon={<UploadCloud className="w-4 h-4" />}
-              onClick={handleSyncFirestore}
-              isLoading={isSyncingFirestore}
-              className="w-full text-xs"
-            >
-              Batch Seed / Sync Collections to Firestore (Localhost Only)
-            </Button>
-          )}
         </div>
 
         {/* Firebase Spark Plan Quota & Optimization */}

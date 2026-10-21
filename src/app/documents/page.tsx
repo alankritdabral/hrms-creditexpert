@@ -38,68 +38,14 @@ export default function DocumentsPage() {
 
   const loadData = async () => {
     try {
-      const [empRes, docRes] = await Promise.all([
-        fetch("/api/employees").then((r) => r.json()),
-        fetch("/api/employees/EMP-0012").then((r) => r.json()), // fallback query
-      ]);
+      const empRes = await fetch("/api/employees").then((r) => r.json());
 
       if (empRes.success && empRes.data) {
         setEmployees(empRes.data);
         if (empRes.data.length > 0) setSelectedEmployeeId(empRes.data[0].employeeId);
       }
 
-      // Initial document catalog
-      setDocuments([
-        {
-          id: "doc-1",
-          employeeId: "EMP-0012",
-          employeeName: "Sneha Patel",
-          documentType: "Offer Letter",
-          title: "Offer_Letter_Sneha_Patel.pdf",
-          fileUrl: "#",
-          uploadedBy: "Rahul Sharma (HR)",
-          uploadDate: "2024-06-10",
-          status: "Verified",
-          notes: "Official signed acceptance",
-        },
-        {
-          id: "doc-2",
-          employeeId: "EMP-0012",
-          employeeName: "Sneha Patel",
-          documentType: "Passport / Visa",
-          title: "Passport_Sneha_Patel.pdf",
-          fileUrl: "#",
-          uploadedBy: "Rahul Sharma (HR)",
-          uploadDate: "2024-06-15",
-          expiryDate: "2026-11-15",
-          status: "Verified",
-          notes: "Requires renewal for upcoming client travel",
-        },
-        {
-          id: "doc-3",
-          employeeId: "EMP-0005",
-          employeeName: "Vikram Rao",
-          documentType: "Non-Disclosure Agreement (NDA)",
-          title: "NDA_Enterprise_Sales_Vikram.pdf",
-          fileUrl: "#",
-          uploadedBy: "Rahul Sharma (HR)",
-          uploadDate: "2025-01-15",
-          status: "Verified",
-          notes: "Full IP and confidentiality agreement",
-        },
-        {
-          id: "doc-4",
-          employeeId: "EMP-0008",
-          employeeName: "Ananya Deshmukh",
-          documentType: "Degree Certificate",
-          title: "BDes_Design_Degree.pdf",
-          fileUrl: "#",
-          uploadedBy: "Ananya Deshmukh",
-          uploadDate: "2025-08-01",
-          status: "Verified",
-          notes: "Education background verified",
-        },
-      ]);
+      setDocuments([]);
     } catch (e) {
       console.error(e);
     } finally {

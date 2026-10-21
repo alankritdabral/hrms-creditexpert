@@ -329,20 +329,14 @@ export function AdminDashboard() {
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <FolderArchive className="w-4 h-4 text-rose-500" />
+              <FolderArchive className="w-4 h-4 text-emerald-500" />
               Document Expiry Alerts
             </span>
-            <Badge variant="danger">1 Alert</Badge>
+            <Badge variant="success">0 Alerts</Badge>
           </div>
-          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200/80 text-xs">
-            <p className="font-semibold text-rose-800">Sneha Patel (EMP-0012)</p>
-            <p className="text-[11px] text-slate-600 mt-0.5">Passport / Visa renewal due by 15 Nov 2026</p>
-            <div className="mt-2 flex items-center justify-between">
-              <span className="text-[10px] text-rose-600 font-medium">29 days remaining</span>
-              <Link href="/documents" className="text-[11px] font-semibold text-blue-600 hover:underline">
-                View doc
-              </Link>
-            </div>
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-center text-slate-500">
+            <p className="font-medium">All documents are up-to-date</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">No expiring credentials or statutory KYC</p>
           </div>
         </div>
 
@@ -353,27 +347,11 @@ export function AdminDashboard() {
               <Cake className="w-4 h-4 text-pink-500" />
               Birthdays & Milestones
             </span>
-            <span className="text-xs text-slate-400 font-medium">October 2026</span>
+            <span className="text-xs text-slate-400 font-medium">Calendar</span>
           </div>
-          <div className="space-y-2.5 text-xs">
-            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-700 flex items-center justify-center font-bold text-xs">
-                AD
-              </div>
-              <div>
-                <p className="font-semibold text-slate-800">Ananya Deshmukh</p>
-                <p className="text-[11px] text-slate-500">Birthday • Oct 30th</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
-                RS
-              </div>
-              <div>
-                <p className="font-semibold text-slate-800">Rahul Sharma</p>
-                <p className="text-[11px] text-slate-500">4-Year Work Anniversary • Nov 10th</p>
-              </div>
-            </div>
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-center text-slate-500">
+            <p className="font-medium">No celebrations scheduled</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Milestones will appear automatically</p>
           </div>
         </div>
       </div>

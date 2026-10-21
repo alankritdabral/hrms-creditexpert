@@ -40,7 +40,7 @@ export default function RequestsPage() {
     try {
       const url =
         currentUser.role === "employee"
-          ? `/api/requests?employeeId=${currentUser.employeeId || "EMP-0012"}`
+          ? `/api/requests?employeeId=${currentUser.employeeId}`
           : "/api/requests";
       const res = await fetch(url);
       const data = await res.json();
@@ -66,7 +66,7 @@ export default function RequestsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: currentUser.employeeId || "EMP-0012",
+          employeeId: currentUser.employeeId,
           employeeName: currentUser.name,
           department: currentUser.department || "General",
           requestType: reqType,

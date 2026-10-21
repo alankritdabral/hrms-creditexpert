@@ -74,7 +74,7 @@ export default function AttendancePage() {
 
   // Current user's attendance for the day
   const myRecord = attendance.find(
-    (a) => a.employeeId === (currentUser.employeeId || "EMP-0012")
+    (a) => a.employeeId === currentUser.employeeId
   );
 
   const handlePunch = async (type: "checkIn" | "checkOut") => {
@@ -84,7 +84,7 @@ export default function AttendancePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: currentUser.employeeId || "EMP-0012",
+          employeeId: currentUser.employeeId,
           type,
           actor: { name: currentUser.name, role: currentUser.role },
         }),

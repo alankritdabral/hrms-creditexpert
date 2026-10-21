@@ -20,69 +20,17 @@ import {
   UserPlus,
 } from "lucide-react";
 
-const DEMO_PRESETS = [
-  {
-    name: "Rahul Sharma",
-    role: "Admin",
-    branch: "Delhi",
-    email: "rahul.admin@creditexpertindia.com",
-    password: "Password@123",
-    color: "bg-blue-50 text-blue-700 border-blue-200",
-  },
-  {
-    name: "Priya Verma",
-    role: "HR",
-    branch: "Dehradun",
-    email: "priya.hr@creditexpertindia.com",
-    password: "Password@123",
-    color: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  },
-  {
-    name: "Sneha Patel",
-    role: "Employee",
-    branch: "Dehradun",
-    email: "sneha.dev@creditexpertindia.com",
-    password: "Password@123",
-    color: "bg-purple-50 text-purple-700 border-purple-200",
-  },
-  {
-    name: "Amit Patel",
-    role: "Employee",
-    branch: "Delhi",
-    email: "amit.eng@creditexpertindia.com",
-    password: "Password@123",
-    color: "bg-purple-50 text-purple-700 border-purple-200",
-  },
-  {
-    name: "Vikram Rao",
-    role: "Employee",
-    branch: "Rudrapur",
-    email: "vikram.sales@creditexpertindia.com",
-    password: "Password@123",
-    color: "bg-purple-50 text-purple-700 border-purple-200",
-  },
-];
-
 import { useIsLocalhost } from "@/lib/use-is-localhost";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login, isAuthenticated } = useAuth();
-  const isLocalhost = useIsLocalhost();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Automatically pre-fill default test credentials only on local host
-  useEffect(() => {
-    if (isLocalhost) {
-      setEmail((prev) => prev || "rahul.admin@creditexpertindia.com");
-      setPassword((prev) => prev || "Password@123");
-    }
-  }, [isLocalhost]);
 
   const reason = searchParams?.get("reason");
   const isRevokedByAnotherDevice = reason === "another_device";
@@ -104,12 +52,6 @@ function LoginForm() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleQuickFill = (presetEmail: string, presetPass: string) => {
-    setEmail(presetEmail);
-    setPassword(presetPass);
-    setErrorMessage(null);
   };
 
   return (
@@ -240,47 +182,6 @@ function LoginForm() {
           </Link>
         </div>
       </form>
-
-      {/* Quick-Fill Credentials Helper (Only rendered on localhost workstation) */}
-      {isLocalhost && (
-        <div className="bg-white/80 backdrop-blur-xs rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-2.5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Fill Demo Credentials (Localhost Only)
-            </span>
-            <span className="text-[10px] text-slate-400">Click to fill</span>
-          </div>
-
-          <div className="space-y-1.5">
-            {DEMO_PRESETS.map((preset) => (
-              <button
-                key={preset.email}
-                type="button"
-                onClick={() => handleQuickFill(preset.email, preset.password)}
-                className="w-full flex items-center justify-between p-2 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200/70 hover:border-blue-200 transition-all text-left text-xs cursor-pointer group"
-              >
-                <div>
-                  <span className="font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">
-                    {preset.name}
-                  </span>
-                  <span className="text-[10px] text-slate-500 block">
-                    {preset.email}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${preset.color}`}>
-                    {preset.role}
-                  </span>
-                  <span className="text-[10px] text-slate-500 flex items-center">
-                    <MapPin className="w-2.5 h-2.5 text-slate-400 mr-0.5" />
-                    {preset.branch}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

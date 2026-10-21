@@ -66,7 +66,7 @@ export default function LeavesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: currentUser.employeeId || "EMP-0012",
+          employeeId: currentUser.employeeId,
           employeeName: currentUser.name,
           department: currentUser.department || "Technology",
           leaveType,
@@ -127,7 +127,7 @@ export default function LeavesPage() {
 
   const relevantLeaves = canApprove
     ? leaves
-    : leaves.filter((l) => l.employeeId === (currentUser.employeeId || "EMP-0012"));
+    : leaves.filter((l) => l.employeeId === currentUser.employeeId);
 
   const approvedLeaves = relevantLeaves.filter((l) => l.status === "Approved");
   const clTaken = approvedLeaves
