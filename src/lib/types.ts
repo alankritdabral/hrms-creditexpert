@@ -153,12 +153,15 @@ export interface SalaryComponent {
   employerEsic: number;
   employeePf: number;
   professionalTax: number;
+  includePf?: boolean;
 }
 
 export interface SalaryRevisionRecord {
   id: string;
   effectiveFrom: string;
   annualCtc: number;
+  monthlySalary?: number;
+  includePf?: boolean;
   components: SalaryComponent;
   revisionReason: string;
   updatedBy: string;

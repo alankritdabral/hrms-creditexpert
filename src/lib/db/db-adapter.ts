@@ -35,6 +35,7 @@ import {
   Branch,
   EmployeeDocument,
   SalaryRevisionRecord,
+  SalaryComponent,
   Holiday,
   OnboardingRecord,
   OnboardingChecklistItem,
@@ -43,7 +44,7 @@ import {
   EmploymentStatus,
   RegistrationDraft,
 } from "../types";
-import { calculateSalaryBreakdown } from "../payroll-engine";
+import { calculateSalaryBreakdown, calculateSalaryFromMonthly } from "../payroll-engine";
 import { sendAccountApprovedEmail } from "../email";
 import {
   getCollectionFromFirestore,
@@ -204,23 +205,79 @@ export async function updateEmployee(
   return emp;
 }
 
+export type SalaryRevisionInput = {
+  newAnnualCtc?: number;
+  monthlySalary?: number;
+  salaryBasis?: "monthly_gross" | "monthly_ctc";
+  includePf?: boolean;
+  revisionReason?: string;
+};
+
 export async function reviseSalary(
   employeeId: string,
-  newAnnualCtc: number,
-  revisionReason: string,
-  actor: { name: string; role: string }
+  salaryParam: number | SalaryRevisionInput,
+  revisionReasonArg?: string,
+  actorArg?: { name: string; role: string },
+  optionsArg?: {
+    monthlySalary?: number;
+    includePf?: boolean;
+    salaryBasis?: "monthly_gross" | "monthly_ctc";
+  }
 ): Promise<Employee | null> {
-  const index = memory.employees.findIndex(
+  let index = memory.employees.findIndex(
     (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
   );
+  if (index === -1) {
+    const docEmp = await getDocumentFromFirestore<Employee>("employees", employeeId);
+    if (docEmp) {
+      memory.employees.push(docEmp);
+      index = memory.employees.length - 1;
+    }
+  }
   if (index === -1) return null;
 
   const currentEmp = memory.employees[index];
-  const newComponents = calculateSalaryBreakdown(newAnnualCtc);
+
+  let newAnnualCtc = 0;
+  let monthlySalary: number | undefined;
+  let salaryBasis: "monthly_gross" | "monthly_ctc" = "monthly_gross";
+  let includePf = true;
+  let revisionReason = "Salary Revision";
+  let actor = actorArg || { name: "System", role: "admin" };
+
+  if (typeof salaryParam === "number") {
+    newAnnualCtc = salaryParam;
+    revisionReason = revisionReasonArg || "Salary Revision";
+    if (optionsArg) {
+      monthlySalary = optionsArg.monthlySalary;
+      if (optionsArg.includePf !== undefined) includePf = optionsArg.includePf;
+      if (optionsArg.salaryBasis) salaryBasis = optionsArg.salaryBasis;
+    }
+  } else {
+    newAnnualCtc = salaryParam.newAnnualCtc || 0;
+    monthlySalary = salaryParam.monthlySalary;
+    if (salaryParam.includePf !== undefined) includePf = salaryParam.includePf;
+    if (salaryParam.salaryBasis) salaryBasis = salaryParam.salaryBasis;
+    revisionReason = salaryParam.revisionReason || revisionReasonArg || "Salary Revision";
+  }
+
+  let newComponents: SalaryComponent;
+  if (monthlySalary && monthlySalary > 0) {
+    newComponents = calculateSalaryFromMonthly({
+      monthlyAmount: monthlySalary,
+      salaryBasis,
+      includePf,
+    });
+  } else {
+    newComponents = calculateSalaryBreakdown(newAnnualCtc, includePf);
+  }
+
   const revisionRecord: SalaryRevisionRecord = {
     id: `rev-${Date.now()}`,
     effectiveFrom: new Date().toISOString().split("T")[0],
-    annualCtc: newAnnualCtc,
+    annualCtc: newComponents.annualCtc,
+    monthlySalary: newComponents.grossSalary,
+    includePf: Boolean(newComponents.includePf),
     components: newComponents,
     revisionReason,
     updatedBy: actor.name,
@@ -243,7 +300,7 @@ export async function reviseSalary(
     action: "SALARY_REVISED",
     employeeId: updatedEmp.employeeId,
     employeeName: updatedEmp.personal.fullName,
-    details: `Revised annual CTC to ₹${newAnnualCtc.toLocaleString("en-IN")} (${revisionReason})`,
+    details: `Revised salary to ₹${newComponents.grossSalary.toLocaleString("en-IN")}/mo (Annual CTC: ₹${newComponents.annualCtc.toLocaleString("en-IN")}, PF: ${includePf ? "Included" : "Excluded"}) - ${revisionReason}`,
   });
 
   return updatedEmp;

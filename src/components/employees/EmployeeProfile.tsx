@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import {
   Employee,
@@ -10,6 +10,7 @@ import {
   AssetRecord,
   EmployeeDocument,
 } from "@/lib/types";
+import { calculateSalaryFromMonthly } from "@/lib/payroll-engine";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -31,6 +32,8 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface EmployeeProfileProps {
@@ -59,9 +62,42 @@ export function EmployeeProfile({
 
   // Salary Revision Modal State
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
-  const [newCtc, setNewCtc] = useState(employee.currentSalary.annualCtc);
+  const [salaryBasis, setSalaryBasis] = useState<"monthly_gross" | "monthly_ctc">("monthly_gross");
+  const [monthlyAmount, setMonthlyAmount] = useState<number>(
+    employee.currentSalary.grossSalary || Math.round(employee.currentSalary.annualCtc / 12)
+  );
+  const [includePf, setIncludePf] = useState<boolean>(
+    employee.currentSalary.includePf !== undefined
+      ? Boolean(employee.currentSalary.includePf)
+      : (employee.currentSalary.employeePf ?? 0) > 0
+  );
   const [revisionReason, setRevisionReason] = useState("");
   const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
+  const [showModalBreakdown, setShowModalBreakdown] = useState(false);
+  const [showActiveSalaryBreakdown, setShowActiveSalaryBreakdown] = useState(false);
+
+  const previewComponents = useMemo(() => {
+    return calculateSalaryFromMonthly({
+      monthlyAmount: Number(monthlyAmount) || 0,
+      salaryBasis,
+      includePf,
+    });
+  }, [monthlyAmount, salaryBasis, includePf]);
+
+  const handleOpenRevisionModal = () => {
+    setSalaryBasis("monthly_gross");
+    setMonthlyAmount(
+      employee.currentSalary.grossSalary || Math.round(employee.currentSalary.annualCtc / 12)
+    );
+    setIncludePf(
+      employee.currentSalary.includePf !== undefined
+        ? Boolean(employee.currentSalary.includePf)
+        : (employee.currentSalary.employeePf ?? 0) > 0
+    );
+    setRevisionReason("");
+    setShowModalBreakdown(false);
+    setIsRevisionModalOpen(true);
+  };
 
   const canEditSalary = ["admin", "hr"].includes(currentUser.role);
 
@@ -84,14 +120,26 @@ export function EmployeeProfile({
 
   const handleSalaryRevisionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!monthlyAmount || monthlyAmount <= 0) {
+      alert("Please enter a valid monthly salary amount");
+      return;
+    }
+    if (!revisionReason.trim()) {
+      alert("Please provide a revision reason or justification");
+      return;
+    }
+
     setIsSubmittingRevision(true);
     try {
       const res = await fetch(`/api/employees/${employee.employeeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          newAnnualCtc: Number(newCtc),
-          revisionReason,
+          monthlySalary: Number(monthlyAmount),
+          salaryBasis,
+          includePf,
+          newAnnualCtc: previewComponents.annualCtc,
+          revisionReason: revisionReason.trim(),
           actor: { name: currentUser.name, role: currentUser.role },
         }),
       });
@@ -192,7 +240,7 @@ export function EmployeeProfile({
                 size="sm"
                 variant="outline"
                 icon={<TrendingUp className="w-4 h-4" />}
-                onClick={() => setIsRevisionModalOpen(true)}
+                onClick={handleOpenRevisionModal}
               >
                 Revise Salary
               </Button>
@@ -353,72 +401,103 @@ export function EmployeeProfile({
           <div className="glass-card rounded-2xl p-6 border border-slate-800">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
               <div>
-                <span className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">
-                  Active Salary Structure
-                </span>
-                <h3 className="text-xl font-bold text-white mt-0.5">
-                  Annual CTC: ₹{employee.currentSalary.annualCtc.toLocaleString("en-IN")}
-                </h3>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-slate-400">Monthly CTC</span>
-                <div className="text-lg font-bold text-emerald-400">
-                  ₹{employee.currentSalary.monthlyCtc.toLocaleString("en-IN")}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">
+                    Active Salary Structure
+                  </span>
+                  <Badge variant={employee.currentSalary.employeePf > 0 ? "indigo" : "warning"}>
+                    {employee.currentSalary.employeePf > 0 ? "PF Enrolled" : "PF Excluded"}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap items-baseline gap-3 mt-1">
+                  <h3 className="text-2xl font-bold text-white font-mono">
+                    ₹{employee.currentSalary.grossSalary.toLocaleString("en-IN")}
+                    <span className="text-xs font-normal text-slate-400 ml-1">/ month gross</span>
+                  </h3>
+                  <span className="text-xs text-slate-400 font-mono">
+                    (Annual CTC: ₹{employee.currentSalary.annualCtc.toLocaleString("en-IN")})
+                  </span>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 text-xs">
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-slate-400">Basic Salary (50%)</span>
-                <p className="text-sm font-bold text-white mt-1">
-                  ₹{employee.currentSalary.basic.toLocaleString("en-IN")}
-                </p>
-                <span className="text-[10px] text-slate-500">PF calculable base</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-slate-400">HRA (50% of Basic)</span>
-                <p className="text-sm font-bold text-white mt-1">
-                  ₹{employee.currentSalary.hra.toLocaleString("en-IN")}
-                </p>
-                <span className="text-[10px] text-slate-500">Tax exemption eligible</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-slate-400">Special & Other Allowances</span>
-                <p className="text-sm font-bold text-white mt-1">
-                  ₹{(employee.currentSalary.specialAllowance + employee.currentSalary.otherAllowance).toLocaleString("en-IN")}
-                </p>
-                <span className="text-[10px] text-slate-500">Balances monthly gross</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-slate-400">Monthly Gross Salary</span>
-                <p className="text-sm font-bold text-indigo-400 mt-1">
-                  ₹{employee.currentSalary.grossSalary.toLocaleString("en-IN")}
-                </p>
-                <span className="text-[10px] text-slate-500">Pre-deductions total</span>
+              <div className="flex items-center gap-3">
+                <div className="text-right mr-1">
+                  <span className="text-xs text-slate-400">Monthly Net In-Hand</span>
+                  <div className="text-lg font-bold text-emerald-400 font-mono">
+                    ₹{Math.max(0, employee.currentSalary.grossSalary - employee.currentSalary.employeePf).toLocaleString("en-IN")}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={showActiveSalaryBreakdown ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  onClick={() => setShowActiveSalaryBreakdown((prev) => !prev)}
+                >
+                  {showActiveSalaryBreakdown ? "Hide Breakdown" : "View Breakdown"}
+                </Button>
+                {canEditSalary && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    icon={<TrendingUp className="w-4 h-4" />}
+                    onClick={handleOpenRevisionModal}
+                  >
+                    Revise Salary
+                  </Button>
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-800/80 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Employer PF Contribution</span>
-                <span className="font-semibold text-slate-200">
-                  ₹{employee.currentSalary.employerPf.toLocaleString("en-IN")}
-                </span>
+            {/* Optional Component Breakdown (Collapsed by default, shown on click) */}
+            {showActiveSalaryBreakdown && (
+              <div className="space-y-4 pt-2 animate-fadeIn">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400">Basic Salary (50%)</span>
+                    <p className="text-sm font-bold text-white mt-1 font-mono">
+                      ₹{employee.currentSalary.basic.toLocaleString("en-IN")}
+                    </p>
+                    <span className="text-[10px] text-slate-500">PF calculable base</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400">HRA (50% of Basic)</span>
+                    <p className="text-sm font-bold text-white mt-1 font-mono">
+                      ₹{employee.currentSalary.hra.toLocaleString("en-IN")}
+                    </p>
+                    <span className="text-[10px] text-slate-500">Tax exemption eligible</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400">Special & Other Allowances</span>
+                    <p className="text-sm font-bold text-white mt-1 font-mono">
+                      ₹{(employee.currentSalary.specialAllowance + employee.currentSalary.otherAllowance).toLocaleString("en-IN")}
+                    </p>
+                    <span className="text-[10px] text-slate-500">Balances monthly gross</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <span className="text-slate-400">Monthly Gross Salary</span>
+                    <p className="text-sm font-bold text-indigo-400 mt-1 font-mono">
+                      ₹{employee.currentSalary.grossSalary.toLocaleString("en-IN")}
+                    </p>
+                    <span className="text-[10px] text-slate-500">Pre-deductions total</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-800/80 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Employer PF Contribution</span>
+                    <span className="font-semibold text-slate-200 font-mono">
+                      ₹{employee.currentSalary.employerPf.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Employee PF Deduction</span>
+                    <span className={`font-semibold font-mono ${employee.currentSalary.employeePf > 0 ? "text-rose-400" : "text-slate-400"}`}>
+                      {employee.currentSalary.employeePf > 0 ? `₹${employee.currentSalary.employeePf.toLocaleString("en-IN")}` : "₹0 (Exempt)"}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Employee PF Deduction</span>
-                <span className="font-semibold text-rose-400">
-                  ₹{employee.currentSalary.employeePf.toLocaleString("en-IN")}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Professional Tax (PT)</span>
-                <span className="font-semibold text-rose-400">
-                  ₹{employee.currentSalary.professionalTax}
-                </span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Versioned Salary History Table (Critical Section 8 from PRD) */}
@@ -438,24 +517,49 @@ export function EmployeeProfile({
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400">
                     <th className="pb-3 font-medium">Effective Date</th>
-                    <th className="pb-3 font-medium">Annual CTC</th>
                     <th className="pb-3 font-medium">Monthly Gross</th>
+                    <th className="pb-3 font-medium">Est. Take Home</th>
+                    <th className="pb-3 font-medium">Annual CTC</th>
+                    <th className="pb-3 font-medium">PF Status</th>
                     <th className="pb-3 font-medium">Revision Reason</th>
                     <th className="pb-3 font-medium">Authorized By</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {employee.salaryHistory.map((rev) => (
-                    <tr key={rev.id} className="hover:bg-slate-800/20">
-                      <td className="py-3 font-mono text-slate-300">{rev.effectiveFrom}</td>
-                      <td className="py-3 font-bold text-white">₹{rev.annualCtc.toLocaleString("en-IN")}</td>
-                      <td className="py-3 text-slate-300">
-                        ₹{rev.components.grossSalary.toLocaleString("en-IN")}
-                      </td>
-                      <td className="py-3 text-indigo-300 font-medium">{rev.revisionReason}</td>
-                      <td className="py-3 text-slate-400">{rev.updatedBy}</td>
-                    </tr>
-                  ))}
+                  {employee.salaryHistory.map((rev) => {
+                    const hasPf = (rev.components?.employeePf ?? 0) > 0;
+                    const netEst = Math.max(
+                      0,
+                      (rev.components?.grossSalary ?? 0) - (rev.components?.employeePf ?? 0)
+                    );
+                    return (
+                      <tr key={rev.id} className="hover:bg-slate-800/20">
+                        <td className="py-3 font-mono text-slate-300">{rev.effectiveFrom}</td>
+                        <td className="py-3 font-bold text-white font-mono">
+                          ₹{(rev.components?.grossSalary ?? Math.round(rev.annualCtc / 12)).toLocaleString("en-IN")}
+                        </td>
+                        <td className="py-3 text-emerald-400 font-semibold font-mono">
+                          ₹{netEst.toLocaleString("en-IN")}
+                        </td>
+                        <td className="py-3 text-slate-300 font-mono">
+                          ₹{rev.annualCtc.toLocaleString("en-IN")}
+                        </td>
+                        <td className="py-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              hasPf
+                                ? "bg-indigo-500/10 text-indigo-300 border border-indigo-500/30"
+                                : "bg-slate-800 text-slate-400 border border-slate-700"
+                            }`}
+                          >
+                            {hasPf ? "PF Active" : "No PF"}
+                          </span>
+                        </td>
+                        <td className="py-3 text-indigo-300 font-medium">{rev.revisionReason}</td>
+                        <td className="py-3 text-slate-400">{rev.updatedBy}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -847,35 +951,227 @@ export function EmployeeProfile({
         isOpen={isRevisionModalOpen}
         onClose={() => setIsRevisionModalOpen(false)}
         title="Revise Employee Salary"
-        subtitle="Every salary revision creates a new historical record. Historical records are never overwritten."
+        subtitle="Update salary on a monthly basis with optional PF enrollment. Every revision creates an immutable audit trail."
         maxWidth="lg"
       >
         <form onSubmit={handleSalaryRevisionSubmit} className="space-y-4">
-          <div>
-            <span className="text-xs text-slate-400">Current Annual CTC</span>
-            <div className="text-base font-bold text-slate-300">
-              ₹{employee.currentSalary.annualCtc.toLocaleString("en-IN")}
+          {/* Current Salary Snapshot */}
+          <div className="grid grid-cols-3 gap-3 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+            <div>
+              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Current Gross</span>
+              <span className="text-sm font-bold text-white font-mono">
+                ₹{employee.currentSalary.grossSalary.toLocaleString("en-IN")}/mo
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Current Annual CTC</span>
+              <span className="text-sm font-bold text-slate-300 font-mono">
+                ₹{employee.currentSalary.annualCtc.toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Current PF Status</span>
+              <span className={`text-xs font-semibold ${employee.currentSalary.employeePf > 0 ? "text-indigo-400" : "text-amber-400"}`}>
+                {employee.currentSalary.employeePf > 0 ? `PF Enrolled (₹${employee.currentSalary.employeePf})` : "PF Excluded"}
+              </span>
             </div>
           </div>
 
+          {/* Basis Selector Pills */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">
-              New Annual CTC (₹ INR) *
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              Salary Input Mode
             </label>
-            <input
-              type="number"
-              step="5000"
-              required
-              value={newCtc}
-              onChange={(e) => setNewCtc(Number(e.target.value))}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setSalaryBasis("monthly_gross")}
+                className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all cursor-pointer ${
+                  salaryBasis === "monthly_gross"
+                    ? "bg-indigo-600/20 border-indigo-500 text-white shadow-sm"
+                    : "bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <div className="font-semibold">Monthly Gross Salary</div>
+                <div className="text-[10px] opacity-75">Fixed monthly pay before deductions</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSalaryBasis("monthly_ctc")}
+                className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all cursor-pointer ${
+                  salaryBasis === "monthly_ctc"
+                    ? "bg-indigo-600/20 border-indigo-500 text-white shadow-sm"
+                    : "bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <div className="font-semibold">Monthly CTC</div>
+                <div className="text-[10px] opacity-75">Total employer cost per month</div>
+              </button>
+            </div>
           </div>
 
+          {/* Monthly Amount Input */}
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">
-              Revision Reason / Justification *
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-slate-300">
+                New {salaryBasis === "monthly_gross" ? "Monthly Gross Salary" : "Monthly CTC"} (₹ INR) *
+              </label>
+              <span className="text-[11px] text-slate-400 font-mono">
+                Annual CTC: ₹{previewComponents.annualCtc.toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-2.5 text-slate-400 font-mono text-sm">₹</span>
+              <input
+                type="number"
+                step="500"
+                min="1000"
+                required
+                value={monthlyAmount || ""}
+                onChange={(e) => setMonthlyAmount(Number(e.target.value))}
+                placeholder="e.g. 35000"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          {/* Include PF Checkbox Card */}
+          <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-700/80 cursor-pointer hover:border-indigo-500/60 transition-colors">
+            <input
+              type="checkbox"
+              checked={includePf}
+              onChange={(e) => setIncludePf(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-600 cursor-pointer"
+            />
+            <div className="flex-1 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-white">Include Provident Fund (PF)</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                    includePf
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                      : "bg-slate-800 text-slate-400 border border-slate-700"
+                  }`}
+                >
+                  {includePf ? "12% Statutory PF Enabled" : "PF Excluded (₹0)"}
+                </span>
+              </div>
+              <p className="text-slate-400 text-[11px] mt-0.5">
+                {includePf
+                  ? "Standard statutory PF deduction (up to ₹1,800/mo) and matching employer contribution will apply."
+                  : "No PF deduction from employee salary and ₹0 employer contribution."}
+              </p>
+            </div>
+          </label>
+
+          {/* Live Preview Card with Optional Breakdown Toggle */}
+          <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-3.5 space-y-2.5 text-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Estimated Net In-Hand</span>
+                <span className="text-base font-bold text-emerald-400 font-mono">
+                  ₹{Math.max(0, previewComponents.grossSalary - previewComponents.employeePf).toLocaleString("en-IN")}/mo
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Monthly Gross</span>
+                <span className="text-sm font-bold text-indigo-300 font-mono">
+                  ₹{previewComponents.grossSalary.toLocaleString("en-IN")}/mo
+                </span>
+              </div>
+            </div>
+
+            {/* Toggle Option to View Breakdown */}
+            <div className="pt-2 border-t border-indigo-500/20 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowModalBreakdown((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer select-none"
+              >
+                {showModalBreakdown ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>{showModalBreakdown ? "Hide Salary Breakdown" : "Show Salary Breakdown (Basic, HRA, Allowances)"}</span>
+              </button>
+              <span className="text-[11px] text-slate-400 font-mono">
+                Annual CTC: ₹{previewComponents.annualCtc.toLocaleString("en-IN")}
+              </span>
+            </div>
+
+            {/* Detailed Breakdown - Only shown when user clicks option */}
+            {showModalBreakdown && (
+              <div className="space-y-2.5 pt-2 border-t border-slate-800/80 animate-fadeIn">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                  <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <span className="text-slate-400 block">Basic (50%)</span>
+                    <span className="font-mono font-bold text-white">
+                      ₹{previewComponents.basic.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <span className="text-slate-400 block">HRA (25%)</span>
+                    <span className="font-mono font-bold text-white">
+                      ₹{previewComponents.hra.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <span className="text-slate-400 block">Allowances</span>
+                    <span className="font-mono font-bold text-white">
+                      ₹{(previewComponents.specialAllowance + previewComponents.otherAllowance).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                    <span className="text-slate-400 block">Monthly CTC</span>
+                    <span className="font-mono font-bold text-indigo-400">
+                      ₹{previewComponents.monthlyCtc.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 gap-2 pt-1 border-t border-slate-800/60">
+                  <div className="space-x-3">
+                    <span>
+                      PF Deduction:{" "}
+                      <strong className={previewComponents.employeePf > 0 ? "text-rose-400" : "text-slate-400"}>
+                        {previewComponents.employeePf > 0 ? `₹${previewComponents.employeePf.toLocaleString("en-IN")}` : "₹0"}
+                      </strong>
+                    </span>
+                    <span>•</span>
+                    <span>
+                      Employer PF:{" "}
+                      <strong className="text-slate-300">
+                        {previewComponents.employerPf > 0 ? `₹${previewComponents.employerPf.toLocaleString("en-IN")}` : "₹0"}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Revision Reason with Quick Tags */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-slate-300">
+                Revision Reason / Justification *
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {[
+                "Annual Appraisal 2026",
+                "Probation Confirmation",
+                "Promotion Increment",
+                "Market Salary Correction",
+                "PF Opt-in Adjustment",
+              ].map((tag) => (
+                <button
+                  type="button"
+                  key={tag}
+                  onClick={() => setRevisionReason(tag)}
+                  className="px-2 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 cursor-pointer transition-colors"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
             <input
               type="text"
               required

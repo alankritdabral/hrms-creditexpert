@@ -35,6 +35,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     probationMonths: 3,
     dateOfJoining: "2026-10-17",
     annualCtc: 480000,
+    includePf: true,
     pan: "",
     aadhaar: "",
     bankAccountNumber: "",
@@ -94,6 +95,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
             bankName: formData.bankName,
           },
           annualCtc: Number(formData.annualCtc),
+          monthlySalary: Math.round(Number(formData.annualCtc) / 12),
+          includePf: formData.includePf,
           actor: { name: currentUser.name, role: currentUser.role },
         }),
       });
@@ -337,24 +340,67 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Annual CTC (₹ INR) *
-              </label>
-              <input
-                type="number"
-                name="annualCtc"
-                step="10000"
-                required
-                value={formData.annualCtc}
-                onChange={handleChange}
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
-                placeholder="480000"
-              />
-              <p className="text-[11px] text-slate-400 mt-1">
-                Server-side engine will auto-compute Basic, HRA, Allowances, PF, and PT from CTC.
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Monthly Salary (₹/month) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-slate-400 font-mono text-xs">₹</span>
+                  <input
+                    type="number"
+                    step="500"
+                    required
+                    value={Math.round(formData.annualCtc / 12)}
+                    onChange={(e) => {
+                      const monthly = Number(e.target.value);
+                      setFormData((prev) => ({ ...prev, annualCtc: monthly * 12 }));
+                    }}
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                    placeholder="40000"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Annual CTC (₹ INR) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-slate-400 font-mono text-xs">₹</span>
+                  <input
+                    type="number"
+                    name="annualCtc"
+                    step="10000"
+                    required
+                    value={formData.annualCtc}
+                    onChange={handleChange}
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                    placeholder="480000"
+                  />
+                </div>
+              </div>
             </div>
+
+            <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-700/80 cursor-pointer hover:border-indigo-500/50 transition-colors">
+              <input
+                type="checkbox"
+                checked={formData.includePf}
+                onChange={(e) => setFormData((prev) => ({ ...prev, includePf: e.target.checked }))}
+                className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-600 cursor-pointer"
+              />
+              <div className="flex-1 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-white">Include Provident Fund (PF)</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${formData.includePf ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-slate-800 text-slate-400 border border-slate-700"}`}>
+                    {formData.includePf ? "12% Statutory PF Enabled" : "PF Excluded (₹0)"}
+                  </span>
+                </div>
+                <p className="text-slate-400 text-[11px] mt-0.5">
+                  Auto-computes Basic (50%), HRA (25%), Special Allowance, PT, and statutory PF deduction & matching employer contribution.
+                </p>
+              </div>
+            </label>
           </div>
         )}
 

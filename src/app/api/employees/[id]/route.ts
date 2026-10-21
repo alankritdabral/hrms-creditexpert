@@ -55,11 +55,17 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { newAnnualCtc, revisionReason } = body;
+    const {
+      newAnnualCtc,
+      monthlySalary,
+      salaryBasis,
+      includePf = true,
+      revisionReason,
+    } = body;
 
-    if (!newAnnualCtc || !revisionReason) {
+    if ((!newAnnualCtc && !monthlySalary) || !revisionReason) {
       return NextResponse.json(
-        { success: false, error: "newAnnualCtc and revisionReason are required" },
+        { success: false, error: "Monthly salary (or annual CTC) and revisionReason are required" },
         { status: 400 }
       );
     }
@@ -75,7 +81,13 @@ export async function PUT(
 
     const updated = await reviseSalary(
       id,
-      Number(newAnnualCtc),
+      {
+        newAnnualCtc: newAnnualCtc ? Number(newAnnualCtc) : undefined,
+        monthlySalary: monthlySalary ? Number(monthlySalary) : undefined,
+        salaryBasis: salaryBasis || "monthly_gross",
+        includePf: Boolean(includePf),
+        revisionReason,
+      },
       revisionReason,
       {
         name: auth.actor.name,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEmployees, createEmployee } from "@/lib/db/db-adapter";
-import { calculateSalaryBreakdown } from "@/lib/payroll-engine";
+import { calculateSalaryBreakdown, calculateSalaryFromMonthly } from "@/lib/payroll-engine";
 import {
   authenticateRequest,
   authFailureResponse,
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
 
     const body = await req.json();
-    const { personal, employment, statutory, annualCtc } = body;
+    const { personal, employment, statutory, annualCtc, monthlySalary, includePf = true } = body;
 
     if (!personal?.firstName || !employment?.department || !employment?.designation) {
       return NextResponse.json(
@@ -62,8 +62,10 @@ export async function POST(req: NextRequest) {
     const branchErr = requireBranchScope(auth, targetBranch);
     if (branchErr) return branchErr;
 
-    const ctc = annualCtc || 480000;
-    const salary = calculateSalaryBreakdown(ctc);
+    const salary = monthlySalary
+      ? calculateSalaryFromMonthly({ monthlyAmount: Number(monthlySalary), includePf: Boolean(includePf) })
+      : calculateSalaryBreakdown(annualCtc || 480000, Boolean(includePf));
+    const ctc = salary.annualCtc;
     const count = (await getEmployees()).length;
     const empId = `EMP-${String(count + 1).padStart(4, "0")}`;
 

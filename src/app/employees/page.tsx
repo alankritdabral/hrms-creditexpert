@@ -210,8 +210,14 @@ export default function EmployeesPage() {
                 </span>
               </div>
               <div className="flex items-center justify-between">
+                <span className="text-slate-500">Monthly Gross</span>
+                <span className="text-indigo-600 font-bold font-mono">
+                  ₹{emp.currentSalary.grossSalary.toLocaleString("en-IN")}/mo
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span className="text-slate-500">Annual CTC</span>
-                <span className="text-emerald-600 font-bold font-mono">
+                <span className="text-slate-600 font-medium font-mono text-[11px]">
                   ₹{emp.currentSalary.annualCtc.toLocaleString("en-IN")}
                 </span>
               </div>

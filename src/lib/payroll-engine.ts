@@ -1,11 +1,14 @@
 import { SalaryComponent, PayrollItemSnapshot, Employee, AttendanceRecord, EmployeeIncentiveRecord } from "./types";
 
-export function calculateSalaryBreakdown(annualCtc: number): SalaryComponent {
+export function calculateSalaryBreakdown(
+  annualCtc: number,
+  includePf: boolean = true
+): SalaryComponent {
   const monthlyCtc = Math.round(annualCtc / 12);
   
   // Standard Indian Payroll structure:
   // Gross + Employer PF (capped at 1,800/mo) = Monthly CTC
-  const employerPf = Math.min(1800, Math.round(monthlyCtc * 0.05));
+  const employerPf = includePf ? Math.min(1800, Math.round(monthlyCtc * 0.05)) : 0;
   const employerEsic = monthlyCtc <= 21000 ? Math.round(monthlyCtc * 0.0325) : 0;
   
   const grossSalary = monthlyCtc - employerPf - employerEsic;
@@ -20,8 +23,8 @@ export function calculateSalaryBreakdown(annualCtc: number): SalaryComponent {
   const otherAllowance = Math.max(0, grossSalary - basic - hra - specialAllowance);
 
   // Employee statutory deductions
-  const employeePf = employerPf; // Equal employee contribution
-  const professionalTax = 200; // Standard PT per month
+  const employeePf = includePf ? employerPf : 0; // Equal employee contribution
+  const professionalTax = 0;
 
   return {
     annualCtc,
@@ -35,6 +38,56 @@ export function calculateSalaryBreakdown(annualCtc: number): SalaryComponent {
     employerEsic,
     employeePf,
     professionalTax,
+    includePf,
+  };
+}
+
+export function calculateSalaryFromMonthly({
+  monthlyAmount,
+  salaryBasis = "monthly_gross",
+  includePf = true,
+}: {
+  monthlyAmount: number;
+  salaryBasis?: "monthly_gross" | "monthly_ctc";
+  includePf?: boolean;
+}): SalaryComponent {
+  const amount = Math.max(0, Math.round(monthlyAmount));
+
+  if (salaryBasis === "monthly_ctc") {
+    return calculateSalaryBreakdown(amount * 12, includePf);
+  }
+
+  // Monthly Gross basis:
+  // User specifies gross fixed monthly pay
+  const grossSalary = amount;
+  const basic = Math.round(grossSalary * 0.50);
+  const hra = Math.round(basic * 0.50);
+  const specialAllowance = Math.round(grossSalary * 0.15);
+  const otherAllowance = Math.max(0, grossSalary - basic - hra - specialAllowance);
+
+  // Statutory PF: 12% of basic, capped at ₹1,800/mo
+  const employerPf = includePf ? Math.min(1800, Math.round(basic * 0.12)) : 0;
+  const employerEsic = grossSalary <= 21000 ? Math.round(grossSalary * 0.0325) : 0;
+
+  const employeePf = includePf ? employerPf : 0;
+  const professionalTax = 0;
+
+  const monthlyCtc = grossSalary + employerPf + employerEsic;
+  const annualCtc = monthlyCtc * 12;
+
+  return {
+    annualCtc,
+    monthlyCtc,
+    grossSalary,
+    basic,
+    hra,
+    specialAllowance,
+    otherAllowance,
+    employerPf,
+    employerEsic,
+    employeePf,
+    professionalTax,
+    includePf,
   };
 }
 

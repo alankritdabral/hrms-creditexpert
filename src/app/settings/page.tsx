@@ -343,8 +343,8 @@ export default function SettingsPage() {
           </div>
           <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
             <span className="text-slate-400 block">Professional Tax (PT)</span>
-            <p className="text-base font-bold text-white mt-1">₹200 per month</p>
-            <span className="text-[11px] text-slate-500">Karnataka State PT Schedule</span>
+            <p className="text-base font-bold text-white mt-1">₹0 (Disabled)</p>
+            <span className="text-[11px] text-slate-500">Professional tax deduction removed</span>
           </div>
           <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
             <span className="text-slate-400 block">House Rent Allowance (HRA)</span>
