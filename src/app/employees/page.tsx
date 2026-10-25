@@ -149,7 +149,6 @@ export default function EmployeesPage() {
               <option value="All">All Statuses</option>
               <option value="Active">Active</option>
               <option value="Confirmed">Confirmed</option>
-              <option value="Probation">Probation</option>
               <option value="On Notice">On Notice</option>
             </select>
           </div>
@@ -211,14 +210,24 @@ export default function EmployeesPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Net Salary (In-Hand)</span>
-                <span className="text-emerald-600 font-bold font-mono">
-                  ₹{(emp.currentSalary.netSalary || Math.max(0, emp.currentSalary.grossSalary - (emp.currentSalary.employeePf || 0))).toLocaleString("en-IN")}/mo
-                </span>
+                {emp.currentSalary.isIncentiveOnly || (emp.currentSalary.annualCtc === 0 && emp.currentSalary.grossSalary === 0) ? (
+                  <span className="text-amber-700 font-semibold text-[10px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    ⚡ Incentive Only
+                  </span>
+                ) : (
+                  <span className="text-emerald-600 font-bold font-mono">
+                    ₹{(emp.currentSalary.netSalary || Math.max(0, emp.currentSalary.grossSalary - (emp.currentSalary.employeePf || 0))).toLocaleString("en-IN")}/mo
+                  </span>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Provident Fund (PF)</span>
                 <span className="text-slate-700 font-medium font-mono text-[11px]">
-                  {emp.currentSalary.employeePf > 0 ? `₹${emp.currentSalary.employeePf.toLocaleString("en-IN")}/mo` : "Excluded"}
+                  {emp.currentSalary.isIncentiveOnly || (emp.currentSalary.annualCtc === 0 && emp.currentSalary.grossSalary === 0)
+                    ? "Exempted"
+                    : emp.currentSalary.employeePf > 0
+                    ? `₹${emp.currentSalary.employeePf.toLocaleString("en-IN")}/mo`
+                    : "Excluded"}
                 </span>
               </div>
               <div className="flex items-center justify-between">

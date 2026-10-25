@@ -60,9 +60,11 @@ export function AdminDashboard() {
     ["Active", "Confirmed", "Probation"].includes(e.employment.employmentStatus)
   ).length;
 
-  const presentToday = attendance.filter((a) => a.status === "Present" || a.status === "Work From Home").length;
-  const lateToday = attendance.filter((a) => a.lateArrival).length;
-  const onLeaveToday = attendance.filter((a) => a.status === "Leave").length;
+  const today = new Date().toISOString().split("T")[0];
+  const todayAttendance = attendance.filter((a) => a.date === today);
+  const presentToday = todayAttendance.filter((a) => a.status === "Present" || a.status === "Work From Home").length;
+  const lateToday = todayAttendance.filter((a) => a.lateArrival).length;
+  const onLeaveToday = todayAttendance.filter((a) => a.status === "Leave").length;
 
   const pendingLeaves = leaves.filter((l) => l.status === "Pending");
   const pendingRequests = requests.filter((r) => r.status === "Pending");

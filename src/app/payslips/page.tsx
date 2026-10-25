@@ -241,22 +241,28 @@ export default function PayslipsPage() {
                   <span className="text-slate-600">Basic Salary</span>
                   <span className="font-mono text-slate-900 font-medium">₹{activeItem.basic.toLocaleString("en-IN")}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">House Rent Allowance (HRA)</span>
-                  <span className="font-mono text-slate-900 font-medium">₹{activeItem.hra.toLocaleString("en-IN")}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Other Allowances</span>
-                  <span className="font-mono text-slate-900 font-medium">
-                    ₹{activeItem.otherAllowance.toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Incentives</span>
-                  <span className="font-mono text-emerald-600 font-semibold">
-                    +₹{activeItem.incentive.toLocaleString("en-IN")}
-                  </span>
-                </div>
+                {activeItem.hra > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">House Rent Allowance (HRA)</span>
+                    <span className="font-mono text-slate-900 font-medium">₹{activeItem.hra.toLocaleString("en-IN")}</span>
+                  </div>
+                )}
+                {activeItem.otherAllowance > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Other Allowances</span>
+                    <span className="font-mono text-slate-900 font-medium">
+                      ₹{activeItem.otherAllowance.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                )}
+                {activeItem.incentive > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Incentives</span>
+                    <span className="font-mono text-emerald-600 font-semibold">
+                      +₹{activeItem.incentive.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                )}
                 {activeItem.overtime > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Overtime Payout</span>
@@ -277,23 +283,29 @@ export default function PayslipsPage() {
                   Deductions
                 </span>
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Employee PF (12%)</span>
-                  <span className="font-mono text-rose-600 font-medium">-₹{activeItem.employeePf}</span>
+                  <span className="text-slate-600">
+                    Employee PF {activeItem.employeePf > 0 ? "" : "(₹0)"}
+                  </span>
+                  <span className="font-mono text-rose-600 font-medium">-₹{activeItem.employeePf.toLocaleString("en-IN")}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Professional Tax (PT)</span>
-                  <span className="font-mono text-rose-600 font-medium">-₹{activeItem.professionalTax}</span>
-                </div>
+                {activeItem.professionalTax > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Professional Tax (PT)</span>
+                    <span className="font-mono text-rose-600 font-medium">-₹{activeItem.professionalTax}</span>
+                  </div>
+                )}
                 {activeItem.lopAmount > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Loss of Pay (LOP)</span>
                     <span className="font-mono text-rose-600 font-medium">-₹{activeItem.lopAmount}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Other Deductions</span>
-                  <span className="font-mono text-rose-600 font-medium">-₹{activeItem.otherDeductions}</span>
-                </div>
+                {activeItem.otherDeductions > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Other Deductions</span>
+                    <span className="font-mono text-rose-600 font-medium">-₹{activeItem.otherDeductions}</span>
+                  </div>
+                )}
                 <div className="flex justify-between pt-2 border-t border-slate-200 font-bold">
                   <span className="text-slate-900">Total Deductions</span>
                   <span className="font-mono text-rose-700">

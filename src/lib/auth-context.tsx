@@ -26,6 +26,8 @@ interface AuthContextType {
   canAccess: (allowedRoles: (UserRole | string)[]) => boolean;
   hasPermission: (permission: Permission) => boolean;
   branchScope: Branch[];
+  refreshSession: () => Promise<void>;
+  updateCurrentUserAvatar: (avatarUrl: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -198,6 +200,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return checkPerm(currentUser.role, permission);
   };
 
+  const updateCurrentUserAvatar = useCallback((avatarUrl: string) => {
+    setCurrentUser((prev) => ({ ...prev, avatar: avatarUrl }));
+  }, []);
+
   const branchScope = getBranchScope(currentUser.role, currentUser.branch);
 
   return (
@@ -213,6 +219,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         canAccess,
         hasPermission: checkPermission,
         branchScope,
+        refreshSession: checkSession,
+        updateCurrentUserAvatar,
       }}
     >
       {children}

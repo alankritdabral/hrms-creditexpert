@@ -91,30 +91,57 @@ export default function OnboardingPage() {
 
   // Filter records
   const filteredRecords = useMemo(() => {
-    return records.filter((r) => {
-      const matchBranch = selectedBranch === "All" || r.branch === selectedBranch;
-      const matchStatus = selectedStatus === "All" || r.status.toLowerCase() === selectedStatus.toLowerCase();
-      const matchQuery =
-        r.candidateName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.designation.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.email.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchBranch && matchStatus && matchQuery;
-    });
+    return records
+      .map((record) => {
+        const completedCount = record.checklist ? record.checklist.filter((i) => i.completed).length : 0;
+        const totalCount = record.checklist ? record.checklist.length : 0;
+        const computedPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : record.progressPercentage;
+        const computedStatus: OnboardingRecord["status"] =
+          computedPct === 100 ? "Completed" : (completedCount > 0 ? "In Progress" : "Pending");
+        return {
+          ...record,
+          progressPercentage: computedPct,
+          status: computedStatus,
+        };
+      })
+      .filter((r) => {
+        const matchBranch = selectedBranch === "All" || r.branch === selectedBranch;
+        const matchStatus = selectedStatus === "All" || r.status.toLowerCase() === selectedStatus.toLowerCase();
+        const matchQuery =
+          r.candidateName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.designation.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.email.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchBranch && matchStatus && matchQuery;
+      });
   }, [records, selectedBranch, selectedStatus, searchQuery]);
 
   // Overall Statistics
   const stats = useMemo(() => {
     const total = records.length;
-    const inProgress = records.filter((r) => r.status === "In Progress").length;
-    const completed = records.filter((r) => r.status === "Completed").length;
-    const avgProgress =
-      total > 0 ? Math.round(records.reduce((acc, r) => acc + r.progressPercentage, 0) / total) : 0;
-    const pendingVerificationCount = records.reduce((acc, r) => {
-      return acc + r.checklist.filter((item) => item.completed && !item.verified).length;
-    }, 0);
+    let completedCount = 0;
+    let inProgressCount = 0;
+    let totalProgressSum = 0;
+    let pendingVerificationCount = 0;
 
-    return { total, inProgress, completed, avgProgress, pendingVerificationCount };
+    records.forEach((r) => {
+      const done = r.checklist ? r.checklist.filter((item) => item.completed).length : 0;
+      const count = r.checklist ? r.checklist.length : 0;
+      const pct = count > 0 ? Math.round((done / count) * 100) : (r.progressPercentage || 0);
+      totalProgressSum += pct;
+      if (pct === 100) {
+        completedCount++;
+      } else if (done > 0) {
+        inProgressCount++;
+      }
+      if (r.checklist) {
+        pendingVerificationCount += r.checklist.filter((item) => item.completed && !item.verified).length;
+      }
+    });
+
+    const avgProgress = total > 0 ? Math.round(totalProgressSum / total) : 0;
+
+    return { total, inProgress: inProgressCount, completed: completedCount, avgProgress, pendingVerificationCount };
   }, [records]);
 
   // Toggle checklist item
@@ -194,7 +221,7 @@ export default function OnboardingPage() {
           setActiveChecklistRecord(data.data.onboarding);
         }
         setActionSuccessMessage(
-          `Success! Employee profile activated as ${data.data.employee.employeeId} under Probation.`
+          `Success! Employee profile activated as ${data.data.employee.employeeId} as Full-time Active.`
         );
         setTimeout(() => setActionSuccessMessage(null), 6000);
       }
@@ -381,9 +408,9 @@ export default function OnboardingPage() {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-slate-900">
-              {records.filter((r) => r.progressPercentage === 100 || r.status === "Completed").length}
+              {stats.completed}
             </span>
-            <span className="text-xs text-slate-500">ready / activated</span>
+            <span className="text-xs text-slate-500">fully cleared</span>
           </div>
           <div className="mt-3 text-xs text-indigo-700 flex items-center gap-1 font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" /> 100% checklist cleared
@@ -538,14 +565,14 @@ export default function OnboardingPage() {
                       </span>
                       <span
                         className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-md border ${
-                          record.lifecycleStatus === "Probation" || record.lifecycleStatus === "Active"
+                          record.lifecycleStatus === "Active" || record.lifecycleStatus === "Confirmed"
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : record.lifecycleStatus === "Onboarding"
                             ? "bg-blue-50 text-blue-700 border-blue-200"
                             : "bg-amber-50 text-amber-700 border-amber-200"
                         }`}
                       >
-                        {record.lifecycleStatus}
+                        {record.lifecycleStatus === "Probation" ? "Active" : record.lifecycleStatus}
                       </span>
                     </div>
 
@@ -600,7 +627,7 @@ export default function OnboardingPage() {
                     {/* Transition dropdown for HR/Admin */}
                     {(currentUser.role === "admin" || currentUser.role === "hr") && (
                       <select
-                        value={record.lifecycleStatus}
+                        value={record.lifecycleStatus === "Probation" ? "Active" : record.lifecycleStatus}
                         onChange={(e) => handleAdvanceLifecycle(record.id, e.target.value as EmploymentStatus)}
                         className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                         title="Change Lifecycle Status"
@@ -609,7 +636,6 @@ export default function OnboardingPage() {
                         <option value="Offer Sent">Offer Sent</option>
                         <option value="Offer Accepted">Offer Accepted</option>
                         <option value="Onboarding">Onboarding</option>
-                        <option value="Probation">Probation</option>
                         <option value="Confirmed">Confirmed</option>
                         <option value="Active">Active</option>
                         <option value="On Notice">On Notice</option>
@@ -732,23 +758,31 @@ export default function OnboardingPage() {
             {/* Checklist Progress Overview Banner */}
             <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
               <div className="flex-1 min-w-[200px]">
-                <div className="flex items-center justify-between text-xs mb-1.5 font-semibold">
-                  <span className="text-slate-700">Verification Progress</span>
-                  <span className="text-blue-700 font-bold">
-                    {activeChecklistRecord.progressPercentage}% Completed (
-                    {activeChecklistRecord.checklist.filter((i) => i.completed).length} of {activeChecklistRecord.checklist.length})
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className={`h-2.5 rounded-full transition-all duration-500 ${
-                      activeChecklistRecord.progressPercentage === 100
-                        ? "bg-emerald-500"
-                        : "bg-blue-600"
-                    }`}
-                    style={{ width: `${activeChecklistRecord.progressPercentage}%` }}
-                  />
-                </div>
+                {(() => {
+                  const modalCompleted = activeChecklistRecord.checklist ? activeChecklistRecord.checklist.filter((i) => i.completed).length : 0;
+                  const modalTotal = activeChecklistRecord.checklist ? activeChecklistRecord.checklist.length : 0;
+                  const modalProgress = modalTotal > 0 ? Math.round((modalCompleted / modalTotal) * 100) : 0;
+                  return (
+                    <>
+                      <div className="flex items-center justify-between text-xs mb-1.5 font-semibold">
+                        <span className="text-slate-700">Verification Progress</span>
+                        <span className="text-blue-700 font-bold">
+                          {modalProgress}% Completed ({modalCompleted} of {modalTotal})
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div
+                          className={`h-2.5 rounded-full transition-all duration-500 ${
+                            modalProgress === 100
+                              ? "bg-emerald-500"
+                              : "bg-blue-600"
+                          }`}
+                          style={{ width: `${modalProgress}%` }}
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {!activeChecklistRecord.employeeId && (currentUser.role === "admin" || currentUser.role === "hr") && (
@@ -897,23 +931,22 @@ export default function OnboardingPage() {
               {[
                 { id: "all", label: `All Items (${activeChecklistRecord.checklist.length})` },
                 { id: "statutory", label: `Statutory & Bank (${activeChecklistRecord.checklist.filter((i) => i.category === "statutory").length})` },
-                { id: "compliance", label: `Legal & Contracts (${activeChecklistRecord.checklist.filter((i) => i.category === "compliance").length})` },
                 { id: "documentation", label: `Documents (${activeChecklistRecord.checklist.filter((i) => i.category === "documentation").length})` },
-                { id: "it_setup", label: `IT Setup (${activeChecklistRecord.checklist.filter((i) => i.category === "it_setup").length})` },
-                { id: "account", label: `Account Provisioning (${activeChecklistRecord.checklist.filter((i) => i.category === "account").length})` },
-              ].map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3 py-1 text-xs rounded-md font-medium whitespace-nowrap transition-colors cursor-pointer ${
-                    selectedCategory === cat.id
-                      ? "bg-blue-600 text-white shadow-2xs"
-                      : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
+              ]
+                .filter((cat) => cat.id === "all" || activeChecklistRecord.checklist.some((i) => i.category === cat.id))
+                .map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`px-3 py-1 text-xs rounded-md font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                      selectedCategory === cat.id
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
             </div>
 
             {/* Checklist Items Scrollable Body */}
@@ -1168,10 +1201,14 @@ export default function OnboardingPage() {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Offered Annual CTC (₹)</label>
                 <input
                   type="number"
-                  step="10000"
+                  step="1"
+                  min="0"
                   placeholder="500000"
-                  value={formData.annualCtc}
-                  onChange={(e) => setFormData({ ...formData, annualCtc: Number(e.target.value) })}
+                  value={formData.annualCtc || ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormData({ ...formData, annualCtc: val === "" ? 0 : Number(val) });
+                  }}
                   className="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

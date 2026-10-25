@@ -20,12 +20,13 @@ function EmployeeDetailContent() {
   const loadData = async () => {
     if (!employeeId) return;
     try {
-      const [empRes, attRes, levRes, incRes, astRes] = await Promise.all([
+      const [empRes, attRes, levRes, incRes, astRes, docRes] = await Promise.all([
         fetch(`/api/employees/${employeeId}`).then((r) => r.json()),
         fetch("/api/attendance").then((r) => r.json()),
         fetch(`/api/leaves?employeeId=${employeeId}`).then((r) => r.json()),
         fetch("/api/incentives").then((r) => r.json()),
         fetch("/api/assets").then((r) => r.json()),
+        fetch(`/api/documents?employeeId=${employeeId}`).then((r) => r.json()),
       ]);
 
       if (empRes.success) setEmployee(empRes.data);
@@ -42,6 +43,9 @@ function EmployeeDetailContent() {
         setAssets(
           astRes.data.filter((a: AssetRecord) => a.assignedToEmployeeId === employeeId)
         );
+      }
+      if (docRes.success && docRes.data) {
+        setDocuments(docRes.data);
       }
     } catch (e) {
       console.error("Employee profile fetch error:", e);

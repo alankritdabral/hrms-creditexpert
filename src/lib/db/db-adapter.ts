@@ -19,6 +19,7 @@ import {
 } from "./seed-data";
 import {
   Employee,
+  PersonalInfo,
   AttendanceRecord,
   LeaveRequest,
   IncentiveScheme,
@@ -123,33 +124,172 @@ export async function recordAuditLog({
 // ----------------- EMPLOYEES -----------------
 
 export async function getEmployees(): Promise<Employee[]> {
+  let list = memory.employees;
   try {
     const firestoreDocs = await getCollectionFromFirestore<Employee>("employees");
     if (firestoreDocs && firestoreDocs.length > 0) {
-      return firestoreDocs;
+      list = firestoreDocs;
     }
   } catch (e) {
     console.warn("Firestore getEmployees fallback:", e);
   }
 
-  return memory.employees;
+  // Helper to normalize legacy records (Probation -> Active, and Basic Pay = Net Pay apart from PF)
+  const normalizeEmployee = (emp: Employee): Employee => {
+    let norm = { ...emp };
+    if ((norm.employment.employmentStatus as string) === "Probation") {
+      norm = {
+        ...norm,
+        employment: {
+          ...norm.employment,
+          employmentStatus: "Active",
+          employmentType: "Full-time",
+          probationMonths: 0,
+        },
+      };
+    }
+    if (norm.currentSalary) {
+      const basic = norm.currentSalary.grossSalary || norm.currentSalary.basic;
+      const employeePf = norm.currentSalary.employeePf || 0;
+      norm = {
+        ...norm,
+        currentSalary: {
+          ...norm.currentSalary,
+          basic,
+          grossSalary: basic,
+          hra: 0,
+          specialAllowance: 0,
+          otherAllowance: 0,
+          employerEsic: 0,
+          professionalTax: 0,
+          employeePf,
+          netSalary: Math.max(0, basic - employeePf),
+        },
+      };
+    }
+
+    // Normalize avatar preference and passport photo URL
+    const docPassport = memory.documents.find(
+      (d) =>
+        d.employeeId === norm.employeeId &&
+        (d.documentType === "photograph" || d.title?.toLowerCase().includes("passport"))
+    )?.fileUrl;
+
+    const passportPhoto = norm.personal.passportPhotoUrl || docPassport || (norm.personal.avatarPreference !== "custom" ? norm.personal.avatarUrl : undefined);
+    const pref = norm.personal.avatarPreference || "passport";
+
+    let activeAvatar = norm.personal.avatarUrl;
+    if (pref === "passport" && passportPhoto) {
+      activeAvatar = passportPhoto;
+    } else if (pref === "custom" && norm.personal.customAvatarUrl) {
+      activeAvatar = norm.personal.customAvatarUrl;
+    } else if (passportPhoto) {
+      activeAvatar = passportPhoto;
+    }
+
+    norm = {
+      ...norm,
+      personal: {
+        ...norm.personal,
+        passportPhotoUrl: passportPhoto || norm.personal.passportPhotoUrl,
+        avatarPreference: pref,
+        avatarUrl: activeAvatar || norm.personal.avatarUrl || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+      },
+    };
+
+    return norm;
+  };
+
+  return list.map(normalizeEmployee);
 }
 
 export async function getEmployeeById(idOrEmpId: string): Promise<Employee | null> {
+  let emp: Employee | null = null;
   // 1. Try single-document read / memory cache (0 or 1 Firestore read)
   try {
     const single = await getDocumentFromFirestore<Employee>("employees", idOrEmpId);
-    if (single) return single;
+    if (single) emp = single;
   } catch (e) {
     // Graceful fallback to collection search
   }
 
-  const employees = await getEmployees();
-  return (
-    employees.find(
-      (e) => e.id === idOrEmpId || e.employeeId.toLowerCase() === idOrEmpId.toLowerCase()
-    ) || null
-  );
+  if (!emp) {
+    const employees = await getEmployees();
+    emp =
+      employees.find(
+        (e) => e.id === idOrEmpId || e.employeeId.toLowerCase() === idOrEmpId.toLowerCase()
+      ) || null;
+  }
+
+  if (emp) {
+    const normalizeEmployee = (raw: Employee): Employee => {
+      let norm = { ...raw };
+      if ((norm.employment.employmentStatus as string) === "Probation") {
+        norm = {
+          ...norm,
+          employment: {
+            ...norm.employment,
+            employmentStatus: "Active",
+            employmentType: "Full-time",
+            probationMonths: 0,
+          },
+        };
+      }
+      if (norm.currentSalary) {
+        const basic = norm.currentSalary.grossSalary || norm.currentSalary.basic;
+        const employeePf = norm.currentSalary.employeePf || 0;
+        norm = {
+          ...norm,
+          currentSalary: {
+            ...norm.currentSalary,
+            basic,
+            grossSalary: basic,
+            hra: 0,
+            specialAllowance: 0,
+            otherAllowance: 0,
+            employerEsic: 0,
+            professionalTax: 0,
+            employeePf,
+            netSalary: Math.max(0, basic - employeePf),
+          },
+        };
+      }
+
+      const docPassport = memory.documents.find(
+        (d) =>
+          d.employeeId === norm.employeeId &&
+          (d.documentType === "photograph" || d.title?.toLowerCase().includes("passport"))
+      )?.fileUrl;
+
+      const passportPhoto = norm.personal.passportPhotoUrl || docPassport || (norm.personal.avatarPreference !== "custom" ? norm.personal.avatarUrl : undefined);
+      const pref = norm.personal.avatarPreference || "passport";
+
+      let activeAvatar = norm.personal.avatarUrl;
+      if (pref === "passport" && passportPhoto) {
+        activeAvatar = passportPhoto;
+      } else if (pref === "custom" && norm.personal.customAvatarUrl) {
+        activeAvatar = norm.personal.customAvatarUrl;
+      } else if (passportPhoto) {
+        activeAvatar = passportPhoto;
+      }
+
+      norm = {
+        ...norm,
+        personal: {
+          ...norm.personal,
+          passportPhotoUrl: passportPhoto || norm.personal.passportPhotoUrl,
+          avatarPreference: pref,
+          avatarUrl: activeAvatar || norm.personal.avatarUrl || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+        },
+      };
+
+      return norm;
+    };
+
+    return normalizeEmployee(emp);
+  }
+
+  return null;
 }
 
 export async function createEmployee(
@@ -212,14 +352,146 @@ export async function updateEmployee(
   return emp;
 }
 
+export interface UpdateEmployeeAvatarInput {
+  avatarUrl?: string;
+  passportPhotoUrl?: string;
+  customAvatarUrl?: string;
+  avatarPreference?: "passport" | "custom";
+}
+
+export async function updateEmployeeAvatar(
+  employeeId: string,
+  input: UpdateEmployeeAvatarInput,
+  actor: { name: string; role: string }
+): Promise<Employee | null> {
+  let index = memory.employees.findIndex(
+    (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
+  );
+
+  if (index === -1) {
+    try {
+      const docEmp = await getDocumentFromFirestore<Employee>("employees", employeeId);
+      if (docEmp) {
+        memory.employees.push(docEmp);
+        index = memory.employees.length - 1;
+      }
+    } catch (e) {
+      console.warn("Firestore fetch error in updateEmployeeAvatar:", e);
+    }
+  }
+
+  if (index === -1) return null;
+
+  const currentEmp = memory.employees[index];
+
+  const docPassport = memory.documents.find(
+    (d) =>
+      d.employeeId === currentEmp.employeeId &&
+      (d.documentType === "photograph" || d.title?.toLowerCase().includes("passport"))
+  )?.fileUrl;
+
+  const newPassportUrl = input.passportPhotoUrl !== undefined ? input.passportPhotoUrl : (currentEmp.personal.passportPhotoUrl || docPassport);
+  const newCustomUrl = input.customAvatarUrl !== undefined ? input.customAvatarUrl : currentEmp.personal.customAvatarUrl;
+  const newPreference = input.avatarPreference !== undefined ? input.avatarPreference : (currentEmp.personal.avatarPreference || "passport");
+
+  let effectiveAvatarUrl = input.avatarUrl;
+  if (!effectiveAvatarUrl) {
+    if (newPreference === "custom" && newCustomUrl) {
+      effectiveAvatarUrl = newCustomUrl;
+    } else {
+      const nonCustomAvatar =
+        currentEmp.personal.avatarUrl && currentEmp.personal.avatarUrl !== currentEmp.personal.customAvatarUrl
+          ? currentEmp.personal.avatarUrl
+          : undefined;
+      effectiveAvatarUrl =
+        newPassportUrl ||
+        nonCustomAvatar ||
+        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150";
+    }
+  }
+
+  const updatedPersonal: PersonalInfo = {
+    ...currentEmp.personal,
+    avatarUrl: effectiveAvatarUrl,
+    passportPhotoUrl: newPassportUrl,
+    customAvatarUrl: newCustomUrl,
+    avatarPreference: newPreference,
+  };
+
+  const updatedEmp: Employee = {
+    ...currentEmp,
+    personal: updatedPersonal,
+    updatedAt: new Date().toISOString(),
+  };
+
+  memory.employees[index] = updatedEmp;
+  saveDocumentToFirestore("employees", updatedEmp.employeeId, updatedEmp).catch(() => {});
+
+  // Sync with matching UserAccount
+  try {
+    const userAcc = memory.userAccounts.find(
+      (u) =>
+        u.employeeId.toLowerCase() === updatedEmp.employeeId.toLowerCase() ||
+        u.email.toLowerCase() === updatedEmp.personal.workEmail.toLowerCase() ||
+        u.email.toLowerCase() === updatedEmp.personal.personalEmail.toLowerCase()
+    );
+    if (userAcc) {
+      userAcc.avatar = effectiveAvatarUrl;
+      saveDocumentToFirestore("users", userAcc.uid, userAcc).catch(() => {});
+    }
+  } catch (e) {
+    console.warn("User account avatar sync error:", e);
+  }
+
+  // If a passport photo was newly provided or changed, ensure a verified EmployeeDocument exists
+  if (input.passportPhotoUrl) {
+    const existingDoc = memory.documents.find(
+      (d) =>
+        d.employeeId === updatedEmp.employeeId &&
+        (d.documentType === "photograph" || d.title?.toLowerCase().includes("passport"))
+    );
+    if (existingDoc) {
+      existingDoc.fileUrl = input.passportPhotoUrl;
+      saveDocumentToFirestore("documents", existingDoc.id, existingDoc).catch(() => {});
+    } else {
+      const newDoc: EmployeeDocument = {
+        id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        employeeId: updatedEmp.employeeId,
+        employeeName: updatedEmp.personal.fullName,
+        documentType: "photograph",
+        title: "Passport Size Photograph",
+        fileUrl: input.passportPhotoUrl,
+        uploadedBy: actor.name,
+        uploadDate: new Date().toISOString(),
+        status: "Verified",
+        notes: "Official KYC passport photo registered",
+      };
+      memory.documents.unshift(newDoc);
+      saveDocumentToFirestore("documents", newDoc.id, newDoc).catch(() => {});
+    }
+  }
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "PROFILE_PHOTO_UPDATED",
+    employeeId: updatedEmp.employeeId,
+    employeeName: updatedEmp.personal.fullName,
+    details: `Updated profile picture preference to "${newPreference}". (Active avatar: ${effectiveAvatarUrl})`,
+  });
+
+  return updatedEmp;
+}
+
 export type SalaryRevisionInput = {
   newAnnualCtc?: number;
   monthlySalary?: number;
-  salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc";
+  salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc" | "incentive_only";
   includePf?: boolean;
   pfType?: "percentage" | "fixed";
   pfValue?: number;
   revisionReason?: string;
+  isIncentiveOnly?: boolean;
 };
 
 export async function reviseSalary(
@@ -230,9 +502,10 @@ export async function reviseSalary(
   optionsArg?: {
     monthlySalary?: number;
     includePf?: boolean;
-    salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc";
+    salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc" | "incentive_only";
     pfType?: "percentage" | "fixed";
     pfValue?: number;
+    isIncentiveOnly?: boolean;
   }
 ): Promise<Employee | null> {
   let index = memory.employees.findIndex(
@@ -251,12 +524,13 @@ export async function reviseSalary(
 
   let newAnnualCtc = 0;
   let monthlySalary: number | undefined;
-  let salaryBasis: "monthly_net" | "monthly_gross" | "monthly_ctc" = "monthly_net";
+  let salaryBasis: "monthly_net" | "monthly_gross" | "monthly_ctc" | "incentive_only" = "monthly_net";
   let includePf = true;
   let pfType: "percentage" | "fixed" = "percentage";
   let pfValue = 12;
   let revisionReason = "Salary Revision";
   let actor = actorArg || { name: "System", role: "admin" };
+  let isIncentiveOnly = false;
 
   if (typeof salaryParam === "number") {
     newAnnualCtc = salaryParam;
@@ -267,6 +541,7 @@ export async function reviseSalary(
       if (optionsArg.salaryBasis) salaryBasis = optionsArg.salaryBasis;
       if (optionsArg.pfType) pfType = optionsArg.pfType;
       if (optionsArg.pfValue !== undefined) pfValue = optionsArg.pfValue;
+      if (optionsArg.isIncentiveOnly) isIncentiveOnly = optionsArg.isIncentiveOnly;
     }
   } else {
     newAnnualCtc = salaryParam.newAnnualCtc || 0;
@@ -275,11 +550,18 @@ export async function reviseSalary(
     if (salaryParam.salaryBasis) salaryBasis = salaryParam.salaryBasis;
     if (salaryParam.pfType) pfType = salaryParam.pfType;
     if (salaryParam.pfValue !== undefined) pfValue = salaryParam.pfValue;
+    if (salaryParam.isIncentiveOnly) isIncentiveOnly = salaryParam.isIncentiveOnly;
     revisionReason = salaryParam.revisionReason || revisionReasonArg || "Salary Revision";
   }
 
   let newComponents: SalaryComponent;
-  if (monthlySalary && monthlySalary > 0) {
+  if (salaryBasis === "incentive_only" || isIncentiveOnly) {
+    newComponents = calculateSalaryFromMonthly({
+      monthlyAmount: 0,
+      salaryBasis: "incentive_only",
+      includePf: false,
+    });
+  } else if (monthlySalary && monthlySalary > 0) {
     newComponents = calculateSalaryFromMonthly({
       monthlyAmount: monthlySalary,
       salaryBasis,
@@ -300,6 +582,8 @@ export async function reviseSalary(
     includePf: Boolean(newComponents.includePf),
     pfType: newComponents.pfType,
     pfValue: newComponents.pfValue,
+    salaryBasis,
+    isIncentiveOnly: Boolean(newComponents.isIncentiveOnly || salaryBasis === "incentive_only" || isIncentiveOnly),
     components: newComponents,
     revisionReason,
     updatedBy: actor.name,
@@ -517,14 +801,18 @@ export async function punchAttendance(
   const today = new Date().toISOString().split("T")[0];
   const nowTime = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
 
-  const emp = memory.employees.find(
+  let emp = memory.employees.find(
     (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
   );
+  if (!emp) {
+    emp = (await getEmployeeById(employeeId)) || undefined;
+  }
   const employeeName = emp?.personal?.fullName || actor.name;
 
-  // Single-punch-per-day enforcement
-  const existingRecord = memory.attendance.find(
-    (a) => a.employeeId.toLowerCase() === employeeId.toLowerCase() && a.date === today
+  // Single-punch-per-day enforcement with cloud store verification
+  const todayRecords = await getAttendanceRecords(today);
+  const existingRecord = todayRecords.find(
+    (a) => a.employeeId.toLowerCase() === employeeId.toLowerCase()
   );
 
   if (existingRecord && existingRecord.checkIn && existingRecord.checkIn !== "--") {
@@ -1050,10 +1338,48 @@ export async function createAnnouncement(
 // ----------------- DOCUMENTS -----------------
 
 export async function getDocuments(employeeId?: string): Promise<EmployeeDocument[]> {
+  try {
+    const firestoreDocs = await getCollectionFromFirestore<EmployeeDocument>("documents");
+    if (firestoreDocs && firestoreDocs.length > 0) {
+      if (employeeId) {
+        return firestoreDocs.filter((d) => d.employeeId === employeeId);
+      }
+      return firestoreDocs;
+    }
+  } catch (e) {
+    console.warn("Firestore getDocuments fallback:", e);
+  }
+
   if (employeeId) {
     return memory.documents.filter((d) => d.employeeId === employeeId);
   }
   return memory.documents;
+}
+
+export async function createDocument(
+  data: Omit<EmployeeDocument, "id">,
+  actor?: { name: string; role: string }
+): Promise<EmployeeDocument> {
+  const newDoc: EmployeeDocument = {
+    ...data,
+    id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+  };
+
+  memory.documents.unshift(newDoc);
+  saveDocumentToFirestore("documents", newDoc.id, newDoc).catch(() => {});
+
+  if (actor) {
+    recordAuditLog({
+      who: actor.name,
+      role: actor.role,
+      action: "DOCUMENT_UPLOADED",
+      employeeId: newDoc.employeeId,
+      employeeName: newDoc.employeeName,
+      details: `Uploaded document ${newDoc.title} (${newDoc.documentType})`,
+    }).catch(() => {});
+  }
+
+  return newDoc;
 }
 
 // ----------------- AUDIT LOGS -----------------
@@ -1421,6 +1747,45 @@ export async function getOnboardingRecords(branch?: Branch | "All"): Promise<Onb
     records = memory.onboardingRecords;
   }
 
+  const ALLOWED_CHECKLIST_KEYS = new Set(["pan_card", "aadhaar_card", "bank_details", "photograph"]);
+
+  // Ensure progressPercentage and status accurately reflect checklist truth & normalize legacy items
+  records = records.map((record) => {
+    let normRecord = record;
+    if ((record.lifecycleStatus as string) === "Probation") {
+      normRecord = { ...record, lifecycleStatus: "Active" };
+    }
+    
+    // Filter checklist strictly to the 4 mandatory items
+    let checklist = normRecord.checklist || [];
+    let filtered = checklist.filter((i) => ALLOWED_CHECKLIST_KEYS.has(i.key));
+    if (filtered.length === 0) {
+      filtered = STANDARD_ONBOARDING_CHECKLIST.map((item) => ({
+        ...item,
+        completed: false,
+        verified: false,
+      }));
+    } else {
+      for (const std of STANDARD_ONBOARDING_CHECKLIST) {
+        if (!filtered.some((i) => i.key === std.key)) {
+          filtered.push({ ...std, completed: false, verified: false });
+        }
+      }
+    }
+
+    const done = filtered.filter((i) => i.completed).length;
+    const total = filtered.length;
+    const truePct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const trueStatus = truePct === 100 ? "Completed" : (done > 0 ? "In Progress" : "Pending");
+
+    return {
+      ...normRecord,
+      checklist: filtered,
+      progressPercentage: truePct,
+      status: trueStatus,
+    };
+  });
+
   if (branch && branch !== "All") {
     return records.filter((r) => r.branch === branch);
   }
@@ -1428,13 +1793,45 @@ export async function getOnboardingRecords(branch?: Branch | "All"): Promise<Onb
 }
 
 export async function getOnboardingRecordById(id: string): Promise<OnboardingRecord | null> {
+  let record: OnboardingRecord | null = null;
   try {
     const single = await getDocumentFromFirestore<OnboardingRecord>("onboarding", id);
-    if (single) return single;
+    if (single) record = single;
   } catch (e) {}
 
-  const records = await getOnboardingRecords();
-  return records.find((r) => r.id === id || r.employeeId === id) || null;
+  if (!record) {
+    const records = await getOnboardingRecords();
+    return records.find((r) => r.id === id || r.employeeId === id) || null;
+  }
+
+  if ((record.lifecycleStatus as string) === "Probation") {
+    record.lifecycleStatus = "Active";
+  }
+
+  const ALLOWED_CHECKLIST_KEYS = new Set(["pan_card", "aadhaar_card", "bank_details", "photograph"]);
+  let checklist = record.checklist || [];
+  let filtered = checklist.filter((i) => ALLOWED_CHECKLIST_KEYS.has(i.key));
+  if (filtered.length === 0) {
+    filtered = STANDARD_ONBOARDING_CHECKLIST.map((item) => ({
+      ...item,
+      completed: false,
+      verified: false,
+    }));
+  } else {
+    for (const std of STANDARD_ONBOARDING_CHECKLIST) {
+      if (!filtered.some((i) => i.key === std.key)) {
+        filtered.push({ ...std, completed: false, verified: false });
+      }
+    }
+  }
+
+  record.checklist = filtered;
+  const done = filtered.filter((i) => i.completed).length;
+  const total = filtered.length;
+  record.progressPercentage = total > 0 ? Math.round((done / total) * 100) : 0;
+  record.status = record.progressPercentage === 100 ? "Completed" : (done > 0 ? "In Progress" : "Pending");
+
+  return record;
 }
 
 export async function createOnboardingRecord(
@@ -1655,6 +2052,11 @@ export async function activateOnboardedEmployee(
 
   const salaryBreakdown = calculateSalaryBreakdown(record.annualCtc || 480000);
 
+  const photoDoc = record.kycDocuments?.find(
+    (d) => d.type === "photograph" || d.title?.toLowerCase().includes("passport") || d.title?.toLowerCase().includes("photo")
+  );
+  const passportPhoto = photoDoc?.fileUrl;
+
   const newEmployee: Employee = {
     id: `emp-${Date.now()}`,
     employeeId: newEmpId,
@@ -1663,6 +2065,9 @@ export async function activateOnboardedEmployee(
       firstName: record.candidateName.split(" ")[0] || record.candidateName,
       lastName: record.candidateName.split(" ").slice(1).join(" ") || "",
       fullName: record.candidateName,
+      avatarUrl: passportPhoto || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+      passportPhotoUrl: passportPhoto,
+      avatarPreference: "passport",
       dob: record.personalDetails?.dob || "1995-01-01",
       gender: record.personalDetails?.gender || "Male",
       mobileNumber: record.phone,
@@ -1685,8 +2090,8 @@ export async function activateOnboardedEmployee(
       branch: record.branch,
       workLocation: `${record.branch} Office`,
       employmentType: "Full-time",
-      employmentStatus: "Probation",
-      probationMonths: 3,
+      employmentStatus: "Active",
+      probationMonths: 0,
       employeeCategory: "White Collar",
       reportingManagerName: "Priya Verma (HR)",
     },
@@ -1719,12 +2124,36 @@ export async function activateOnboardedEmployee(
   memory.employees.unshift(newEmployee);
   saveDocumentToFirestore("employees", newEmpId, newEmployee).catch(() => {});
 
+  // Register KYC documents to employee documents collection
+  if (record.kycDocuments && record.kycDocuments.length > 0) {
+    for (const doc of record.kycDocuments) {
+      const docItem: EmployeeDocument = {
+        id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        employeeId: newEmpId,
+        employeeName: record.candidateName,
+        documentType: doc.type,
+        title: doc.title || (doc.type === "photograph" ? "Passport Size Photograph" : doc.type),
+        fileUrl: doc.fileUrl,
+        uploadedBy: record.candidateName,
+        uploadDate: doc.uploadedAt || new Date().toISOString(),
+        status: "Verified",
+        notes: "Uploaded during candidate self-registration onboarding KYC",
+      };
+      memory.documents.unshift(docItem);
+      saveDocumentToFirestore("documents", docItem.id, docItem).catch(() => {});
+    }
+  }
+
   // Update onboarding record
   record.employeeId = newEmpId;
-  record.lifecycleStatus = "Probation";
-  record.status = "Completed";
-  record.progressPercentage = 100;
-  record.completedAt = new Date().toISOString();
+  record.lifecycleStatus = "Active";
+  const done = record.checklist?.filter((i) => i.completed).length || 0;
+  const total = record.checklist?.length || 0;
+  record.progressPercentage = total > 0 ? Math.round((done / total) * 100) : 0;
+  record.status = record.progressPercentage === 100 ? "Completed" : (done > 0 ? "In Progress" : "Pending");
+  if (record.progressPercentage === 100) {
+    record.completedAt = new Date().toISOString();
+  }
   record.updatedAt = new Date().toISOString();
   record.approvedBy = actor.name;
   record.approvedAt = new Date().toISOString();
@@ -1742,6 +2171,9 @@ export async function activateOnboardedEmployee(
     userAccount.employeeId = newEmpId;
     userAccount.branch = record.branch;
     userAccount.department = record.department;
+    if (passportPhoto) {
+      userAccount.avatar = passportPhoto;
+    }
     await updateUserAccount(userAccount.uid, userAccount);
   } else {
     const newUser: UserAccount = {
@@ -1753,7 +2185,7 @@ export async function activateOnboardedEmployee(
       role: "employee",
       branch: record.branch,
       department: record.department,
-      avatar: `https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150`,
+      avatar: passportPhoto || `https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150`,
       status: "Active",
       createdAt: new Date().toISOString(),
     };
@@ -1771,7 +2203,7 @@ export async function activateOnboardedEmployee(
     action: "EMPLOYEE_ACTIVATED",
     employeeId: newEmpId,
     employeeName: record.candidateName,
-    details: `Onboarding finalized (100%). Activated employee profile with ID ${newEmpId} under Probation at ${record.branch} branch and granted full HRMS login access.`,
+    details: `Onboarding finalized (100%). Activated employee profile with ID ${newEmpId} as Full-time Active at ${record.branch} branch and granted full HRMS login access.`,
   });
 
   return { onboarding: record, employee: newEmployee };

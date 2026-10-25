@@ -101,6 +101,9 @@ export interface PersonalInfo {
   lastName: string;
   fullName: string;
   avatarUrl?: string;
+  passportPhotoUrl?: string;
+  customAvatarUrl?: string;
+  avatarPreference?: "passport" | "custom";
   parentsName?: string;
   dob: string;
   gender: "Male" | "Female" | "Other";
@@ -157,6 +160,7 @@ export interface SalaryComponent {
   includePf?: boolean;
   pfType?: "percentage" | "fixed";
   pfValue?: number;
+  isIncentiveOnly?: boolean;
 }
 
 export interface SalaryRevisionRecord {
@@ -168,6 +172,8 @@ export interface SalaryRevisionRecord {
   includePf?: boolean;
   pfType?: "percentage" | "fixed";
   pfValue?: number;
+  salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc" | "incentive_only";
+  isIncentiveOnly?: boolean;
   components: SalaryComponent;
   revisionReason: string;
   updatedBy: string;
@@ -490,20 +496,10 @@ export interface OnboardingRecord {
 }
 
 export const STANDARD_ONBOARDING_CHECKLIST: Omit<OnboardingChecklistItem, "completed" | "verified">[] = [
-  { key: "offer_letter", label: "Offer Letter Generated & Signed", category: "compliance", required: true },
-  { key: "appointment_letter", label: "Appointment Letter Issued", category: "compliance", required: true },
   { key: "pan_card", label: "PAN Card Verification", category: "statutory", required: true },
   { key: "aadhaar_card", label: "Aadhaar Card Verification", category: "statutory", required: true },
-  { key: "bank_details", label: "Bank Account & IFSC Verification", category: "statutory", required: true },
-  { key: "photograph", label: "Formal Passport Photograph", category: "documentation", required: true },
-  { key: "address_proof", label: "Permanent & Current Address Proof", category: "documentation", required: true },
-  { key: "education_docs", label: "Educational Degree & Certificates", category: "documentation", required: true },
-  { key: "prev_employment", label: "Previous Relieving & Experience Letters", category: "documentation", required: false },
-  { key: "nda_signed", label: "Non-Disclosure Agreement (NDA)", category: "compliance", required: true },
-  { key: "policy_ack", label: "Company Policy Handbook Acknowledgement", category: "compliance", required: true },
-  { key: "asset_allocated", label: "IT Asset Allocation (Laptop & Peripherals)", category: "it_setup", required: true },
-  { key: "email_created", label: "Corporate Email Account Provisioning", category: "account", required: true },
-  { key: "hrms_account", label: "HRMS Login & Access Setup", category: "account", required: true },
+  { key: "bank_details", label: "Bank Account & Details Verification", category: "statutory", required: true },
+  { key: "photograph", label: "Passport Size Photograph", category: "documentation", required: true },
 ];
 
 export const LIFECYCLE_STAGES: { status: EmploymentStatus; label: string; step: number; description: string }[] = [
@@ -511,13 +507,12 @@ export const LIFECYCLE_STAGES: { status: EmploymentStatus; label: string; step: 
   { status: "Offer Sent", label: "Offer Sent", step: 2, description: "Formal offer letter dispatched" },
   { status: "Offer Accepted", label: "Offer Accepted", step: 3, description: "Candidate signed acceptance" },
   { status: "Onboarding", label: "Onboarding", step: 4, description: "Checklist & document verification" },
-  { status: "Probation", label: "Probation", step: 5, description: "Initial probationary employment period" },
-  { status: "Confirmed", label: "Confirmed", step: 6, description: "Evaluation passed & confirmed staff" },
-  { status: "Active", label: "Active", step: 7, description: "Standard operational workforce member" },
-  { status: "On Notice", label: "On Notice", step: 8, description: "Serving formal notice period" },
-  { status: "Resigned", label: "Resigned", step: 9, description: "Voluntary resignation processed" },
-  { status: "Terminated", label: "Terminated", step: 10, description: "Employment terminated" },
-  { status: "Exited", label: "Exited", step: 11, description: "Full & Final settlement completed" },
+  { status: "Active", label: "Active (Full-time)", step: 5, description: "Full-time operational workforce member" },
+  { status: "Confirmed", label: "Confirmed", step: 6, description: "Confirmed full-time staff member" },
+  { status: "On Notice", label: "On Notice", step: 7, description: "Serving formal notice period" },
+  { status: "Resigned", label: "Resigned", step: 8, description: "Voluntary resignation processed" },
+  { status: "Terminated", label: "Terminated", step: 9, description: "Employment terminated" },
+  { status: "Exited", label: "Exited", step: 10, description: "Full & Final settlement completed" },
 ];
 
 export interface RegistrationDraft {

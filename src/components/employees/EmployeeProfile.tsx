@@ -32,6 +32,12 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  Camera,
+  UploadCloud,
+  ShieldCheck,
+  User,
+  Image as ImageIcon,
+  Trash2,
 } from "lucide-react";
 
 interface EmployeeProfileProps {
@@ -53,20 +59,28 @@ export function EmployeeProfile({
   documents,
   onRefresh,
 }: EmployeeProfileProps) {
-  const { currentUser } = useAuth();
+  const { currentUser, updateCurrentUserAvatar, refreshSession } = useAuth();
   const [activeTab, setActiveTab] = useState<
     "overview" | "salary" | "attendance" | "leaves" | "documents" | "incentives" | "assets" | "lifecycle"
   >("overview");
 
   // Salary Revision Modal State (Simplified: Net Salary & PF)
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
-  const [salaryBasis, setSalaryBasis] = useState<"monthly_net" | "monthly_gross">("monthly_net");
+  const [salaryBasis, setSalaryBasis] = useState<"monthly_net" | "monthly_gross" | "incentive_only">(
+    employee.currentSalary.isIncentiveOnly || (employee.currentSalary.annualCtc === 0 && employee.currentSalary.grossSalary === 0)
+      ? "incentive_only"
+      : "monthly_net"
+  );
   const [monthlyAmount, setMonthlyAmount] = useState<number>(
-    employee.currentSalary.netSalary ||
-      Math.max(0, employee.currentSalary.grossSalary - (employee.currentSalary.employeePf || 0))
+    employee.currentSalary.isIncentiveOnly
+      ? 0
+      : employee.currentSalary.netSalary ||
+          Math.max(0, employee.currentSalary.grossSalary - (employee.currentSalary.employeePf || 0))
   );
   const [includePf, setIncludePf] = useState<boolean>(
-    employee.currentSalary.includePf !== undefined
+    employee.currentSalary.isIncentiveOnly
+      ? false
+      : employee.currentSalary.includePf !== undefined
       ? Boolean(employee.currentSalary.includePf)
       : (employee.currentSalary.employeePf ?? 0) > 0
   );
@@ -83,35 +97,198 @@ export function EmployeeProfile({
   const [revisionReason, setRevisionReason] = useState("");
   const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
 
+  // Profile Photo Management State
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [photoPreference, setPhotoPreference] = useState<"passport" | "custom">(
+    employee.personal.avatarPreference || "passport"
+  );
+  const [customPhotoUrl, setCustomPhotoUrl] = useState<string>(
+    employee.personal.customAvatarUrl || ""
+  );
+  const [customPhotoFile, setCustomPhotoFile] = useState<File | null>(null);
+  const [customPhotoPreview, setCustomPhotoPreview] = useState<string>(
+    employee.personal.customAvatarUrl || ""
+  );
+  const [passportPhotoInputUrl, setPassportPhotoInputUrl] = useState<string>("");
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoMessage, setPhotoMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Resolve official passport photo (from documents KYC or personal)
+  const passportDoc = documents.find(
+    (d) =>
+      d.documentType === "photograph" ||
+      d.documentType?.toLowerCase().includes("passport") ||
+      d.title?.toLowerCase().includes("passport") ||
+      d.title?.toLowerCase().includes("photograph") ||
+      d.title?.toLowerCase().includes("photo")
+  );
+  const resolvedPassportPhoto =
+    employee.personal.passportPhotoUrl ||
+    passportDoc?.fileUrl ||
+    (employee.personal.avatarPreference !== "custom" ? employee.personal.avatarUrl : undefined);
+
+  const activePreference = employee.personal.avatarPreference || "passport";
+  const displayAvatar =
+    activePreference === "custom" && employee.personal.customAvatarUrl
+      ? employee.personal.customAvatarUrl
+      : resolvedPassportPhoto ||
+        employee.personal.avatarUrl ||
+        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150";
+
+  const canEditPhoto =
+    currentUser.role === "admin" ||
+    currentUser.role === "hr" ||
+    currentUser.employeeId === employee.employeeId;
+
+  const handleOpenPhotoModal = () => {
+    setPhotoPreference(employee.personal.avatarPreference || "passport");
+    setCustomPhotoUrl(employee.personal.customAvatarUrl || "");
+    setCustomPhotoPreview(employee.personal.customAvatarUrl || "");
+    setCustomPhotoFile(null);
+    setPassportPhotoInputUrl("");
+    setPhotoMessage(null);
+    setIsPhotoModalOpen(true);
+  };
+
+  const handleCustomPhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setPhotoMessage({ type: "error", text: "Please select an image file (JPG, PNG, or WEBP)." });
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setPhotoMessage({ type: "error", text: "Image file must be under 2 MB in size." });
+      return;
+    }
+
+    setPhotoMessage(null);
+    setCustomPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCustomPhotoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSavePhotoSettings = async () => {
+    setIsUploadingPhoto(true);
+    setPhotoMessage(null);
+
+    try {
+      let finalCustomUrl = customPhotoUrl;
+
+      // If a new custom file was selected, upload it to /api/upload
+      if (photoPreference === "custom" && customPhotoFile) {
+        const formData = new FormData();
+        formData.append("file", customPhotoFile);
+        formData.append("documentType", "photograph");
+        formData.append("identifier", employee.employeeId);
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok || !uploadData.success) {
+          throw new Error(uploadData.error || "Failed to upload image file.");
+        }
+        finalCustomUrl = uploadData.data.fileUrl;
+      }
+
+      let finalPassportUrl = resolvedPassportPhoto || employee.personal.passportPhotoUrl;
+      if (passportPhotoInputUrl && passportPhotoInputUrl.trim()) {
+        finalPassportUrl = passportPhotoInputUrl.trim();
+      }
+
+      const effectiveAvatar =
+        photoPreference === "custom" && (finalCustomUrl || customPhotoPreview)
+          ? finalCustomUrl || customPhotoPreview
+          : finalPassportUrl || displayAvatar;
+
+      const res = await fetch(`/api/employees/${employee.employeeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          avatarPreference: photoPreference,
+          customAvatarUrl: finalCustomUrl || (photoPreference === "custom" ? customPhotoPreview : undefined),
+          passportPhotoUrl: finalPassportUrl,
+          avatarUrl: effectiveAvatar,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update profile photograph.");
+      }
+
+      // If current user is modifying their own avatar, sync immediately
+      if (currentUser.employeeId === employee.employeeId) {
+        updateCurrentUserAvatar?.(effectiveAvatar);
+        refreshSession?.();
+      }
+
+      setPhotoMessage({
+        type: "success",
+        text: `Profile photo updated successfully! Now showing ${
+          photoPreference === "passport" ? "Official Passport Photo (Default)" : "Custom Profile Photo"
+        }.`,
+      });
+
+      onRefresh();
+
+      setTimeout(() => {
+        setIsPhotoModalOpen(false);
+        setPhotoMessage(null);
+      }, 1000);
+    } catch (err: any) {
+      setPhotoMessage({ type: "error", text: err.message || "Failed to save profile photo preference." });
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
   const previewComponents = useMemo(() => {
     return calculateSalaryFromMonthly({
-      monthlyAmount: Number(monthlyAmount) || 0,
+      monthlyAmount: salaryBasis === "incentive_only" ? 0 : Number(monthlyAmount) || 0,
       salaryBasis,
-      includePf,
+      includePf: salaryBasis === "incentive_only" ? false : includePf,
       pfType,
       pfValue: Number(pfValue) || 0,
     });
   }, [monthlyAmount, salaryBasis, includePf, pfType, pfValue]);
 
   const handleOpenRevisionModal = () => {
-    setSalaryBasis("monthly_net");
-    setMonthlyAmount(
-      employee.currentSalary.netSalary ||
-        Math.max(0, employee.currentSalary.grossSalary - (employee.currentSalary.employeePf || 0))
-    );
-    setIncludePf(
-      employee.currentSalary.includePf !== undefined
-        ? Boolean(employee.currentSalary.includePf)
-        : (employee.currentSalary.employeePf ?? 0) > 0
-    );
-    setPfType(employee.currentSalary.pfType || "percentage");
-    setPfValue(
-      employee.currentSalary.pfValue !== undefined
-        ? employee.currentSalary.pfValue
-        : (employee.currentSalary.pfType === "fixed"
-            ? (employee.currentSalary.employeePf || 1800)
-            : 12)
-    );
+    const isCurrentlyIncentive =
+      Boolean(employee.currentSalary.isIncentiveOnly) ||
+      (employee.currentSalary.annualCtc === 0 && employee.currentSalary.grossSalary === 0);
+
+    if (isCurrentlyIncentive) {
+      setSalaryBasis("incentive_only");
+      setMonthlyAmount(0);
+      setIncludePf(false);
+    } else {
+      setSalaryBasis("monthly_net");
+      setMonthlyAmount(
+        employee.currentSalary.netSalary ||
+          Math.max(0, employee.currentSalary.grossSalary - (employee.currentSalary.employeePf || 0))
+      );
+      setIncludePf(
+        employee.currentSalary.includePf !== undefined
+          ? Boolean(employee.currentSalary.includePf)
+          : (employee.currentSalary.employeePf ?? 0) > 0
+      );
+      setPfType(employee.currentSalary.pfType || "percentage");
+      setPfValue(
+        employee.currentSalary.pfValue !== undefined
+          ? employee.currentSalary.pfValue
+          : (employee.currentSalary.pfType === "fixed"
+              ? (employee.currentSalary.employeePf || 1800)
+              : 12)
+      );
+    }
     setRevisionReason("");
     setIsRevisionModalOpen(true);
   };
@@ -137,7 +314,7 @@ export function EmployeeProfile({
 
   const handleSalaryRevisionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!monthlyAmount || monthlyAmount <= 0) {
+    if (salaryBasis !== "incentive_only" && (!monthlyAmount || monthlyAmount <= 0)) {
       alert("Please enter a valid monthly salary amount");
       return;
     }
@@ -152,12 +329,13 @@ export function EmployeeProfile({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          monthlySalary: Number(monthlyAmount),
+          monthlySalary: salaryBasis === "incentive_only" ? 0 : Number(monthlyAmount),
           salaryBasis,
-          includePf,
+          includePf: salaryBasis === "incentive_only" ? false : includePf,
           pfType,
-          pfValue: Number(pfValue) || 0,
-          newAnnualCtc: previewComponents.annualCtc,
+          pfValue: salaryBasis === "incentive_only" ? 0 : Number(pfValue) || 0,
+          newAnnualCtc: salaryBasis === "incentive_only" ? 0 : previewComponents.annualCtc,
+          isIncentiveOnly: salaryBasis === "incentive_only",
           revisionReason: revisionReason.trim(),
           actor: { name: currentUser.name, role: currentUser.role },
         }),
@@ -205,11 +383,44 @@ export function EmployeeProfile({
       <div className="glass-panel rounded-3xl p-6 lg:p-8 border border-slate-800 relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-5">
-            <img
-              src={employee.personal.avatarUrl}
-              alt={employee.personal.fullName}
-              className="w-20 h-20 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-xl shadow-indigo-500/10"
-            />
+            <div className="relative group shrink-0">
+              <img
+                src={displayAvatar}
+                alt={employee.personal.fullName}
+                className="w-20 h-20 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-xl shadow-indigo-500/10"
+              />
+              {/* Badge: Passport Photo Default vs Custom */}
+              {activePreference === "passport" ? (
+                <span
+                  title="Official KYC Passport Photo (Company Default)"
+                  className="absolute -bottom-2 -left-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/50 shadow flex items-center gap-1 backdrop-blur-xs transition-colors cursor-pointer"
+                  onClick={canEditPhoto ? handleOpenPhotoModal : undefined}
+                >
+                  <ShieldCheck className="w-2.5 h-2.5" /> Passport
+                </span>
+              ) : (
+                <span
+                  title="Custom Profile Picture"
+                  className="absolute -bottom-2 -left-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-indigo-400/50 shadow flex items-center gap-1 backdrop-blur-xs transition-colors cursor-pointer"
+                  onClick={canEditPhoto ? handleOpenPhotoModal : undefined}
+                >
+                  <User className="w-2.5 h-2.5" /> Custom
+                </span>
+              )}
+
+              {/* Hover Edit Overlay */}
+              {canEditPhoto && (
+                <button
+                  type="button"
+                  onClick={handleOpenPhotoModal}
+                  title="Customize profile photo"
+                  className="absolute inset-0 bg-slate-950/65 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white text-[10px] font-semibold backdrop-blur-xs cursor-pointer border border-white/20"
+                >
+                  <Camera className="w-5 h-5 text-indigo-300" />
+                  <span>Edit Photo</span>
+                </button>
+              )}
+            </div>
             <div>
               <div className="flex items-center gap-2.5">
                 <h1 className="text-2xl font-bold text-white tracking-tight">
@@ -253,7 +464,18 @@ export function EmployeeProfile({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {canEditPhoto && (
+              <Button
+                size="sm"
+                variant="outline"
+                icon={<Camera className="w-4 h-4 text-indigo-400" />}
+                onClick={handleOpenPhotoModal}
+                className="border-slate-700 hover:border-indigo-500/50 text-slate-300 hover:text-white"
+              >
+                {activePreference === "passport" ? "Profile Photo" : "Photo Settings"}
+              </Button>
+            )}
             {canEditSalary && (
               <Button
                 size="sm"
@@ -328,6 +550,33 @@ export function EmployeeProfile({
                   {employee.personal.emergencyContact.phone}
                 </span>
               </div>
+              <div className="pt-2 border-t border-slate-800/80">
+                <span className="text-slate-500 block mb-1">Profile Photo Source</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-slate-200 font-medium flex items-center gap-1.5 text-xs">
+                    {activePreference === "passport" ? (
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span>Official Passport (Default)</span>
+                      </>
+                    ) : (
+                      <>
+                        <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>Custom Profile Picture</span>
+                      </>
+                    )}
+                  </span>
+                  {canEditPhoto && (
+                    <button
+                      type="button"
+                      onClick={handleOpenPhotoModal}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 underline underline-offset-2 font-medium cursor-pointer"
+                    >
+                      Change
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -362,10 +611,9 @@ export function EmployeeProfile({
                 </span>
               </div>
               <div>
-                <span className="text-slate-500 block">Probation Period</span>
+                <span className="text-slate-500 block">Employment Status</span>
                 <span className="text-slate-200 font-medium">
-                  {employee.employment.probationMonths} months (Confirmed:{" "}
-                  {employee.employment.confirmationDate || "Pending"})
+                  {employee.employment.employmentStatus === "Probation" ? "Active" : employee.employment.employmentStatus} • Full-time
                 </span>
               </div>
             </div>
@@ -459,43 +707,77 @@ export function EmployeeProfile({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
               <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
                 <span className="text-slate-400 block font-medium">Net Take-Home Salary</span>
-                <p className="text-xl font-bold text-emerald-400 font-mono">
-                  ₹{(employee.currentSalary.netSalary || Math.max(0, employee.currentSalary.grossSalary - employee.currentSalary.employeePf)).toLocaleString("en-IN")}
-                  <span className="text-xs font-normal text-slate-400 ml-1 font-sans">/mo</span>
-                </p>
-                <span className="text-[10px] text-slate-500 block">Credited to bank account</span>
+                {employee.currentSalary.isIncentiveOnly || (employee.currentSalary.annualCtc === 0 && employee.currentSalary.grossSalary === 0) ? (
+                  <>
+                    <p className="text-lg font-bold text-amber-400 flex items-center gap-1.5 mt-0.5">
+                      <Award className="w-5 h-5 text-amber-400 shrink-0" />
+                      Incentive Only
+                    </p>
+                    <span className="text-[10px] text-slate-400 block">100% Commission Based</span>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xl font-bold text-emerald-400 font-mono">
+                      ₹{(employee.currentSalary.netSalary || Math.max(0, employee.currentSalary.grossSalary - employee.currentSalary.employeePf)).toLocaleString("en-IN")}
+                      <span className="text-xs font-normal text-slate-400 ml-1 font-sans">/mo</span>
+                    </p>
+                    <span className="text-[10px] text-slate-500 block">Credited to bank account</span>
+                  </>
+                )}
               </div>
 
               <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
                 <span className="text-slate-400 block font-medium">Provident Fund (PF)</span>
-                <p className={`text-xl font-bold font-mono ${employee.currentSalary.employeePf > 0 ? "text-indigo-300" : "text-slate-400"}`}>
-                  {employee.currentSalary.employeePf > 0
-                    ? `₹${employee.currentSalary.employeePf.toLocaleString("en-IN")}`
-                    : "₹0"}
-                  <span className="text-xs font-normal text-slate-400 ml-1 font-sans">
-                    {employee.currentSalary.employeePf > 0
-                      ? employee.currentSalary.pfType === "fixed"
-                        ? "(Fixed)"
-                        : `(${employee.currentSalary.pfValue ?? 12}%)`
-                      : "(Excluded)"}
-                  </span>
-                </p>
-                <span className="text-[10px] text-slate-500 block">
-                  {employee.currentSalary.employeePf > 0
-                    ? `Employer: +₹${employee.currentSalary.employerPf.toLocaleString("en-IN")}`
-                    : "No statutory deductions"}
-                </span>
+                {employee.currentSalary.isIncentiveOnly || (employee.currentSalary.annualCtc === 0 && employee.currentSalary.grossSalary === 0) ? (
+                  <>
+                    <p className="text-xl font-bold font-mono text-slate-400">Exempted</p>
+                    <span className="text-[10px] text-slate-500 block">No statutory deductions</span>
+                  </>
+                ) : (
+                  <>
+                    <p className={`text-xl font-bold font-mono ${employee.currentSalary.employeePf > 0 ? "text-indigo-300" : "text-slate-400"}`}>
+                      {employee.currentSalary.employeePf > 0
+                        ? `₹${employee.currentSalary.employeePf.toLocaleString("en-IN")}`
+                        : "₹0"}
+                      <span className="text-xs font-normal text-slate-400 ml-1 font-sans">
+                        {employee.currentSalary.employeePf > 0
+                          ? employee.currentSalary.pfType === "fixed"
+                            ? "(Fixed)"
+                            : `(${employee.currentSalary.pfValue ?? 12}%)`
+                          : "(Excluded)"}
+                      </span>
+                    </p>
+                    <span className="text-[10px] text-slate-500 block">
+                      {employee.currentSalary.employeePf > 0
+                        ? `Employer: +₹${employee.currentSalary.employerPf.toLocaleString("en-IN")}`
+                        : "No statutory deductions"}
+                    </span>
+                  </>
+                )}
               </div>
 
               <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
                 <span className="text-slate-400 block font-medium">Monthly Gross Pay</span>
-                <p className="text-xl font-bold text-white font-mono">
-                  ₹{employee.currentSalary.grossSalary.toLocaleString("en-IN")}
-                  <span className="text-xs font-normal text-slate-400 ml-1 font-sans">/mo</span>
-                </p>
-                <span className="text-[10px] text-slate-500 block">
-                  Annual CTC: ₹{employee.currentSalary.annualCtc.toLocaleString("en-IN")}
-                </span>
+                {employee.currentSalary.isIncentiveOnly || (employee.currentSalary.annualCtc === 0 && employee.currentSalary.grossSalary === 0) ? (
+                  <>
+                    <p className="text-xl font-bold text-white font-mono">
+                      ₹0 Base
+                    </p>
+                    <span className="text-[10px] text-amber-400/90 block">
+                      Earnings via Approved Incentives
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xl font-bold text-white font-mono">
+                      ₹{employee.currentSalary.grossSalary.toLocaleString("en-IN")}
+                      <span className="text-xs font-normal text-slate-400 ml-1 font-sans">/mo</span>
+                    </p>
+                    <span className="text-[10px] text-slate-500 block">
+                      Annual CTC: ₹{employee.currentSalary.annualCtc.toLocaleString("en-IN")}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -527,12 +809,20 @@ export function EmployeeProfile({
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {employee.salaryHistory.map((rev) => {
+                    const isIncentive =
+                      rev.isIncentiveOnly ||
+                      rev.salaryBasis === "incentive_only" ||
+                      rev.annualCtc === 0;
                     const hasPf = (rev.components?.employeePf ?? 0) > 0;
-                    const netEst = rev.netSalary || Math.max(
-                      0,
-                      (rev.components?.grossSalary ?? 0) - (rev.components?.employeePf ?? 0)
-                    );
-                    const pfBadgeLabel = hasPf
+                    const netEst =
+                      rev.netSalary ||
+                      Math.max(
+                        0,
+                        (rev.components?.grossSalary ?? 0) - (rev.components?.employeePf ?? 0)
+                      );
+                    const pfBadgeLabel = isIncentive
+                      ? "Exempt"
+                      : hasPf
                       ? rev.pfType === "fixed"
                         ? `Fixed ₹${(rev.components?.employeePf ?? 0).toLocaleString("en-IN")}`
                         : `${rev.pfValue ?? 12}% (₹${(rev.components?.employeePf ?? 0).toLocaleString("en-IN")})`
@@ -541,12 +831,20 @@ export function EmployeeProfile({
                       <tr key={rev.id} className="hover:bg-slate-800/20">
                         <td className="py-3 font-mono text-slate-300">{rev.effectiveFrom}</td>
                         <td className="py-3 text-emerald-400 font-bold font-mono">
-                          ₹{netEst.toLocaleString("en-IN")}
+                          {isIncentive ? (
+                            <span className="text-amber-400 font-semibold text-[11px] bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                              ⚡ Incentive Only
+                            </span>
+                          ) : (
+                            `₹${netEst.toLocaleString("en-IN")}`
+                          )}
                         </td>
                         <td className="py-3">
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              hasPf
+                              isIncentive
+                                ? "bg-slate-800 text-slate-400 border border-slate-700"
+                                : hasPf
                                 ? "bg-indigo-500/10 text-indigo-300 border border-indigo-500/30"
                                 : "bg-slate-800 text-slate-400 border border-slate-700"
                             }`}
@@ -555,10 +853,12 @@ export function EmployeeProfile({
                           </span>
                         </td>
                         <td className="py-3 font-semibold text-white font-mono">
-                          ₹{(rev.components?.grossSalary ?? Math.round(rev.annualCtc / 12)).toLocaleString("en-IN")}
+                          {isIncentive
+                            ? "₹0 Base"
+                            : `₹${(rev.components?.grossSalary ?? Math.round(rev.annualCtc / 12)).toLocaleString("en-IN")}`}
                         </td>
                         <td className="py-3 text-slate-300 font-mono">
-                          ₹{rev.annualCtc.toLocaleString("en-IN")}
+                          {isIncentive ? "Variable" : `₹${rev.annualCtc.toLocaleString("en-IN")}`}
                         </td>
                         <td className="py-3 text-indigo-300 font-medium">{rev.revisionReason}</td>
                         <td className="py-3 text-slate-400">{rev.updatedBy}</td>
@@ -718,32 +1018,115 @@ export function EmployeeProfile({
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {documents.map((d) => (
-              <div
-                key={d.id}
-                className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex items-start justify-between text-xs hover:border-slate-700 transition-colors"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white">{d.title}</span>
-                    <Badge variant={d.status === "Verified" ? "success" : "warning"}>{d.status}</Badge>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Type: {d.documentType}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Uploaded on {d.uploadDate} by {d.uploadedBy}</p>
-                  {d.expiryDate && (
-                    <div className="mt-2 flex items-center gap-1.5 text-rose-400 font-medium">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      Expires: {d.expiryDate} (Renewal required)
+          {documents.length === 0 && !resolvedPassportPhoto ? (
+            <div className="py-12 text-center text-slate-500 text-xs">
+              <FileText className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+              <p>No documents uploaded yet for this employee.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Highlight Official Passport Photograph if on file and not in documents list */}
+              {resolvedPassportPhoto &&
+                !documents.some(
+                  (d) =>
+                    d.documentType === "photograph" ||
+                    d.title?.toLowerCase().includes("passport")
+                ) && (
+                  <div className="p-4 rounded-xl bg-slate-900/80 border border-emerald-500/30 flex items-start justify-between text-xs hover:border-emerald-500/50 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-14 rounded-lg overflow-hidden border border-slate-700 shrink-0">
+                        <img
+                          src={resolvedPassportPhoto}
+                          alt="Passport Photo"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-white">Passport Photograph</span>
+                          <Badge variant="success">Verified</Badge>
+                          <Badge variant="indigo">Default Profile Photo</Badge>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">Type: photograph</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Official KYC Identification Document</p>
+                      </div>
                     </div>
-                  )}
-                </div>
-                <Button size="sm" variant="outline" className="text-xs py-1 px-2.5">
-                  View / Download
-                </Button>
-              </div>
-            ))}
-          </div>
+                    {canEditPhoto && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleOpenPhotoModal}
+                        className="text-xs py-1 px-2.5 border-slate-700"
+                      >
+                        Photo Settings
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+              {documents.map((d) => {
+                const isPhotoDoc =
+                  d.documentType === "photograph" ||
+                  d.title?.toLowerCase().includes("passport") ||
+                  d.title?.toLowerCase().includes("photo");
+                return (
+                  <div
+                    key={d.id}
+                    className={`p-4 rounded-xl bg-slate-900/80 border flex items-start justify-between text-xs transition-colors ${
+                      isPhotoDoc ? "border-emerald-500/30 hover:border-emerald-500/50" : "border-slate-800 hover:border-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {isPhotoDoc && d.fileUrl && (
+                        <div className="w-12 h-14 rounded-lg overflow-hidden border border-slate-700 shrink-0">
+                          <img src={d.fileUrl} alt={d.title} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-white">{d.title}</span>
+                          <Badge variant={d.status === "Verified" ? "success" : "warning"}>{d.status}</Badge>
+                          {isPhotoDoc && <Badge variant="indigo">Default Profile Photo</Badge>}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">Type: {d.documentType}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Uploaded on {d.uploadDate} by {d.uploadedBy}
+                        </p>
+                        {d.expiryDate && (
+                          <div className="mt-2 flex items-center gap-1.5 text-rose-400 font-medium">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            Expires: {d.expiryDate} (Renewal required)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isPhotoDoc && canEditPhoto && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleOpenPhotoModal}
+                          className="text-xs py-1 px-2 border-slate-700"
+                        >
+                          Change
+                        </Button>
+                      )}
+                      {d.fileUrl && (
+                        <a
+                          href={d.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center text-xs text-indigo-400 hover:text-indigo-300 py-1 px-2 border border-slate-700 rounded-lg hover:border-slate-600 transition-colors"
+                        >
+                          View
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -856,9 +1239,8 @@ export function EmployeeProfile({
                   <option value="Offer Sent">Offer Sent</option>
                   <option value="Offer Accepted">Offer Accepted</option>
                   <option value="Onboarding">Onboarding</option>
-                  <option value="Probation">Probation</option>
-                  <option value="Confirmed">Confirmed</option>
                   <option value="Active">Active</option>
+                  <option value="Confirmed">Confirmed</option>
                   <option value="On Notice">On Notice</option>
                   <option value="Resigned">Resigned</option>
                   <option value="Terminated">Terminated</option>
@@ -868,24 +1250,24 @@ export function EmployeeProfile({
             )}
           </div>
 
-          {/* 11-Stage Visual Progress Bar */}
+          {/* Lifecycle Progress Pipeline */}
           <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
-            <div className="text-xs font-semibold text-slate-300">11-Stage Lifecycle Pipeline</div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-11 gap-1 text-[11px] text-center font-medium">
+            <div className="text-xs font-semibold text-slate-300">Lifecycle Pipeline</div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-1 text-[11px] text-center font-medium">
               {[
                 "Candidate",
                 "Offer Sent",
                 "Offer Accepted",
                 "Onboarding",
-                "Probation",
-                "Confirmed",
                 "Active",
+                "Confirmed",
                 "On Notice",
                 "Resigned",
                 "Terminated",
                 "Exited",
               ].map((stage, idx) => {
-                const isCurrent = employee.employment.employmentStatus === stage;
+                const currentStatus = employee.employment.employmentStatus === "Probation" ? "Active" : employee.employment.employmentStatus;
+                const isCurrent = currentStatus === stage;
                 return (
                   <div
                     key={stage}
@@ -914,10 +1296,9 @@ export function EmployeeProfile({
             </div>
             <div className="relative">
               <div className="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full bg-emerald-500 ring-4 ring-slate-950" />
-              <p className="font-semibold text-white">Probation Review</p>
+              <p className="font-semibold text-white">Full-Time Status Confirmed</p>
               <p className="text-slate-400 mt-0.5">
-                Confirmation Date: {employee.employment.confirmationDate || "2024-09-15"} (Probation:{" "}
-                {employee.employment.probationMonths || 3} months)
+                Effective: {employee.employment.dateOfJoining} (Permanent Full-time)
               </p>
             </div>
             <div className="relative">
@@ -987,7 +1368,7 @@ export function EmployeeProfile({
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
               Salary Input Mode
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setSalaryBasis("monthly_net")}
@@ -1012,12 +1393,48 @@ export function EmployeeProfile({
                 <div className="font-semibold text-indigo-300">Monthly Gross Salary</div>
                 <div className="text-[10px] opacity-75">Pay before PF deductions</div>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSalaryBasis("incentive_only");
+                  setMonthlyAmount(0);
+                  setIncludePf(false);
+                }}
+                className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all cursor-pointer ${
+                  salaryBasis === "incentive_only"
+                    ? "bg-amber-600/25 border-amber-500 text-white shadow-xs ring-1 ring-amber-500/50"
+                    : "bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <div className="font-semibold text-amber-400 flex items-center gap-1">
+                  <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Incentive Only</span>
+                </div>
+                <div className="text-[10px] opacity-75">₹0 Base • 100% Commission</div>
+              </button>
             </div>
           </div>
 
-          {/* Monthly Amount Input */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
+          {salaryBasis === "incentive_only" ? (
+            /* Dedicated Incentive-Only Banner */
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2.5 animate-fadeIn">
+              <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                <Award className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>100% Incentive & Commission-Only Compensation</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                This employee works on a <strong>pure incentive / commission model</strong> with <strong>₹0 fixed base salary</strong> and <strong>₹0 Annual CTC</strong>. Monthly take-home earnings are dynamically generated from approved performance incentives (e.g. sales targets, loan disbursals) submitted under the <em>Incentives tab</em> and compiled automatically during monthly payroll.
+              </p>
+              <div className="flex items-center gap-2 pt-1 text-[10px] text-amber-300/90 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                Statutory Provident Fund (PF) is automatically exempted (₹0) with no monthly deductions.
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Monthly Amount Input */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-medium text-slate-300">
                 New {salaryBasis === "monthly_net" ? "Monthly Net Salary (In-Hand)" : "Monthly Gross Salary"} (₹ INR) *
               </label>
@@ -1029,14 +1446,31 @@ export function EmployeeProfile({
               <span className="absolute left-3 top-2.5 text-slate-400 font-mono text-sm">₹</span>
               <input
                 type="number"
-                step="500"
-                min="1000"
+                step="1"
+                min="0"
                 required
-                value={monthlyAmount || ""}
-                onChange={(e) => setMonthlyAmount(Number(e.target.value))}
+                value={monthlyAmount === 0 ? "" : monthlyAmount}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setMonthlyAmount(val === "" ? 0 : Number(val));
+                }}
                 placeholder={salaryBasis === "monthly_net" ? "e.g. 30000" : "e.g. 35000"}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
               />
+            </div>
+            {/* Quick adjust helper pills */}
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              <span className="text-[10px] text-slate-400 mr-1">Quick adjust:</span>
+              {[-500, -100, +100, +500, +1000].map((adj) => (
+                <button
+                  key={adj}
+                  type="button"
+                  onClick={() => setMonthlyAmount((prev) => Math.max(0, (Number(prev) || 0) + adj))}
+                  className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
+                >
+                  {adj > 0 ? `+₹${adj}` : `-₹${Math.abs(adj)}`}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -1155,9 +1589,12 @@ export function EmployeeProfile({
                       <input
                         type="number"
                         min="0"
-                        step="100"
-                        value={pfValue || ""}
-                        onChange={(e) => setPfValue(Number(e.target.value))}
+                        step="1"
+                        value={pfValue === 0 ? "" : pfValue}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPfValue(val === "" ? 0 : Number(val));
+                        }}
                         placeholder="1800"
                         className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
                       />
@@ -1172,6 +1609,8 @@ export function EmployeeProfile({
               </div>
             )}
           </div>
+        </>
+      )}
 
           {/* Live Preview Card (Clean: Net Salary & PF) */}
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/10 p-3.5 space-y-3 text-xs">
@@ -1181,19 +1620,34 @@ export function EmployeeProfile({
                   Net Salary (In-Hand)
                 </span>
                 <span className="text-lg font-extrabold text-emerald-400 font-mono">
-                  ₹{(previewComponents.netSalary || Math.max(0, previewComponents.grossSalary - previewComponents.employeePf)).toLocaleString("en-IN")}/mo
+                  {salaryBasis === "incentive_only" ? (
+                    <span className="text-amber-400 text-base flex items-center gap-1.5">
+                      <Award className="w-4 h-4 text-amber-400 shrink-0" />
+                      Incentive Only
+                    </span>
+                  ) : (
+                    `₹${(previewComponents.netSalary || Math.max(0, previewComponents.grossSalary - previewComponents.employeePf)).toLocaleString("en-IN")}/mo`
+                  )}
                 </span>
-                <span className="text-[10px] text-slate-500 block">Bank credit</span>
+                <span className="text-[10px] text-slate-500 block">
+                  {salaryBasis === "incentive_only" ? "Variable monthly payout" : "Bank credit"}
+                </span>
               </div>
               <div className="text-right">
                 <span className="text-[10px] uppercase font-semibold text-slate-400 block">
                   Provident Fund (PF)
                 </span>
                 <span className={`text-base font-bold font-mono ${previewComponents.employeePf > 0 ? "text-indigo-300" : "text-slate-400"}`}>
-                  {previewComponents.employeePf > 0 ? `₹${previewComponents.employeePf.toLocaleString("en-IN")}/mo` : "₹0"}
+                  {salaryBasis === "incentive_only"
+                    ? "Exempted"
+                    : previewComponents.employeePf > 0
+                    ? `₹${previewComponents.employeePf.toLocaleString("en-IN")}/mo`
+                    : "₹0"}
                 </span>
                 <span className="text-[10px] text-slate-500 block">
-                  {previewComponents.employeePf > 0
+                  {salaryBasis === "incentive_only"
+                    ? "No deductions"
+                    : previewComponents.employeePf > 0
                     ? `Employer: +₹${previewComponents.employerPf.toLocaleString("en-IN")}`
                     : "Excluded"}
                 </span>
@@ -1202,10 +1656,16 @@ export function EmployeeProfile({
 
             <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
               <span>
-                Monthly Gross: <strong className="text-white font-mono">₹{previewComponents.grossSalary.toLocaleString("en-IN")}</strong>
+                Monthly Gross:{" "}
+                <strong className="text-white font-mono">
+                  {salaryBasis === "incentive_only" ? "₹0 Base Pay" : `₹${previewComponents.grossSalary.toLocaleString("en-IN")}`}
+                </strong>
               </span>
               <span>
-                Annual CTC: <strong className="text-slate-300 font-mono">₹{previewComponents.annualCtc.toLocaleString("en-IN")}</strong>
+                Annual CTC:{" "}
+                <strong className="text-slate-300 font-mono">
+                  {salaryBasis === "incentive_only" ? "Pure Variable / Commission" : `₹${previewComponents.annualCtc.toLocaleString("en-IN")}`}
+                </strong>
               </span>
             </div>
           </div>
@@ -1219,11 +1679,12 @@ export function EmployeeProfile({
             </div>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {[
+                "Incentive-Only (Commission Based)",
+                "Sales Commission Agreement",
                 "Annual Appraisal 2026",
-                "Probation Confirmation",
+                "Performance Appraisal",
                 "Promotion Increment",
                 "Market Salary Correction",
-                "PF Opt-in Adjustment",
               ].map((tag) => (
                 <button
                   type="button"
@@ -1259,6 +1720,282 @@ export function EmployeeProfile({
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* PROFILE PHOTO SETTINGS MODAL */}
+      <Modal
+        isOpen={isPhotoModalOpen}
+        onClose={() => {
+          if (!isUploadingPhoto) {
+            setIsPhotoModalOpen(false);
+            setPhotoMessage(null);
+          }
+        }}
+        title="Profile Photo & Avatar Settings"
+      >
+        <div className="space-y-5">
+          {/* Company Policy Banner */}
+          <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-semibold text-white">Default Company Policy</p>
+              <p className="text-blue-200/90 leading-relaxed text-[11px]">
+                By default, your profile displays your <strong>official passport size photograph</strong> submitted during KYC verification. You can choose to keep your official passport photo or switch to a custom profile picture anytime.
+              </p>
+            </div>
+          </div>
+
+          {/* Feedback message */}
+          {photoMessage && (
+            <div
+              className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                photoMessage.type === "success"
+                  ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                  : "bg-rose-500/15 border-rose-500/30 text-rose-300"
+              }`}
+            >
+              {photoMessage.type === "success" ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+              )}
+              <span>{photoMessage.text}</span>
+            </div>
+          )}
+
+          {/* Dual Selection Options */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* OPTION 1: Official Passport Photo (Company Default) */}
+            <div
+              onClick={() => setPhotoPreference("passport")}
+              className={`cursor-pointer rounded-2xl p-4 border transition-all relative flex flex-col justify-between ${
+                photoPreference === "passport"
+                  ? "border-emerald-500 bg-emerald-950/20 ring-2 ring-emerald-500/30"
+                  : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="avatarPreference"
+                      id="pref-passport"
+                      checked={photoPreference === "passport"}
+                      onChange={() => setPhotoPreference("passport")}
+                      className="text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <label
+                      htmlFor="pref-passport"
+                      className="text-xs font-bold text-white cursor-pointer flex items-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      Official Passport Photo
+                    </label>
+                  </div>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    Default
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3.5 my-3">
+                  <div className="w-16 h-20 rounded-lg overflow-hidden border border-slate-700 bg-slate-800 shrink-0 shadow">
+                    {resolvedPassportPhoto ? (
+                      <img
+                        src={resolvedPassportPhoto}
+                        alt="Official Passport"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-[10px] p-1 text-center">
+                        <ImageIcon className="w-5 h-5 mb-1 text-slate-500" />
+                        No photo
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[11px] space-y-1">
+                    <p className="text-slate-300 font-medium">KYC Verified Document</p>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      {resolvedPassportPhoto
+                        ? "Verified from onboarding KYC documentation. Used as official ID by default."
+                        : "No passport photograph on file yet. You can upload one below."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-between">
+                <span>Status:</span>
+                <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  {resolvedPassportPhoto ? "Verified on file" : "Standard Default"}
+                </span>
+              </div>
+            </div>
+
+            {/* OPTION 2: Custom Profile Photo */}
+            <div
+              onClick={() => setPhotoPreference("custom")}
+              className={`cursor-pointer rounded-2xl p-4 border transition-all relative flex flex-col justify-between ${
+                photoPreference === "custom"
+                  ? "border-indigo-500 bg-indigo-950/20 ring-2 ring-indigo-500/30"
+                  : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="avatarPreference"
+                      id="pref-custom"
+                      checked={photoPreference === "custom"}
+                      onChange={() => setPhotoPreference("custom")}
+                      className="text-indigo-500 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <label
+                      htmlFor="pref-custom"
+                      className="text-xs font-bold text-white cursor-pointer flex items-center gap-1.5"
+                    >
+                      <User className="w-3.5 h-3.5 text-indigo-400" />
+                      Custom Profile Photo
+                    </label>
+                  </div>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    Employee Choice
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3.5 my-3">
+                  <div className="w-16 h-20 rounded-lg overflow-hidden border border-slate-700 bg-slate-800 shrink-0 shadow">
+                    {customPhotoPreview ? (
+                      <img
+                        src={customPhotoPreview}
+                        alt="Custom Avatar Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-[10px] p-1 text-center">
+                        <User className="w-6 h-6 mb-1 text-slate-400" />
+                        Not set
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[11px] space-y-1">
+                    <p className="text-slate-300 font-medium">Personal Avatar</p>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      Upload your preferred portrait or friendly workplace picture.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-between">
+                <span>Custom Avatar:</span>
+                <span className={customPhotoPreview ? "text-indigo-400 font-semibold" : "text-slate-500"}>
+                  {customPhotoPreview ? "Ready to use" : "Upload below"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Upload Dropzone if Custom is Selected */}
+          {photoPreference === "custom" && (
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+              <label className="block text-xs font-medium text-slate-200">
+                Upload New Custom Profile Picture (JPG, PNG, WEBP — Max 2MB)
+              </label>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <input
+                  type="file"
+                  id="custom-photo-upload"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleCustomPhotoFileChange}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="custom-photo-upload"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  {customPhotoPreview ? "Change Photo File" : "Choose Image File"}
+                </label>
+
+                {customPhotoFile && (
+                  <span className="text-xs text-slate-300 truncate max-w-xs">
+                    📁 {customPhotoFile.name} ({(customPhotoFile.size / 1024).toFixed(0)} KB)
+                  </span>
+                )}
+
+                {customPhotoPreview && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomPhotoPreview("");
+                      setCustomPhotoUrl("");
+                      setCustomPhotoFile(null);
+                    }}
+                    className="text-xs text-rose-400 hover:text-rose-300 underline underline-offset-2 ml-auto"
+                  >
+                    Remove custom photo
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Live Preview Header */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <img
+                src={
+                  photoPreference === "custom" && customPhotoPreview
+                    ? customPhotoPreview
+                    : resolvedPassportPhoto || employee.personal.avatarUrl || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150"
+                }
+                alt="Active Preview"
+                className="w-12 h-12 rounded-xl object-cover border-2 border-indigo-500/40 shadow"
+              />
+              <div>
+                <p className="text-xs font-semibold text-white">Active Avatar Preview</p>
+                <p className="text-[11px] text-slate-400">
+                  {photoPreference === "passport"
+                    ? "Will display Official KYC Passport Photo across HRMS"
+                    : "Will display Custom Profile Photo across HRMS"}
+                </p>
+              </div>
+            </div>
+            <Badge variant={photoPreference === "passport" ? "success" : "indigo"}>
+              {photoPreference === "passport" ? "Default Passport" : "Custom Avatar"}
+            </Badge>
+          </div>
+
+          {/* Modal Actions */}
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isUploadingPhoto}
+              onClick={() => {
+                setIsPhotoModalOpen(false);
+                setPhotoMessage(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              isLoading={isUploadingPhoto}
+              onClick={handleSavePhotoSettings}
+              className="bg-indigo-600 hover:bg-indigo-500"
+            >
+              Save Profile Photo Preference
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

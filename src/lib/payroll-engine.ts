@@ -10,33 +10,32 @@ export function calculateSalaryBreakdown(
   
   // Calculate PF contribution
   let employerPf = 0;
+  let basic = monthlyCtc;
+
   if (includePf) {
     if (pfType === "fixed") {
       employerPf = Math.max(0, Math.round(Number(pfValue) || 0));
+      basic = Math.max(0, monthlyCtc - employerPf);
     } else {
       const pct = typeof pfValue === "number" && !isNaN(pfValue) && pfValue >= 0 ? pfValue : 12;
-      // In CTC-first model, basic is estimated at ~45-50% of monthly CTC
-      const estimatedBasic = Math.round(monthlyCtc * 0.45);
-      employerPf = Math.round(estimatedBasic * (pct / 100));
+      // In CTC-first model: monthlyCtc = basic + employerPf = basic * (1 + pct / 100)
+      basic = Math.round(monthlyCtc / (1 + pct / 100));
+      employerPf = Math.round(basic * (pct / 100));
     }
   }
 
-  const employerEsic = monthlyCtc <= 21000 ? Math.round(monthlyCtc * 0.0325) : 0;
-  const grossSalary = Math.max(0, monthlyCtc - employerPf - employerEsic);
+  const employerEsic = 0; // No ESIC deductions
+  const grossSalary = basic; // Basic pay is the gross pay
   
-  // Basic is typically 50% of gross
-  const basic = Math.round(grossSalary * 0.50);
-  // HRA is typically 50% of basic (25% of gross)
-  const hra = Math.round(basic * 0.50);
-  // Special allowance
-  const specialAllowance = Math.round(grossSalary * 0.15);
-  // Other allowances balances the gross
-  const otherAllowance = Math.max(0, grossSalary - basic - hra - specialAllowance);
+  // No arbitrary allowance splits - basic pay is the full pay
+  const hra = 0;
+  const specialAllowance = 0;
+  const otherAllowance = 0;
 
-  // Employee statutory deductions: equal to employer PF
+  // Deductions: ONLY PF
   const employeePf = includePf ? employerPf : 0;
-  const professionalTax = 0;
-  const netSalary = Math.max(0, grossSalary - employeePf);
+  const professionalTax = 0; // No Professional Tax
+  const netSalary = Math.max(0, basic - employeePf);
 
   return {
     annualCtc,
@@ -65,11 +64,32 @@ export function calculateSalaryFromMonthly({
   pfValue = 12,
 }: {
   monthlyAmount: number;
-  salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc";
+  salaryBasis?: "monthly_net" | "monthly_gross" | "monthly_ctc" | "incentive_only";
   includePf?: boolean;
   pfType?: "percentage" | "fixed";
   pfValue?: number;
 }): SalaryComponent {
+  if (salaryBasis === "incentive_only") {
+    return {
+      annualCtc: 0,
+      monthlyCtc: 0,
+      netSalary: 0,
+      grossSalary: 0,
+      basic: 0,
+      hra: 0,
+      specialAllowance: 0,
+      otherAllowance: 0,
+      employerPf: 0,
+      employerEsic: 0,
+      employeePf: 0,
+      professionalTax: 0,
+      includePf: false,
+      pfType: "percentage",
+      pfValue: 0,
+      isIncentiveOnly: true,
+    };
+  }
+
   const amount = Math.max(0, Math.round(monthlyAmount));
 
   if (salaryBasis === "monthly_ctc") {
@@ -85,26 +105,24 @@ export function calculateSalaryFromMonthly({
     netSalary = amount;
     if (!includePf) {
       employerPf = 0;
-      grossSalary = netSalary;
-      basic = Math.round(grossSalary * 0.50);
+      basic = netSalary;
+      grossSalary = basic;
     } else if (pfType === "fixed") {
       employerPf = Math.max(0, Math.round(Number(pfValue) || 0));
-      grossSalary = netSalary + employerPf;
-      basic = Math.round(grossSalary * 0.50);
+      basic = netSalary + employerPf;
+      grossSalary = basic;
     } else {
-      // Percentage mode: PF is pct% of Basic (Basic = 50% of gross)
-      // Net = Gross - (0.5 * Gross * pct/100) = Gross * (1 - pct/200)
+      // Percentage mode: Net = Basic - (Basic * pct / 100) = Basic * (1 - pct / 100)
       const pct = typeof pfValue === "number" && !isNaN(pfValue) && pfValue >= 0 ? pfValue : 12;
-      const factor = Math.max(0.01, 1 - pct / 200);
-      grossSalary = Math.round(netSalary / factor);
-      basic = Math.round(grossSalary * 0.50);
-      employerPf = Math.round(basic * (pct / 100));
-      netSalary = grossSalary - employerPf;
+      const factor = Math.max(0.01, 1 - pct / 100);
+      basic = Math.round(netSalary / factor);
+      employerPf = basic - netSalary;
+      grossSalary = basic;
     }
   } else {
-    // monthly_gross basis
+    // monthly_gross basis: Basic is the gross amount
     grossSalary = amount;
-    basic = Math.round(grossSalary * 0.50);
+    basic = amount;
     if (!includePf) {
       employerPf = 0;
     } else if (pfType === "fixed") {
@@ -113,18 +131,18 @@ export function calculateSalaryFromMonthly({
       const pct = typeof pfValue === "number" && !isNaN(pfValue) && pfValue >= 0 ? pfValue : 12;
       employerPf = Math.round(basic * (pct / 100));
     }
-    netSalary = Math.max(0, grossSalary - employerPf);
+    netSalary = Math.max(0, basic - employerPf);
   }
 
-  const hra = Math.round(basic * 0.50);
-  const specialAllowance = Math.round(grossSalary * 0.15);
-  const otherAllowance = Math.max(0, grossSalary - basic - hra - specialAllowance);
+  const hra = 0;
+  const specialAllowance = 0;
+  const otherAllowance = 0;
 
-  const employerEsic = grossSalary <= 21000 ? Math.round(grossSalary * 0.0325) : 0;
+  const employerEsic = 0;
   const employeePf = includePf ? employerPf : 0;
   const professionalTax = 0;
 
-  const monthlyCtc = grossSalary + employerPf + employerEsic;
+  const monthlyCtc = grossSalary + employerPf;
   const annualCtc = monthlyCtc * 12;
 
   return {
@@ -162,26 +180,25 @@ export function calculateEmployeePayrollSnapshot({
   const salary = employee.currentSalary;
   
   // Count unexcused absences (LOP)
-  // Present, Leave, Holiday, WFH, Weekend do not count as LOP
   const lopDays = attendanceRecords.filter((a) => a.status === "Absent").length;
-  const perDayGross = Math.round(salary.grossSalary / 30);
+  const perDayGross = Math.round((salary.grossSalary || salary.basic) / 30);
   const lopAmount = lopDays * perDayGross;
 
   // Calculate Overtime hours
   const totalOvertimeHours = attendanceRecords.reduce((acc, curr) => acc + (curr.overtimeHours || 0), 0);
-  const hourlyRate = Math.round(salary.grossSalary / 200); // 25 days * 8 hrs
+  const hourlyRate = Math.round((salary.grossSalary || salary.basic) / 200); // 25 days * 8 hrs
   const overtimeAmount = Math.round(totalOvertimeHours * hourlyRate * 1.5);
 
   // Approved incentives for this employee
   const incentiveAmount = approvedIncentives.reduce((acc, curr) => acc + (curr.incentiveAmount || 0), 0);
 
-  // Gross earnings
-  const grossEarnings = salary.grossSalary + overtimeAmount + incentiveAmount + bonus;
+  // Gross earnings: Basic pay + any earned overtime/incentives/bonus
+  const grossEarnings = (salary.grossSalary || salary.basic) + overtimeAmount + incentiveAmount + bonus;
 
-  // Deductions
-  const totalDeductions = salary.employeePf + salary.professionalTax + lopAmount + otherDeductions;
+  // Deductions: Strictly ONLY employee PF (+ unexcused absence LOP if any)
+  const totalDeductions = (salary.employeePf || 0) + lopAmount;
 
-  // Net Take Home Pay
+  // Net Take Home Pay: Basic Pay is the Net Pay apart from PF
   const netSalary = Math.max(0, grossEarnings - totalDeductions);
 
   // Masked sensitive strings
@@ -201,22 +218,22 @@ export function calculateEmployeePayrollSnapshot({
     bankAccountMasked,
     ifscCode: employee.statutory.ifscCode,
     panMasked,
-    basic: salary.basic,
-    hra: salary.hra,
-    otherAllowance: salary.otherAllowance + salary.specialAllowance,
+    basic: salary.basic || salary.grossSalary,
+    hra: 0,
+    otherAllowance: 0,
     overtime: overtimeAmount,
     incentive: incentiveAmount,
     bonus,
     grossEarnings,
-    employeePf: salary.employeePf,
-    professionalTax: salary.professionalTax,
+    employeePf: salary.employeePf || 0,
+    professionalTax: 0,
     lopDays,
     lopAmount,
-    otherDeductions,
+    otherDeductions: 0,
     totalDeductions,
     netSalary,
-    employerPf: salary.employerPf,
-    employerEsic: salary.employerEsic,
+    employerPf: salary.employerPf || 0,
+    employerEsic: 0,
   };
 }
 

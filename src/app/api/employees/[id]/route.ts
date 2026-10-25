@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEmployeeById, reviseSalary } from "@/lib/db/db-adapter";
+import { getEmployeeById, reviseSalary, updateEmployeeAvatar } from "@/lib/db/db-adapter";
 import {
   authenticateRequest,
   authFailureResponse,
@@ -63,9 +63,12 @@ export async function PUT(
       pfType = "percentage",
       pfValue = 12,
       revisionReason,
+      isIncentiveOnly: requestedIncentiveOnly,
     } = body;
 
-    if ((!newAnnualCtc && !monthlySalary) || !revisionReason) {
+    const isIncentiveOnly = salaryBasis === "incentive_only" || Boolean(requestedIncentiveOnly);
+
+    if (!revisionReason || (!isIncentiveOnly && newAnnualCtc === undefined && monthlySalary === undefined)) {
       return NextResponse.json(
         { success: false, error: "Monthly salary (or annual CTC) and revisionReason are required" },
         { status: 400 }
@@ -84,12 +87,13 @@ export async function PUT(
     const updated = await reviseSalary(
       id,
       {
-        newAnnualCtc: newAnnualCtc ? Number(newAnnualCtc) : undefined,
-        monthlySalary: monthlySalary ? Number(monthlySalary) : undefined,
-        salaryBasis: salaryBasis || "monthly_net",
-        includePf: Boolean(includePf),
+        newAnnualCtc: isIncentiveOnly ? 0 : newAnnualCtc ? Number(newAnnualCtc) : undefined,
+        monthlySalary: isIncentiveOnly ? 0 : monthlySalary !== undefined ? Number(monthlySalary) : undefined,
+        salaryBasis: isIncentiveOnly ? "incentive_only" : salaryBasis || "monthly_net",
+        includePf: isIncentiveOnly ? false : Boolean(includePf),
         pfType: pfType === "fixed" ? "fixed" : "percentage",
-        pfValue: typeof pfValue === "number" ? pfValue : Number(pfValue) || 12,
+        pfValue: isIncentiveOnly ? 0 : typeof pfValue === "number" ? pfValue : Number(pfValue) || 12,
+        isIncentiveOnly,
         revisionReason,
       },
       revisionReason,
@@ -98,6 +102,60 @@ export async function PUT(
         role: auth.actor.role,
       }
     );
+
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await authenticateRequest(req);
+  if (!auth.authenticated) {
+    return authFailureResponse(auth);
+  }
+
+  try {
+    const { id } = await params;
+
+    // Scope isolation: Employees can update their own profile; Admin & HR can manage all
+    const scopeErr = requireEmployeeScope(auth, id);
+    if (scopeErr) return scopeErr;
+
+    const employee = await getEmployeeById(id);
+    if (!employee) {
+      return NextResponse.json({ success: false, error: "Employee not found" }, { status: 404 });
+    }
+
+    const branchErr = requireBranchScope(auth, employee.employment.branch);
+    if (branchErr) return branchErr;
+
+    const body = await req.json();
+    const { avatarUrl, passportPhotoUrl, customAvatarUrl, avatarPreference } = body;
+
+    const updated = await updateEmployeeAvatar(
+      id,
+      {
+        avatarUrl,
+        passportPhotoUrl,
+        customAvatarUrl,
+        avatarPreference,
+      },
+      {
+        name: auth.actor.name,
+        role: auth.actor.role,
+      }
+    );
+
+    if (!updated) {
+      return NextResponse.json(
+        { success: false, error: "Failed to update profile photograph" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {

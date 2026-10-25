@@ -47,7 +47,24 @@ export function Header() {
     desc: string;
     time: string;
     urgent?: boolean;
-  }> = [];
+  }> = [
+    {
+      id: "notif-1",
+      icon: <Clock className="w-4 h-4 text-blue-600" />,
+      title: "Daily Attendance Clock-In",
+      desc: "Ensure you clock in within your designated branch geofence boundary.",
+      time: "Today",
+      urgent: false,
+    },
+    {
+      id: "notif-2",
+      icon: <CalendarCheck className="w-4 h-4 text-emerald-600" />,
+      title: "Branch Holiday Calendar 2026",
+      desc: "View published official holidays for Delhi, Dehradun & Rudrapur.",
+      time: "Notice",
+      urgent: false,
+    },
+  ];
 
   const roleStyles = {
     admin: { label: "ADMIN", color: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -113,7 +130,9 @@ export function Header() {
             className="relative p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+            {notifications.length > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+            )}
           </button>
 
           {showNotifications && (
@@ -128,7 +147,7 @@ export function Header() {
                     Notifications & Alerts
                   </span>
                   <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-medium border border-blue-200">
-                    3 New
+                    {notifications.length} New
                   </span>
                 </div>
                 <div className="space-y-1.5 max-h-80 overflow-y-auto">
@@ -173,19 +192,25 @@ export function Header() {
 
         {/* Current User Avatar & Profile */}
         <div className="flex items-center gap-2 pl-1 sm:pl-2 border-l border-slate-200">
-          <img
-            src={currentUser.avatar}
-            alt={currentUser.name}
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-blue-600/30 shadow-xs shrink-0"
-          />
-          <div className="hidden lg:block text-left">
-            <p className="text-xs font-semibold text-slate-800 leading-tight">
-              {currentUser.name}
-            </p>
-            <p className="text-[10px] text-blue-600 font-medium">
-              {currentUser.department}
-            </p>
-          </div>
+          <Link
+            href={currentUser.employeeId ? `/employees/${currentUser.employeeId}` : "/employees"}
+            title="View profile & photo settings"
+            className="flex items-center gap-2 hover:opacity-85 transition-opacity cursor-pointer group"
+          >
+            <img
+              src={currentUser.avatar}
+              alt={currentUser.name}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-blue-600/30 group-hover:border-blue-600 shadow-xs shrink-0 transition-colors"
+            />
+            <div className="hidden lg:block text-left">
+              <p className="text-xs font-semibold text-slate-800 leading-tight group-hover:text-blue-600 transition-colors">
+                {currentUser.name}
+              </p>
+              <p className="text-[10px] text-blue-600 font-medium">
+                {currentUser.department}
+              </p>
+            </div>
+          </Link>
 
           {/* Secure Logout Button */}
           <button

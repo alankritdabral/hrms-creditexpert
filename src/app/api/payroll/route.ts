@@ -16,11 +16,33 @@ export async function GET(req: NextRequest) {
     return authFailureResponse(auth);
   }
 
-  const permError = requirePermission(auth, "payroll:view");
-  if (permError) return permError;
+  // If not an employee, enforce payroll:view permission (Admin & HR)
+  if (auth.role !== "employee") {
+    const permError = requirePermission(auth, "payroll:view");
+    if (permError) return permError;
+  }
 
   try {
-    const runs = await getPayrollRuns();
+    let runs = await getPayrollRuns();
+
+    // If requesting user is an employee, restrict items strictly to their own payslips
+    if (auth.role === "employee") {
+      runs = runs
+        .map((r) => {
+          const myItems = r.items.filter((i) => i.employeeId === auth.employeeId);
+          return {
+            ...r,
+            totalEmployees: myItems.length,
+            totalGross: myItems.reduce((acc, curr) => acc + curr.grossEarnings, 0),
+            totalDeductions: myItems.reduce((acc, curr) => acc + curr.totalDeductions, 0),
+            totalNet: myItems.reduce((acc, curr) => acc + curr.netSalary, 0),
+            totalPfEmployer: myItems.reduce((acc, curr) => acc + curr.employerPf, 0),
+            items: myItems,
+          };
+        })
+        .filter((r) => r.items.length > 0);
+    }
+
     return NextResponse.json({ success: true, data: runs });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

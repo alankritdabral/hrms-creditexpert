@@ -247,8 +247,20 @@ export function EmployeeDashboard() {
         />
         <StatCard
           title="Monthly Gross"
-          value={employee ? `₹${employee.currentSalary.grossSalary.toLocaleString("en-IN")}` : "₹36,500"}
-          subtitle={employee ? `Annual CTC ₹${employee.currentSalary.annualCtc.toLocaleString("en-IN")}` : ""}
+          value={
+            employee?.currentSalary?.isIncentiveOnly || (employee && employee.currentSalary.grossSalary === 0)
+              ? "Incentive Only"
+              : employee
+              ? `₹${employee.currentSalary.grossSalary.toLocaleString("en-IN")}`
+              : "₹36,500"
+          }
+          subtitle={
+            employee?.currentSalary?.isIncentiveOnly || (employee && employee.currentSalary.annualCtc === 0)
+              ? "100% Performance Commission"
+              : employee
+              ? `Annual CTC ₹${employee.currentSalary.annualCtc.toLocaleString("en-IN")}`
+              : ""
+          }
           trend="neutral"
           color="purple"
           icon={<FileText className="w-5 h-5" />}

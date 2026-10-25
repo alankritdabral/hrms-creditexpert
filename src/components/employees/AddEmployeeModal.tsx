@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
+import { Award } from "lucide-react";
 
 interface AddEmployeeModalProps {
   isOpen: boolean;
@@ -31,13 +32,14 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     branch: "Delhi",
     employmentType: "Full-time",
     workLocation: "Delhi Branch",
-    employmentStatus: "Probation",
-    probationMonths: 3,
+    employmentStatus: "Active",
+    probationMonths: 0,
     dateOfJoining: "2026-10-17",
     annualCtc: 480000,
     includePf: true,
     pfType: "percentage" as "percentage" | "fixed",
     pfValue: 12,
+    isIncentiveOnly: false,
     pan: "",
     aadhaar: "",
     bankAccountNumber: "",
@@ -96,11 +98,13 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
             ifscCode: formData.ifscCode.toUpperCase(),
             bankName: formData.bankName,
           },
-          annualCtc: Number(formData.annualCtc),
-          monthlySalary: Math.round(Number(formData.annualCtc) / 12),
-          includePf: formData.includePf,
+          annualCtc: formData.isIncentiveOnly ? 0 : Number(formData.annualCtc),
+          monthlySalary: formData.isIncentiveOnly ? 0 : Math.round(Number(formData.annualCtc) / 12),
+          includePf: formData.isIncentiveOnly ? false : formData.includePf,
           pfType: formData.pfType,
-          pfValue: Number(formData.pfValue) || 12,
+          pfValue: formData.isIncentiveOnly ? 0 : Number(formData.pfValue) || 12,
+          isIncentiveOnly: formData.isIncentiveOnly,
+          salaryBasis: formData.isIncentiveOnly ? "incentive_only" : "monthly_net",
           actor: { name: currentUser.name, role: currentUser.role },
         }),
       });
@@ -314,7 +318,6 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   onChange={handleChange}
                   className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                 >
-                  <option value="Probation">Probation</option>
                   <option value="Active">Active</option>
                   <option value="Confirmed">Confirmed</option>
                 </select>
@@ -344,7 +347,73 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Compensation Structure Mode */}
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Compensation Structure
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      isIncentiveOnly: false,
+                      annualCtc: prev.annualCtc || 480000,
+                      includePf: true,
+                    }))
+                  }
+                  className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all cursor-pointer ${
+                    !formData.isIncentiveOnly
+                      ? "bg-indigo-600/20 border-indigo-500 text-white shadow-xs"
+                      : "bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <div className="font-semibold text-indigo-300">Fixed Monthly Salary</div>
+                  <div className="text-[10px] opacity-75">Standard salary & CTC package</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      isIncentiveOnly: true,
+                      annualCtc: 0,
+                      includePf: false,
+                    }))
+                  }
+                  className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all cursor-pointer ${
+                    formData.isIncentiveOnly
+                      ? "bg-amber-600/25 border-amber-500 text-white shadow-xs ring-1 ring-amber-500/50"
+                      : "bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <div className="font-semibold text-amber-400 flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Incentive Only</span>
+                  </div>
+                  <div className="text-[10px] opacity-75">₹0 Base • 100% Commission</div>
+                </button>
+              </div>
+            </div>
+
+            {formData.isIncentiveOnly ? (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                  <Award className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>100% Incentive & Commission-Based Compensation</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  This employee has <strong>₹0 fixed base salary</strong> and <strong>₹0 Annual CTC</strong>. Payouts are computed automatically from approved monthly incentives during payroll processing.
+                </p>
+                <div className="flex items-center gap-2 pt-0.5 text-[10px] text-amber-300 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  Statutory PF deductions are automatically exempted (₹0).
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
                   Monthly Net Salary (₹ In-Hand) *
@@ -353,11 +422,13 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   <span className="absolute left-3 top-2 text-slate-400 font-mono text-xs">₹</span>
                   <input
                     type="number"
-                    step="500"
+                    step="1"
+                    min="0"
                     required
-                    value={Math.round(formData.annualCtc / 12)}
+                    value={formData.annualCtc ? Math.round(formData.annualCtc / 12) : ""}
                     onChange={(e) => {
-                      const monthly = Number(e.target.value);
+                      const val = e.target.value;
+                      const monthly = val === "" ? 0 : Number(val);
                       setFormData((prev) => ({ ...prev, annualCtc: monthly * 12 }));
                     }}
                     className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
@@ -375,10 +446,14 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   <input
                     type="number"
                     name="annualCtc"
-                    step="10000"
+                    step="1"
+                    min="0"
                     required
-                    value={formData.annualCtc}
-                    onChange={handleChange}
+                    value={formData.annualCtc || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData((prev) => ({ ...prev, annualCtc: val === "" ? 0 : Number(val) }));
+                    }}
                     className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
                     placeholder="480000"
                   />
@@ -504,11 +579,12 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                         <input
                           type="number"
                           min="0"
-                          step="100"
-                          value={formData.pfValue}
-                          onChange={(e) =>
-                            setFormData((prev) => ({ ...prev, pfValue: Number(e.target.value) }))
-                          }
+                          step="1"
+                          value={formData.pfValue === 0 ? "" : formData.pfValue}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData((prev) => ({ ...prev, pfValue: val === "" ? 0 : Number(val) }));
+                          }}
                           className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
                           placeholder="1800"
                         />
@@ -518,8 +594,10 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                 </div>
               )}
             </div>
-          </div>
+          </>
         )}
+      </div>
+    )}
 
         {/* STEP 3: Statutory & Bank */}
         {activeStep === 3 && (

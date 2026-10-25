@@ -24,6 +24,7 @@ import {
   ScrollText,
   Sliders,
   ShieldCheck,
+  User,
   X,
 } from "lucide-react";
 import { UserRole } from "@/lib/types";
@@ -48,6 +49,14 @@ export function Sidebar() {
       href: "/dashboard",
       icon: <LayoutDashboard className="w-4 h-4" />,
       allowedRoles: ["admin", "hr", "employee"],
+    },
+    {
+      name: "My Profile",
+      href: currentUser.employeeId ? `/employees/${currentUser.employeeId}` : "/employees",
+      icon: <User className="w-4 h-4" />,
+      allowedRoles: ["employee"],
+      badge: "Photo & KYC",
+      badgeColor: "bg-blue-50 text-blue-700 border border-blue-200",
     },
     {
       name: "Employees",
