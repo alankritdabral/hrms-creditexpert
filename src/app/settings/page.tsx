@@ -23,6 +23,7 @@ import {
   Trash2,
   Plus,
 } from "lucide-react";
+import { acquireDevicePosition } from "@/lib/attendance/client-geolocation";
 
 export default function SettingsPage() {
   const { currentUser } = useAuth();
@@ -96,26 +97,19 @@ export default function SettingsPage() {
     setOfficeActive(true);
   };
 
-  const handleDetectCurrentGPS = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
-      return;
-    }
+  const handleDetectCurrentGPS = async () => {
     setIsDetectingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setIsDetectingLocation(false);
-        setOfficeLat(Number(pos.coords.latitude.toFixed(6)));
-        setOfficeLon(Number(pos.coords.longitude.toFixed(6)));
-        setOfficeStatusMessage(`Acquired device GPS! Accuracy: ±${Math.round(pos.coords.accuracy)}m`);
-        setTimeout(() => setOfficeStatusMessage(""), 5000);
-      },
-      (err) => {
-        setIsDetectingLocation(false);
-        alert(`Could not acquire GPS: ${err.message}. Please verify device location permissions.`);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+    try {
+      const pos = await acquireDevicePosition();
+      setIsDetectingLocation(false);
+      setOfficeLat(Number(pos.latitude.toFixed(6)));
+      setOfficeLon(Number(pos.longitude.toFixed(6)));
+      setOfficeStatusMessage(`Acquired device GPS! Accuracy: ±${Math.round(pos.accuracy)}m`);
+      setTimeout(() => setOfficeStatusMessage(""), 5000);
+    } catch (err: any) {
+      setIsDetectingLocation(false);
+      alert(`Could not acquire GPS: ${err.message}`);
+    }
   };
 
   const handleSaveOffice = async (e: React.FormEvent) => {

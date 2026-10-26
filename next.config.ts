@@ -1,15 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
+
   partialPrefetching: true,
+
   serverExternalPackages: ["firebase-admin"],
+
   experimental: {
     instantInsights: {
       validationLevel: "manual-warning",
     },
   },
+
   turbopack: {
     rules: {
       "*.css": {
@@ -18,6 +21,8 @@ const nextConfig: NextConfig = {
       },
     },
   },
+
+  allowedDevOrigins: ["192.168.11.199"],
 };
 
 export default nextConfig;

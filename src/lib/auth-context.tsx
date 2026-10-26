@@ -42,20 +42,109 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isCheckingRef = useRef(false);
   const isNavigatingRef = useRef(false);
 
+  // Intercept client fetch to automatically attach x-session-id redundancy and handle auth drops
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const originalFetch = window.fetch;
+    const interceptedFetch: typeof window.fetch = async (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+          ? input.toString()
+          : (input as Request).url;
+
+      // Attach x-session-id to all internal /api/ requests if present in localStorage
+      if (url.startsWith("/api/") && !url.startsWith("/api/auth/login")) {
+        const storedSessionId = localStorage.getItem("hrms_session_id");
+        if (storedSessionId) {
+          const reqHeaders = new Headers(
+            init?.headers ||
+              (typeof input === "object" && "headers" in input
+                ? (input as Request).headers
+                : undefined) ||
+              {}
+          );
+          if (!reqHeaders.has("x-session-id")) {
+            reqHeaders.set("x-session-id", storedSessionId);
+          }
+          init = {
+            ...init,
+            headers: reqHeaders,
+            credentials: init?.credentials || "same-origin",
+          };
+        }
+      }
+
+      const response = await originalFetch(input, init);
+
+      // Handle 401 responses on internal APIs gracefully
+      if (response.status === 401 && url.startsWith("/api/") && !url.startsWith("/api/auth/session")) {
+        try {
+          const clone = response.clone();
+          const body = await clone.json();
+          if (body?.code === "SESSION_REVOKED") {
+            setSessionRevokedError(
+              body.error || "Your session has ended because your account was signed in from another device."
+            );
+            setIsAuthenticated(false);
+            setSession(null);
+            setCurrentUser(ANONYMOUS_USER);
+            localStorage.removeItem("hrms_session_id");
+            if (!window.location.pathname.startsWith("/login")) {
+              isNavigatingRef.current = true;
+              window.location.href = "/login?reason=another_device";
+            }
+          } else if (body?.code === "SESSION_EXPIRED" || body?.code === "UNAUTHENTICATED") {
+            setIsAuthenticated(false);
+            setSession(null);
+            setCurrentUser(ANONYMOUS_USER);
+            localStorage.removeItem("hrms_session_id");
+            if (!window.location.pathname.startsWith("/login")) {
+              isNavigatingRef.current = true;
+              window.location.href = "/login?reason=session_expired";
+            }
+          }
+        } catch {
+          // Response body was not JSON or already consumed
+        }
+      }
+
+      return response;
+    };
+
+    window.fetch = interceptedFetch;
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
+
   // Checks the active session status with the server
   const checkSession = useCallback(async () => {
     if (isNavigatingRef.current || isCheckingRef.current) return;
     isCheckingRef.current = true;
 
     try {
-      const res = await fetch("/api/auth/session");
+      const cachedSessionId =
+        typeof window !== "undefined" ? localStorage.getItem("hrms_session_id") : null;
+      const headers: Record<string, string> = {};
+      if (cachedSessionId) {
+        headers["x-session-id"] = cachedSessionId;
+      }
+
+      const res = await fetch("/api/auth/session", { headers });
       const data = await res.json();
 
-      if (res.ok && data.success) {
+      if (res.ok && data.success && data.user) {
         setCurrentUser(data.user);
         setSession(data.session);
         setIsAuthenticated(true);
         setSessionRevokedError(null);
+        if (typeof window !== "undefined" && data.session?.sessionId) {
+          localStorage.setItem("hrms_session_id", data.session.sessionId);
+        }
       } else {
         // Enforce Single Active Session detection:
         if (data.code === "SESSION_REVOKED") {
@@ -65,23 +154,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsAuthenticated(false);
           setSession(null);
           setCurrentUser(ANONYMOUS_USER);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("hrms_session_id");
+          }
 
           // If currently inside the application, redirect to login
           if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
             isNavigatingRef.current = true;
             window.location.href = "/login?reason=another_device";
           }
-        } else if (res.status === 401) {
+        } else {
+          // ANY unauthenticated response (res.status === 401 OR data.authenticated === false)
           setIsAuthenticated(false);
           setSession(null);
           setCurrentUser(ANONYMOUS_USER);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("hrms_session_id");
+          }
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Ignore network abort/cancellation caused by window navigation, unmount, or tab unload
       if (
         isNavigatingRef.current ||
-        e?.name === "AbortError" ||
+        (e && typeof e === "object" && "name" in e && (e as { name: string }).name === "AbortError") ||
         (e instanceof TypeError && e.message?.toLowerCase().includes("failed to fetch"))
       ) {
         return;
@@ -95,7 +191,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Initial check on mount
   useEffect(() => {
-    checkSession();
+    const timer = setTimeout(() => {
+      checkSession();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [checkSession]);
 
   // Periodic heartbeat & tab focus check only when authenticated and on protected pages
@@ -166,9 +265,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(data.session);
       setIsAuthenticated(true);
       setSessionRevokedError(null);
+      if (typeof window !== "undefined" && data.session?.sessionId) {
+        localStorage.setItem("hrms_session_id", data.session.sessionId);
+      }
       return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e.message || "Network error" };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Network error";
+      return { success: false, error: msg };
     } finally {
       setIsLoading(false);
     }
@@ -185,6 +288,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setCurrentUser(ANONYMOUS_USER);
       if (typeof window !== "undefined") {
+        localStorage.removeItem("hrms_session_id");
         window.location.href = "/login";
       }
     }

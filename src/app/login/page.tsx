@@ -47,8 +47,9 @@ function LoginForm() {
       } else {
         setErrorMessage(res.error || "Authentication failed. Please check your credentials.");
       }
-    } catch (err: any) {
-      setErrorMessage(err.message || "An unexpected error occurred.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -92,6 +93,21 @@ function LoginForm() {
               </p>
               <p className="text-[11px] text-amber-700">
                 To resume using this workstation, sign in again.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SESSION EXPIRED BANNER */}
+      {reason === "session_expired" && !isRevokedByAnotherDevice && (
+        <div className="p-4 rounded-2xl bg-blue-50 border-2 border-blue-200 text-blue-900 shadow-sm animate-fadeIn">
+          <div className="flex items-start gap-3">
+            <Clock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-bold text-blue-900">Session Expired</p>
+              <p className="text-blue-800 leading-relaxed font-medium">
+                Your security session has expired. Please sign in again to continue.
               </p>
             </div>
           </div>

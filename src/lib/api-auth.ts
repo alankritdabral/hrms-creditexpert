@@ -48,8 +48,8 @@ export function extractSessionId(req: Request | NextRequest): string | null {
   }
 
   // 3. From cookies
-  if ("cookies" in req && typeof (req as any).cookies?.get === "function") {
-    const cookie = (req as any).cookies.get("hrms_session_id");
+  if (req instanceof NextRequest) {
+    const cookie = req.cookies.get("hrms_session_id");
     if (cookie?.value) return cookie.value.trim();
   }
 
@@ -72,7 +72,7 @@ export async function authenticateRequest(req: Request | NextRequest): Promise<A
     return {
       authenticated: false,
       status: 401,
-      error: "Authentication required. No active session provided.",
+      error: "Authentication required. Please sign in to continue.",
       code: "UNAUTHENTICATED",
     };
   }
@@ -152,11 +152,10 @@ export function authFailureResponse(failure: AuthFailure): NextResponse {
     { status: failure.status }
   );
 
-  // Clear dead or revoked session cookie from browser
+  // Clear dead or revoked session cookie only if a stale or revoked session was presented
   if (
     failure.code === "SESSION_REVOKED" ||
-    failure.code === "SESSION_EXPIRED" ||
-    failure.code === "UNAUTHENTICATED"
+    failure.code === "SESSION_EXPIRED"
   ) {
     response.cookies.set({
       name: "hrms_session_id",

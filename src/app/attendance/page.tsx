@@ -20,7 +20,14 @@ import {
   ExternalLink,
   ShieldCheck,
   Trash2,
+  AlertCircle,
+  HelpCircle,
 } from "lucide-react";
+import {
+  acquireDevicePosition,
+  GeolocationClientError,
+} from "@/lib/attendance/client-geolocation";
+import { LocationHelpModal } from "@/components/attendance/LocationHelpModal";
 
 export default function AttendancePage() {
   const { currentUser } = useAuth();
@@ -34,6 +41,8 @@ export default function AttendancePage() {
   const [isPunching, setIsPunching] = useState(false);
   const [punchStatusMessage, setPunchStatusMessage] = useState<string | null>(null);
   const [punchError, setPunchError] = useState<string | null>(null);
+  const [showLocationHelp, setShowLocationHelp] = useState(false);
+  const [locationHelpTab, setLocationHelpTab] = useState<"android" | "ios" | "http" | "diagnostics">("android");
 
   // Manual Adjustment Modal State
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
@@ -82,69 +91,60 @@ export default function AttendancePage() {
     (a) => a.employeeId === currentUser.employeeId
   );
 
-  const handleClockIn = () => {
+  const handleClockIn = async () => {
     setPunchError(null);
-
-    if (!navigator.geolocation) {
-      setPunchError("Geolocation is not supported by your browser.");
-      return;
-    }
-
     setIsPunching(true);
     setPunchStatusMessage("Accessing device GPS...");
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          setPunchStatusMessage("Verifying office location...");
-          const { latitude, longitude, accuracy } = pos.coords;
+    try {
+      const pos = await acquireDevicePosition();
+      setPunchStatusMessage("Verifying office location...");
 
-          const res = await fetch("/api/attendance", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: "checkIn",
-              latitude,
-              longitude,
-              accuracy,
-            }),
-          });
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "checkIn",
+          latitude: pos.latitude,
+          longitude: pos.longitude,
+          accuracy: pos.accuracy,
+        }),
+      });
 
-          const data = await res.json();
-          if (data.success) {
-            setPunchStatusMessage(null);
-            loadData();
-          } else {
-            setPunchError(data.error || "Failed to mark attendance.");
-            setPunchStatusMessage(null);
-          }
-        } catch (e: any) {
-          console.error("Punch error:", e);
-          setPunchError(e.message || "Failed to mark attendance.");
-          setPunchStatusMessage(null);
-        } finally {
-          setIsPunching(false);
-        }
-      },
-      (err) => {
-        setIsPunching(false);
+      const data = await res.json();
+      if (data.success) {
         setPunchStatusMessage(null);
-        if (err.code === err.PERMISSION_DENIED) {
-          setPunchError("Location permission denied. Please allow location access in your browser to clock in.");
-        } else if (err.code === err.POSITION_UNAVAILABLE) {
-          setPunchError("Location information unavailable. Please turn on device GPS and retry.");
-        } else if (err.code === err.TIMEOUT) {
-          setPunchError("GPS location request timed out. Please try again.");
+        loadData();
+      } else {
+        if (
+          res.status === 401 ||
+          data.code === "UNAUTHENTICATED" ||
+          data.error?.toLowerCase().includes("session") ||
+          data.error?.toLowerCase().includes("authentication")
+        ) {
+          setPunchError("Your login session has expired. Please sign in again to clock in.");
         } else {
-          setPunchError("Unable to acquire GPS coordinates. Please try again.");
+          setPunchError(data.error || "Failed to mark attendance.");
         }
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 0,
+        setPunchStatusMessage(null);
       }
-    );
+    } catch (e: unknown) {
+      console.error("Punch error:", e);
+      setPunchStatusMessage(null);
+      if (e instanceof GeolocationClientError) {
+        setPunchError(e.message);
+        if (e.code === "INSECURE_CONTEXT") {
+          setLocationHelpTab("http");
+        } else if (e.code === "PERMISSION_DENIED") {
+          setLocationHelpTab("android");
+        }
+      } else {
+        const msg = e instanceof Error ? e.message : "Failed to mark attendance.";
+        setPunchError(msg);
+      }
+    } finally {
+      setIsPunching(false);
+    }
   };
 
   const handleOpenAdjust = (rec: AttendanceRecord) => {
@@ -333,8 +333,44 @@ export default function AttendancePage() {
             )}
 
             {punchError && (
-              <div className="text-xs text-rose-300 bg-rose-950/40 border border-rose-500/30 p-2 rounded-lg text-center">
-                {punchError}
+              <div className="text-xs text-rose-300 bg-rose-950/60 border border-rose-500/40 p-3 rounded-xl space-y-2.5 backdrop-blur-xs">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <span className="flex-1 leading-relaxed text-left">{punchError}</span>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1 border-t border-rose-500/20">
+                  {punchError.toLowerCase().includes("session") || punchError.toLowerCase().includes("sign in") ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = "/login?redirect=/attendance";
+                      }}
+                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      Sign In to Continue
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowLocationHelp(true)}
+                        className="px-2.5 py-1 bg-white/10 hover:bg-white/20 active:bg-white/30 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-amber-300" />
+                        How to Enable on Mobile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClockIn}
+                        disabled={isPunching}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        {isPunching ? "Retrying..." : "Try Again"}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -656,6 +692,14 @@ export default function AttendancePage() {
           </div>
         </form>
       </Modal>
+
+      {/* Mobile Location Permission & Troubleshooting Guide Modal */}
+      <LocationHelpModal
+        isOpen={showLocationHelp}
+        onClose={() => setShowLocationHelp(false)}
+        defaultTab={locationHelpTab}
+        onPermissionGranted={handleClockIn}
+      />
     </div>
   );
 }
