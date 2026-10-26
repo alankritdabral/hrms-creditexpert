@@ -57,8 +57,13 @@ import {
   deleteDocumentFromFirestore,
   clearCollectionInFirestore,
 } from "../firestore-service";
-import { isLocalEnvironment } from "../env";
 import { calculateHaversineDistance } from "../attendance/geolocation";
+import {
+  getISTDateString,
+  getIST24HourTime,
+  evaluateLateArrivalIST,
+} from "../attendance/ist-time";
+import { isLocalEnvironment } from "../env";
 
 // Memory storage for fallback/dev cache
 class MemoryStore {
@@ -529,7 +534,7 @@ export async function reviseSalary(
   let pfType: "percentage" | "fixed" = "percentage";
   let pfValue = 12;
   let revisionReason = "Salary Revision";
-  let actor = actorArg || { name: "System", role: "admin" };
+  const actor = actorArg || { name: "System", role: "admin" };
   let isIncentiveOnly = false;
 
   if (typeof salaryParam === "number") {
@@ -657,7 +662,7 @@ export async function createAttendanceRecord(
     action: "ATTENDANCE_PUNCH",
     employeeId: record.employeeId,
     employeeName: record.employeeName,
-    details: `Clock-in registered at ${record.checkIn} on ${record.date}`,
+    details: `Clock-in registered at ${record.checkIn} IST on ${record.date}`,
   });
 
   return record;
@@ -798,8 +803,9 @@ export async function punchAttendance(
     throw new Error("Clock-out is disabled. Attendance is automatically completed upon Clock-In.");
   }
 
-  const today = new Date().toISOString().split("T")[0];
-  const nowTime = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  // Calculate today's date and current punch time strictly in Indian Standard Time (IST)
+  const today = getISTDateString();
+  const nowTime = getIST24HourTime();
 
   let emp = memory.employees.find(
     (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
@@ -861,14 +867,10 @@ export async function punchAttendance(
     verificationStatus = "VERIFIED";
   }
 
-  // Calculate Late vs Present status per policy
+  // Calculate Late vs Present status per policy in IST
   const startTime = memory.policy.officeStartTime || "10:00";
   const grace = memory.policy.gracePeriodMinutes ?? 15;
-  const [startH, startM] = startTime.split(":").map(Number);
-  const [curH, curM] = nowTime.split(":").map(Number);
-  const punchMinutes = curH * 60 + curM;
-  const cutoffMinutes = startH * 60 + startM + grace;
-  const isLate = punchMinutes > cutoffMinutes;
+  const isLate = evaluateLateArrivalIST(nowTime, startTime, grace);
 
   const newRec: AttendanceRecord = {
     id: `att-${Date.now()}`,
@@ -903,7 +905,7 @@ export async function punchAttendance(
     action: "ATTENDANCE_CLOCK_IN",
     employeeId: newRec.employeeId,
     employeeName: newRec.employeeName,
-    details: `Clocked in at ${nowTime} on ${today} (Distance: ${distanceMeters ?? "N/A"}m, Status: ${newRec.status})`,
+    details: `Clocked in at ${nowTime} IST on ${today} (Distance: ${distanceMeters ?? "N/A"}m, Status: ${newRec.status})`,
   });
 
   return newRec;
@@ -1757,7 +1759,7 @@ export async function getOnboardingRecords(branch?: Branch | "All"): Promise<Onb
     }
     
     // Filter checklist strictly to the 4 mandatory items
-    let checklist = normRecord.checklist || [];
+    const checklist = normRecord.checklist || [];
     let filtered = checklist.filter((i) => ALLOWED_CHECKLIST_KEYS.has(i.key));
     if (filtered.length === 0) {
       filtered = STANDARD_ONBOARDING_CHECKLIST.map((item) => ({
@@ -1809,7 +1811,7 @@ export async function getOnboardingRecordById(id: string): Promise<OnboardingRec
   }
 
   const ALLOWED_CHECKLIST_KEYS = new Set(["pan_card", "aadhaar_card", "bank_details", "photograph"]);
-  let checklist = record.checklist || [];
+  const checklist = record.checklist || [];
   let filtered = checklist.filter((i) => ALLOWED_CHECKLIST_KEYS.has(i.key));
   if (filtered.length === 0) {
     filtered = STANDARD_ONBOARDING_CHECKLIST.map((item) => ({

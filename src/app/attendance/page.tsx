@@ -28,12 +28,13 @@ import {
   GeolocationClientError,
 } from "@/lib/attendance/client-geolocation";
 import { LocationHelpModal } from "@/components/attendance/LocationHelpModal";
+import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
 
 export default function AttendancePage() {
   const { currentUser } = useAuth();
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>("2026-10-17");
+  const [selectedDate, setSelectedDate] = useState<string>(() => getISTDateString());
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
 
@@ -289,12 +290,12 @@ export default function AttendancePage() {
           </div>
 
           <div className="text-center py-3">
-            <div className="text-3xl font-mono font-bold text-slate-900 tracking-wider">
-              {myRecord?.checkIn ? myRecord.checkIn : "— : — : —"}
+            <div className="text-3xl font-mono font-bold text-slate-100 tracking-wider">
+              {myRecord?.checkIn ? `${formatISTTime12(myRecord.checkIn)} IST` : "— : — : —"}
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-400 mt-1">
               {myRecord?.checkIn
-                ? `Clocked in (${myRecord.status})`
+                ? `Clocked in at ${formatISTTime12(myRecord.checkIn)} IST (${myRecord.status})`
                 : "Awaiting your morning check-in"}
             </p>
           </div>
@@ -314,7 +315,7 @@ export default function AttendancePage() {
               <div className="w-full text-center py-2.5 px-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-200 flex flex-col gap-1 items-center">
                 <div className="font-semibold flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  Attendance Recorded ({myRecord.status})
+                  Clocked In: {formatISTTime12(myRecord.checkIn)} IST ({myRecord.status})
                 </div>
                 {myRecord.checkInLocationStatus === "VERIFIED" && (
                   <span className="text-[11px] text-emerald-300/90 flex items-center gap-1">
@@ -456,7 +457,7 @@ export default function AttendancePage() {
             <thead>
               <tr className="border-b border-slate-800 text-slate-400">
                 <th className="pb-3 font-medium">Employee</th>
-                <th className="pb-3 font-medium">Check-In</th>
+                <th className="pb-3 font-medium">Check-In (IST)</th>
                 <th className="pb-3 font-medium">Assigned Office</th>
                 <th className="pb-3 font-medium">GPS Distance</th>
                 <th className="pb-3 font-medium">Verification</th>
@@ -472,7 +473,7 @@ export default function AttendancePage() {
                     <div>{rec.employeeName}</div>
                     <span className="text-[10px] text-slate-500 font-mono">{rec.employeeId}</span>
                   </td>
-                  <td className="py-3 font-mono text-slate-300 font-semibold">{rec.checkIn || "—"}</td>
+                  <td className="py-3 font-mono text-slate-300 font-semibold">{rec.checkIn ? `${formatISTTime12(rec.checkIn)} IST` : "—"}</td>
                   <td className="py-3 text-slate-300">{rec.checkInOfficeName || "—"}</td>
                   <td className="py-3 font-mono text-slate-300">
                     {rec.checkInDistanceMeters !== undefined ? `${rec.checkInDistanceMeters}m` : "—"}

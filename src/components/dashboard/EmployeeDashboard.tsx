@@ -26,6 +26,7 @@ import {
   GeolocationClientError,
 } from "@/lib/attendance/client-geolocation";
 import { LocationHelpModal } from "@/components/attendance/LocationHelpModal";
+import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
 
 export function EmployeeDashboard() {
   const { currentUser } = useAuth();
@@ -36,7 +37,7 @@ export function EmployeeDashboard() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [isPunching, setIsPunching] = useState(false);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getISTDateString();
 
   useEffect(() => {
     async function load() {
@@ -176,7 +177,7 @@ export function EmployeeDashboard() {
                 {hasCheckedIn ? (
                   <span className="text-emerald-200 flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 inline text-emerald-300" />
-                    Clocked In: {todayAttendance.checkIn}
+                    Clocked In: {formatISTTime12(todayAttendance.checkIn)} IST
                   </span>
                 ) : (
                   <span className="text-amber-200">Not clocked in today</span>
@@ -195,9 +196,9 @@ export function EmployeeDashboard() {
                   {isPunching ? "Verifying..." : "Clock In"}
                 </button>
               ) : (
-                <span className="py-1.5 px-3 rounded-full text-xs font-semibold bg-emerald-500/25 text-emerald-100 border border-emerald-400/40 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {todayAttendance.status}
+                <span className="py-2 px-3 rounded-xl text-xs font-bold bg-emerald-500/30 text-emerald-100 border border-emerald-400/50 flex items-center gap-1.5 shadow-xs font-mono">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                  Clocked In: {formatISTTime12(todayAttendance.checkIn)} IST ({todayAttendance.status})
                 </span>
               )}
             </div>

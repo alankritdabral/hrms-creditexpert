@@ -17,6 +17,8 @@ import {
   Menu,
 } from "lucide-react";
 
+import { getISTLiveTimeWithSeconds } from "@/lib/attendance/ist-time";
+
 export function Header() {
   const { currentUser, logout } = useAuth();
   const { toggleSidebar } = useSidebar();
@@ -25,15 +27,7 @@ export function Header() {
 
   useEffect(() => {
     const update = () => {
-      const now = new Date();
-      setTime(
-        now.toLocaleTimeString("en-IN", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-        })
-      );
+      setTime(getISTLiveTimeWithSeconds());
     };
     update();
     const interval = setInterval(update, 1000);

@@ -11,6 +11,7 @@ import {
   EmployeeDocument,
 } from "@/lib/types";
 import { calculateSalaryFromMonthly } from "@/lib/payroll-engine";
+import { formatISTTime12 } from "@/lib/attendance/ist-time";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -903,7 +904,7 @@ export function EmployeeProfile({
                   attendance.map((a) => (
                     <tr key={a.id} className="hover:bg-slate-800/20">
                       <td className="py-3 font-mono text-slate-300">{a.date}</td>
-                      <td className="py-3 font-mono text-slate-300">{a.checkIn || "—"}</td>
+                      <td className="py-3 font-mono text-slate-300 font-medium">{a.checkIn ? `${formatISTTime12(a.checkIn)} IST` : "—"}</td>
                       <td className="py-3 font-mono text-slate-300">{a.checkOut || "—"}</td>
                       <td className="py-3 text-slate-300">{a.totalWorkingHours} hrs</td>
                       <td className="py-3">

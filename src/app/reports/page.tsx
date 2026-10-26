@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Employee, AttendanceRecord, PayrollRun } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
 import { useAuth } from "@/lib/auth-context";
 import {
   BarChart3,
@@ -117,7 +118,8 @@ export default function ReportsPage() {
       EmployeeID: a.employeeId,
       Name: a.employeeName,
       Date: a.date,
-      CheckIn: a.checkIn || "",
+      CheckIn_IST: a.checkIn ? `${formatISTTime12(a.checkIn)} IST` : "",
+      CheckIn_24H: a.checkIn || "",
       CheckOut: a.checkOut || "",
       WorkingHours: a.totalWorkingHours,
       Status: a.status,
@@ -125,7 +127,7 @@ export default function ReportsPage() {
       OvertimeHours: a.overtimeHours,
       Remarks: a.remarks || "",
     }));
-    exportToCSV(rows, `HRMS_Attendance_Report_${new Date().toISOString().split("T")[0]}`);
+    exportToCSV(rows, `HRMS_Attendance_Report_${getISTDateString()}`);
   };
 
   const latestPayroll = payrollRuns[0];
@@ -367,7 +369,7 @@ export default function ReportsPage() {
                 <tr className="border-b border-slate-800 text-slate-400">
                   <th className="pb-3 font-medium">Employee</th>
                   <th className="pb-3 font-medium">Date</th>
-                  <th className="pb-3 font-medium">Check-In</th>
+                  <th className="pb-3 font-medium">Check-In (IST)</th>
                   <th className="pb-3 font-medium">Hours</th>
                   <th className="pb-3 font-medium">Status</th>
                   <th className="pb-3 font-medium">Late?</th>
@@ -380,7 +382,7 @@ export default function ReportsPage() {
                   <tr key={a.id} className="hover:bg-slate-800/20">
                     <td className="py-2.5 font-medium text-slate-200">{a.employeeName}</td>
                     <td className="py-2.5 text-slate-300 font-mono">{a.date}</td>
-                    <td className="py-2.5 text-slate-300 font-mono">{a.checkIn || "—"}</td>
+                    <td className="py-2.5 text-slate-300 font-mono font-medium">{a.checkIn ? `${formatISTTime12(a.checkIn)} IST` : "—"}</td>
                     <td className="py-2.5 text-slate-200 font-medium">{a.totalWorkingHours} hrs</td>
                     <td className="py-2.5">
                       <Badge variant="indigo">{a.status}</Badge>

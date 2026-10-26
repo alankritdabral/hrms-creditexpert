@@ -18,6 +18,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Employee, AttendanceRecord, LeaveRequest, PayrollRun, EmployeeRequestItem, Holiday } from "@/lib/types";
+import { formatISTTime12 } from "@/lib/attendance/ist-time";
 
 export function AdminDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -237,7 +238,7 @@ export function AdminDashboard() {
                       <div>{a.employeeName}</div>
                       <div className="text-[10px] text-slate-400 font-mono">{a.employeeId}</div>
                     </td>
-                    <td className="py-3 text-slate-600 font-mono">{a.checkIn || "—"}</td>
+                    <td className="py-3 text-slate-600 font-mono text-xs">{a.checkIn ? `${formatISTTime12(a.checkIn)} IST` : "—"}</td>
                     <td className="py-3 text-slate-600">{a.totalWorkingHours} hrs</td>
                     <td className="py-3">
                       <Badge
