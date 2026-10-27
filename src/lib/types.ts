@@ -1,4 +1,130 @@
-export type UserRole = "admin" | "hr" | "employee";
+export type UserRole = "admin" | "hr" | "employee" | (string & {});
+
+export interface AppSection {
+  id: string;
+  name: string;
+  description: string;
+  path: string;
+  category: "Core" | "Human Resources" | "Finance & Operations" | "Administration";
+}
+
+export const APP_SECTIONS: AppSection[] = [
+  { id: "dashboard", name: "Dashboard", description: "Personal & branch overview metrics", path: "/dashboard", category: "Core" },
+  { id: "profile", name: "My Profile", description: "Personal profile, photo & KYC", path: "/employees", category: "Core" },
+  { id: "employees", name: "Employees Directory", description: "Employee management, profiles & CTC", path: "/employees", category: "Human Resources" },
+  { id: "onboarding", name: "Onboarding", description: "New hire candidate verification & documents", path: "/onboarding", category: "Human Resources" },
+  { id: "attendance", name: "Attendance Hub", description: "Daily punches, geofencing & timesheets", path: "/attendance", category: "Human Resources" },
+  { id: "leaves", name: "Leave Management", description: "Apply and approve employee leaves", path: "/leaves", category: "Human Resources" },
+  { id: "holidays", name: "Holiday Calendar", description: "Company and branch holiday schedule", path: "/holidays", category: "Human Resources" },
+  { id: "payroll", name: "Payroll Engine", description: "Monthly payroll processing & salary computation", path: "/payroll", category: "Finance & Operations" },
+  { id: "logins", name: "Logins & Disbursals", description: "Loan applications, commitments & bank disbursals", path: "/logins", category: "Finance & Operations" },
+  { id: "incentives", name: "Incentives Hub", description: "Monthly sales incentive calculation & slabs", path: "/incentives", category: "Finance & Operations" },
+  { id: "payslips", name: "Payslips", description: "Monthly payslips view and PDF download", path: "/payslips", category: "Finance & Operations" },
+  { id: "documents", name: "Documents Vault", description: "Employee verification documents & expiry alerts", path: "/documents", category: "Human Resources" },
+  { id: "assets", name: "Asset Management", description: "Laptops, phones & equipment tracking", path: "/assets", category: "Administration" },
+  { id: "requests", name: "HR Helpdesk Requests", description: "Employee tickets, queries and resolutions", path: "/requests", category: "Core" },
+  { id: "announcements", name: "Announcements", description: "Broadcast company notices and news", path: "/announcements", category: "Core" },
+  { id: "reports", name: "Reports & Analytics", description: "Exportable CSV reports and branch charts", path: "/reports", category: "Administration" },
+  { id: "audit_logs", name: "Audit Trail", description: "Security activity log & system changes", path: "/audit-logs", category: "Administration" },
+  { id: "settings", name: "Policy & Settings", description: "Attendance policies, geofence, and roles", path: "/settings", category: "Administration" },
+];
+
+export interface CustomRole {
+  id: string;
+  name: string;
+  description: string;
+  isSystem: boolean;
+  color: string;
+  sections: string[];
+  createdAt: string;
+  updatedAt?: string;
+  userCount?: number;
+}
+
+export const DEFAULT_ROLES: CustomRole[] = [
+  {
+    id: "admin",
+    name: "Admin",
+    description: "Full super-administrator access across all branches and modules",
+    isSystem: true,
+    color: "blue",
+    sections: APP_SECTIONS.map((s) => s.id),
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "hr",
+    name: "HR",
+    description: "Complete Human Resources, Payroll, and workforce administrative access",
+    isSystem: true,
+    color: "emerald",
+    sections: APP_SECTIONS.map((s) => s.id),
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "employee",
+    name: "Employee",
+    description: "Standard self-service access for daily attendance, leaves, logins, and payslips",
+    isSystem: true,
+    color: "purple",
+    sections: [
+      "dashboard",
+      "profile",
+      "attendance",
+      "leaves",
+      "holidays",
+      "logins",
+      "incentives",
+      "payslips",
+      "requests",
+      "announcements",
+    ],
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "branch_manager",
+    name: "Branch Manager",
+    description: "Branch supervisory access for team attendance, leaves, loans, and reporting",
+    isSystem: false,
+    color: "indigo",
+    sections: [
+      "dashboard",
+      "profile",
+      "employees",
+      "attendance",
+      "leaves",
+      "holidays",
+      "logins",
+      "incentives",
+      "payslips",
+      "assets",
+      "requests",
+      "announcements",
+      "reports",
+    ],
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "team_lead",
+    name: "Team Lead",
+    description: "Sales & operations team leadership with attendance, leave tracking, and loan file visibility",
+    isSystem: false,
+    color: "amber",
+    sections: [
+      "dashboard",
+      "profile",
+      "attendance",
+      "leaves",
+      "holidays",
+      "logins",
+      "incentives",
+      "payslips",
+      "requests",
+      "announcements",
+      "reports",
+    ],
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+];
 
 export type Branch = "Delhi" | "Dehradun" | "Rudrapur";
 export const BRANCHES: Branch[] = ["Delhi", "Dehradun", "Rudrapur"];
@@ -55,6 +181,7 @@ export interface User {
   branch: Branch;
   department?: string;
   avatar?: string;
+  allowedSections?: string[];
 }
 
 export interface UserAccount {
@@ -312,6 +439,7 @@ export interface EmployeeLoginRecord {
   branch?: Branch;
   month: string; // "YYYY-MM"
   commitment: number;
+  loginCommitment?: number;
   loginsCount: number;
   submissionDate?: string; // YYYY-MM-DD
   lastLoginDate?: string; // YYYY-MM-DD

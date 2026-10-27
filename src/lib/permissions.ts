@@ -119,7 +119,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
-  const permissions = ROLE_PERMISSIONS[role] || [];
+  if (role === "admin") return true;
+  const permissions = (ROLE_PERMISSIONS as Record<string, Permission[]>)[role] || [];
   return permissions.includes("all:manage") || permissions.includes(permission);
 }
 
@@ -129,3 +130,32 @@ export function getBranchScope(role: UserRole, userBranch?: Branch): Branch[] {
   }
   return userBranch ? [userBranch] : ["Delhi"];
 }
+
+export function canRoleAccessSection(
+  roleId: string,
+  sectionId: string,
+  userAllowedSections?: string[]
+): boolean {
+  if (roleId === "admin") return true;
+  if (userAllowedSections && userAllowedSections.length > 0) {
+    return userAllowedSections.includes(sectionId);
+  }
+  if (roleId === "hr") return true;
+  if (roleId === "employee") {
+    const employeeSections = [
+      "dashboard",
+      "profile",
+      "attendance",
+      "leaves",
+      "holidays",
+      "logins",
+      "incentives",
+      "payslips",
+      "requests",
+      "announcements",
+    ];
+    return employeeSections.includes(sectionId);
+  }
+  return true;
+}
+

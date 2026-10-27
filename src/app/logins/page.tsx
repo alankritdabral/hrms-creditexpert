@@ -66,6 +66,7 @@ export default function LoginsPage() {
   const [addBranch, setAddBranch] = useState("Delhi");
   const [isCustomEmployee, setIsCustomEmployee] = useState(false);
   const [addCommitment, setAddCommitment] = useState<number | "">(5000000);
+  const [addLoginCommitment, setAddLoginCommitment] = useState<number | "">(10);
   const [addLoginsCount, setAddLoginsCount] = useState<number | "">(5);
   const [addSubmissionDate, setAddSubmissionDate] = useState(new Date().toISOString().split("T")[0]);
   const [addLastLoginDate, setAddLastLoginDate] = useState(new Date().toISOString().split("T")[0]);
@@ -420,6 +421,7 @@ export default function LoginsPage() {
           branch: finalBranch,
           month: selectedMonth,
           commitment: Number(addCommitment) || 0,
+          loginCommitment: Number(addLoginCommitment) || 0,
           loginsCount: Number(addLoginsCount) || 0,
           submissionDate: addSubmissionDate,
           lastLoginDate: addLastLoginDate,
@@ -473,6 +475,7 @@ export default function LoginsPage() {
 
   // Calculate Metrics
   const totalCommitment = logins.reduce((acc, curr) => acc + (curr.commitment || 0), 0);
+  const totalLoginCommitment = logins.reduce((acc, curr) => acc + (curr.loginCommitment || 0), 0);
   const totalDisbursal = logins.reduce((acc, curr) => acc + (curr.totalDisbursal || 0), 0);
   const totalAxisDisbursal = logins.reduce((acc, curr) => acc + (curr.axisBankDisbursal || 0), 0);
   const totalLoginsCount = logins.reduce((acc, curr) => acc + (curr.loginsCount || 0), 0);
@@ -603,8 +606,13 @@ export default function LoginsPage() {
             <div className="text-2xl font-bold text-slate-900 tracking-tight">
               {totalLoginsCount} Files
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">
-              Across {logins.length} active employees
+            <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center justify-between gap-1">
+              <span>Across {logins.length} active employees</span>
+              {totalLoginCommitment > 0 && (
+                <span className="text-blue-600 font-semibold">
+                  Target: {totalLoginCommitment} files ({Math.round((totalLoginsCount / totalLoginCommitment) * 100)}%)
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -625,7 +633,7 @@ export default function LoginsPage() {
             </div>
             <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
               <span className={`font-semibold ${achievementPct >= 100 ? "text-emerald-600" : "text-amber-600"}`}>
-                {achievementPct}% Achieved
+                {achievementPct}% Disbursed
               </span>
             </div>
           </div>
@@ -736,16 +744,30 @@ export default function LoginsPage() {
                         <div className="font-semibold text-slate-900 font-mono">
                           ₹{record.commitment.toLocaleString("en-IN")}
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-[10px] text-slate-500 font-medium">
                           {(record.commitment / 100000).toFixed(1)} Lakhs
+                        </div>
+                        <div className="text-[10px] text-blue-600 font-semibold mt-1 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                          <span>Login Target: {record.loginCommitment ?? (record.commitment >= 10000000 ? 15 : record.commitment >= 5000000 ? 10 : 5)} files</span>
                         </div>
                       </td>
 
                       {/* Logins Count */}
                       <td className="py-3 px-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-bold border border-blue-100">
-                          {record.loginsCount} Files
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-bold border border-blue-100 font-mono">
+                            {record.loginsCount} Files
+                          </span>
+                        </div>
+                        {(() => {
+                          const target = record.loginCommitment ?? (record.commitment >= 10000000 ? 15 : record.commitment >= 5000000 ? 10 : 5);
+                          return (
+                            <div className="text-[10px] text-slate-500 mt-1">
+                              {Math.round((record.loginsCount / target) * 100)}% of {target} files target
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Submission Date */}
@@ -826,7 +848,10 @@ export default function LoginsPage() {
                             <button
                               type="button"
                               onClick={() => {
-                                setEditingRecord(record);
+                                setEditingRecord({
+                                  ...record,
+                                  loginCommitment: record.loginCommitment ?? (record.commitment >= 10000000 ? 15 : record.commitment >= 5000000 ? 10 : 5),
+                                });
                                 setIsEditModalOpen(true);
                               }}
                               className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
@@ -1356,23 +1381,48 @@ export default function LoginsPage() {
       >
         {editingRecord && (
           <form onSubmit={handleSaveQuickEdit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Target Commitment (₹) *
-              </label>
-              <input
-                type="number"
-                value={editingRecord.commitment}
-                onChange={(e) =>
-                  setEditingRecord({ ...editingRecord, commitment: Number(e.target.value) })
-                }
-                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500"
-                placeholder="e.g. 5000000"
-                required
-              />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">
-                {(editingRecord.commitment / 100000).toFixed(1)} Lakhs target
-              </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Monthly Commitment (₹) *
+                </label>
+                <input
+                  type="number"
+                  value={editingRecord.commitment}
+                  onChange={(e) =>
+                    setEditingRecord({ ...editingRecord, commitment: Number(e.target.value) })
+                  }
+                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                  placeholder="e.g. 5000000"
+                  required
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  {(editingRecord.commitment / 100000).toFixed(1)} Lakhs target
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Login Commitment (Files)
+                </label>
+                <input
+                  type="number"
+                  value={editingRecord.loginCommitment ?? ""}
+                  onChange={(e) =>
+                    setEditingRecord({
+                      ...editingRecord,
+                      loginCommitment: e.target.value ? Number(e.target.value) : 0,
+                    })
+                  }
+                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                  placeholder="e.g. 10 files"
+                />
+                {editingRecord.loginCommitment ? (
+                  <span className="text-[10px] text-blue-600 mt-0.5 block">
+                    {editingRecord.loginCommitment} files target
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1571,19 +1621,46 @@ export default function LoginsPage() {
             )}
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Monthly Commitment (₹)
-            </label>
-            <input
-              type="number"
-              value={addCommitment}
-              onChange={(e) =>
-                setAddCommitment(e.target.value ? Number(e.target.value) : "")
-              }
-              className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500"
-              placeholder="e.g. 5000000 (Defaults to 0 if left blank)"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Monthly Commitment (₹)
+              </label>
+              <input
+                type="number"
+                value={addCommitment}
+                onChange={(e) =>
+                  setAddCommitment(e.target.value ? Number(e.target.value) : "")
+                }
+                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                placeholder="e.g. 5000000 (Defaults to 0)"
+              />
+              {addCommitment ? (
+                <span className="text-[10px] text-slate-400 mt-0.5 block font-mono">
+                  {(Number(addCommitment) / 100000).toFixed(1)} Lakhs target
+                </span>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Login Commitment (Files)
+              </label>
+              <input
+                type="number"
+                value={addLoginCommitment}
+                onChange={(e) =>
+                  setAddLoginCommitment(e.target.value ? Number(e.target.value) : "")
+                }
+                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                placeholder="e.g. 10 (Target files)"
+              />
+              {addLoginCommitment ? (
+                <span className="text-[10px] text-blue-600 mt-0.5 block">
+                  {addLoginCommitment} files target
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -29,16 +29,22 @@ export function Header() {
     return () => clearInterval(interval);
   }, []);
 
-  const roleStyles = {
+  const roleStyles: Record<string, { label: string; color: string }> = {
     admin: { label: "ADMIN", color: "bg-blue-50 text-blue-700 border-blue-200" },
     hr: { label: "HR", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
     employee: { label: "EMPLOYEE", color: "bg-purple-50 text-purple-700 border-purple-200" },
+    branch_manager: { label: "BRANCH MGR", color: "bg-amber-50 text-amber-700 border-amber-200" },
+    team_lead: { label: "TEAM LEAD", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
   };
+
+  const cleanRoleName = currentUser.role
+    ? currentUser.role.replace(/^role-/, "").replace(/_/g, " ").toUpperCase()
+    : "USER";
 
   const roleMeta =
     roleStyles[currentUser.role] || {
-      label: currentUser.role.toUpperCase(),
-      color: "bg-slate-50 text-slate-700 border-slate-200",
+      label: cleanRoleName,
+      color: "bg-slate-100 text-slate-800 border-slate-300",
     };
 
   return (

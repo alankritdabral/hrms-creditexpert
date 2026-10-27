@@ -2,16 +2,19 @@
 
 import React, { Suspense, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { useAuth } from "@/lib/auth-context";
 import { SidebarProvider } from "@/lib/sidebar-context";
 import { NotificationsProvider } from "@/lib/notifications-context";
+import { APP_SECTIONS } from "@/lib/types";
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, currentUser, canAccessSection } = useAuth();
 
   const isAuthPage =
     pathname === "/login" ||
@@ -51,6 +54,16 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const sectionKey = (() => {
+    const segment = pathname.split("/").filter(Boolean)[0];
+    if (!segment) return "dashboard";
+    if (segment === "audit-logs") return "audit_logs";
+    return segment;
+  })();
+
+  const isKnownSection = APP_SECTIONS.some((s) => s.id === sectionKey);
+  const isSectionAllowed = !isKnownSection || canAccessSection(sectionKey);
+
   return (
     <SidebarProvider>
       <NotificationsProvider>
@@ -77,7 +90,26 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                   </div>
                 }
               >
-                {children}
+                {!isSectionAllowed ? (
+                  <div className="max-w-md mx-auto my-12 bg-white rounded-2xl border border-red-100 p-8 shadow-sm text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4 text-red-600">
+                      <ShieldAlert className="w-7 h-7" />
+                    </div>
+                    <h2 className="text-lg font-bold text-slate-900 mb-2">Access Restricted</h2>
+                    <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+                      Your current role (<span className="font-semibold text-slate-800">{currentUser.role}</span>) does not have permission to view or manage the <span className="font-semibold text-slate-800">{APP_SECTIONS.find(s => s.id === sectionKey)?.name || sectionKey}</span> section. Please contact your system administrator to adjust your role access.
+                    </p>
+                    <Link
+                      href="/dashboard"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors shadow-sm cursor-pointer"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Back to Dashboard
+                    </Link>
+                  </div>
+                ) : (
+                  children
+                )}
               </Suspense>
             </main>
           </div>

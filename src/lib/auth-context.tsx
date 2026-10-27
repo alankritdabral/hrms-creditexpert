@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { User, UserRole, Branch, UserSession } from "./types";
-import { Permission, hasPermission as checkPerm, getBranchScope } from "./permissions";
+import { Permission, hasPermission as checkPerm, getBranchScope, canRoleAccessSection } from "./permissions";
 
 const ANONYMOUS_USER: User = {
   id: "guest",
@@ -24,6 +24,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   canAccess: (allowedRoles: (UserRole | string)[]) => boolean;
+  canAccessSection: (sectionId: string) => boolean;
   hasPermission: (permission: Permission) => boolean;
   branchScope: Branch[];
   refreshSession: () => Promise<void>;
@@ -300,6 +301,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return allowedRoles.includes(currentUser.role);
   };
 
+  const canAccessSection = useCallback(
+    (sectionId: string): boolean => {
+      if (currentUser.role === "admin") return true;
+      if (currentUser.allowedSections && currentUser.allowedSections.length > 0) {
+        return currentUser.allowedSections.includes(sectionId);
+      }
+      return canRoleAccessSection(currentUser.role, sectionId, currentUser.allowedSections);
+    },
+    [currentUser.role, currentUser.allowedSections]
+  );
+
   const checkPermission = (permission: Permission) => {
     return checkPerm(currentUser.role, permission);
   };
@@ -321,6 +333,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         canAccess,
+        canAccessSection,
         hasPermission: checkPermission,
         branchScope,
         refreshSession: checkSession,

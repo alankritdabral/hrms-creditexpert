@@ -52,6 +52,10 @@ import {
   BankDisbursalBreakdown,
   CustomerDisbursalEntry,
   IncentiveCalculationBreakdown,
+  CustomRole,
+  DEFAULT_ROLES,
+  AppSection,
+  APP_SECTIONS,
 } from "../types";
 import { calculateDisbursalIncentive } from "../incentive-calculator";
 import { calculateSalaryBreakdown, calculateSalaryFromMonthly } from "../payroll-engine";
@@ -94,6 +98,7 @@ class MemoryStore {
   onboardingRecords: OnboardingRecord[] = isLocalEnvironment() ? [...INITIAL_ONBOARDING_RECORDS] : [];
   registrationDrafts: Map<string, RegistrationDraft> = new Map();
   employeeLogins: EmployeeLoginRecord[] = isLocalEnvironment() ? [...INITIAL_EMPLOYEE_LOGINS] : [];
+  customRoles: CustomRole[] = [...DEFAULT_ROLES];
 }
 
 const globalForMemory = globalThis as unknown as { __hrms_memory_store?: MemoryStore };
@@ -105,6 +110,8 @@ if ((!memory.employees || memory.employees.length === 0) && isLocalEnvironment()
 if ((!memory.employeeLogins || memory.employeeLogins.length === 0) && isLocalEnvironment()) {
   memory.employeeLogins = [...INITIAL_EMPLOYEE_LOGINS];
 }
+memory.customRoles ??= [...DEFAULT_ROLES];
+memory.userAccounts ??= isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : [];
 
 // Helper to log audit events
 export async function recordAuditLog({
@@ -1339,6 +1346,7 @@ export async function getEmployeeLogins(month?: string): Promise<EmployeeLoginRe
         branch: emp.employment.branch,
         month: targetMonth,
         commitment: isSales ? 10000000 : 3000000,
+        loginCommitment: isSales ? 12 : 5,
         loginsCount: isSales ? 8 : 3,
         submissionDate: `${targetMonth}-05`,
         lastLoginDate: `${targetMonth}-22`,
@@ -1375,6 +1383,13 @@ export async function getEmployeeLogins(month?: string): Promise<EmployeeLoginRe
     }
 
     return initialLogins;
+  }
+
+  // Ensure every returned login record has a valid loginCommitment count
+  for (const l of monthLogins) {
+    if (typeof l.loginCommitment !== "number" || isNaN(l.loginCommitment) || l.loginCommitment <= 0) {
+      l.loginCommitment = l.commitment >= 10000000 ? 15 : l.commitment >= 5000000 ? 10 : 5;
+    }
   }
 
   return monthLogins;
@@ -1429,6 +1444,7 @@ export async function saveEmployeeLogin(
     branch: data.branch || emp?.employment.branch || existing?.branch || "Delhi",
     month: targetMonth,
     commitment: Number(data.commitment ?? existing?.commitment ?? 0),
+    loginCommitment: Number(data.loginCommitment ?? existing?.loginCommitment ?? 0),
     loginsCount: Number(data.loginsCount ?? existing?.loginsCount ?? 0),
     submissionDate: data.submissionDate ?? existing?.submissionDate ?? new Date().toISOString().split("T")[0],
     lastLoginDate: data.lastLoginDate ?? existing?.lastLoginDate ?? new Date().toISOString().split("T")[0],
@@ -1991,6 +2007,248 @@ export async function updateUserAccount(
   }
 
   return updated;
+}
+
+export async function getCustomRoles(): Promise<CustomRole[]> {
+  memory.customRoles = memory.customRoles || [...DEFAULT_ROLES];
+  try {
+    const firestoreRoles = await getCollectionFromFirestore<CustomRole>("custom_roles");
+    if (firestoreRoles && firestoreRoles.length > 0) {
+      for (const fr of firestoreRoles) {
+        const idx = memory.customRoles.findIndex((r) => r.id === fr.id);
+        if (idx !== -1) {
+          memory.customRoles[idx] = fr;
+        } else {
+          memory.customRoles.push(fr);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Firestore getCustomRoles fallback:", e);
+  }
+
+  // Ensure default roles exist
+  for (const def of DEFAULT_ROLES) {
+    if (!memory.customRoles.some((r) => r.id === def.id)) {
+      memory.customRoles.unshift(def);
+    }
+  }
+
+  // Calculate user counts for each role
+  const allUsers = await getAllUserAccounts();
+  return memory.customRoles.map((role) => {
+    const count = allUsers.filter(
+      (u) =>
+        u.role.toLowerCase() === role.id.toLowerCase() ||
+        (role.id === "employee" && (!u.role || u.role === "employee"))
+    ).length;
+    return { ...role, userCount: count };
+  });
+}
+
+export async function saveCustomRole(
+  role: Partial<CustomRole> & { name: string; sections: string[] },
+  actor?: { name: string; role: string }
+): Promise<CustomRole> {
+  memory.customRoles = memory.customRoles || [...DEFAULT_ROLES];
+  const id =
+    role.id ||
+    `role-${role.name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-")}-${Date.now().toString().slice(-4)}`;
+  const existingIdx = memory.customRoles.findIndex((r) => r.id === id);
+
+  const fullRole: CustomRole = {
+    id,
+    name: role.name.trim(),
+    description: role.description || `Custom role with ${role.sections.length} module permissions`,
+    isSystem: role.isSystem || (existingIdx !== -1 ? memory.customRoles[existingIdx].isSystem : false),
+    color: role.color || "indigo",
+    sections: role.sections,
+    createdAt: existingIdx !== -1 ? memory.customRoles[existingIdx].createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (existingIdx !== -1) {
+    memory.customRoles[existingIdx] = fullRole;
+  } else {
+    memory.customRoles.push(fullRole);
+  }
+
+  await saveDocumentToFirestore("custom_roles", fullRole.id, fullRole).catch((e) =>
+    console.warn("Firestore save custom role error:", e)
+  );
+
+  if (actor) {
+    await recordAuditLog({
+      who: actor.name,
+      role: actor.role,
+      action: "ROLE_UPDATED",
+      details: `Saved custom role "${fullRole.name}" with ${fullRole.sections.length} accessible sections`,
+    });
+  }
+
+  return fullRole;
+}
+
+export async function deleteCustomRole(
+  roleId: string,
+  actor?: { name: string; role: string }
+): Promise<boolean> {
+  memory.customRoles = memory.customRoles || [...DEFAULT_ROLES];
+  memory.userAccounts = memory.userAccounts || (isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : []);
+  const target = memory.customRoles.find((r) => r.id === roleId);
+  if (!target) return false;
+  if (target.isSystem || ["admin", "hr", "employee"].includes(target.id)) {
+    throw new Error("System default roles (Admin, HR, Employee) cannot be deleted.");
+  }
+
+  memory.customRoles = memory.customRoles.filter((r) => r.id !== roleId);
+  await deleteDocumentFromFirestore("custom_roles", roleId).catch((e) =>
+    console.warn("Firestore delete custom role error:", e)
+  );
+
+  // Reassign any users who had this role to employee
+  for (const u of memory.userAccounts) {
+    if (u.role === roleId) {
+      u.role = "employee";
+      saveDocumentToFirestore("users", u.uid, u).catch(() => {});
+    }
+  }
+
+  if (actor) {
+    await recordAuditLog({
+      who: actor.name,
+      role: actor.role,
+      action: "ROLE_DELETED",
+      details: `Deleted custom role "${target.name}". Reassigned active users to Employee.`,
+    });
+  }
+
+  return true;
+}
+
+export async function getAllUserAccounts(): Promise<UserAccount[]> {
+  memory.userAccounts = memory.userAccounts || (isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : []);
+  try {
+    const firestoreUsers = await getCollectionFromFirestore<UserAccount>("users");
+    if (firestoreUsers && firestoreUsers.length > 0) {
+      for (const fu of firestoreUsers) {
+        const idx = memory.userAccounts.findIndex(
+          (u) => u.uid === fu.uid || u.email.toLowerCase() === fu.email.toLowerCase()
+        );
+        if (idx !== -1) {
+          memory.userAccounts[idx] = fu;
+        } else {
+          memory.userAccounts.push(fu);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Firestore getAllUserAccounts fallback:", e);
+  }
+
+  // Ensure every Employee in the directory has a matching UserAccount representation
+  const employees = await getEmployees();
+  for (const emp of employees) {
+    const hasAccount = memory.userAccounts.some(
+      (u) =>
+        u.employeeId.toLowerCase() === emp.employeeId.toLowerCase() ||
+        (emp.personal.workEmail && u.email.toLowerCase() === emp.personal.workEmail.toLowerCase())
+    );
+    if (!hasAccount) {
+      const isExecutive =
+        emp.employment.department?.toLowerCase().includes("executive") || emp.employeeId === "EMP-001";
+      const isHr =
+        emp.employment.department?.toLowerCase().includes("human") || emp.employeeId === "EMP-002";
+      const newAcc: UserAccount = {
+        uid: `usr-${emp.employeeId.toLowerCase()}`,
+        employeeId: emp.employeeId,
+        email:
+          emp.personal.workEmail ||
+          `${emp.personal.firstName.toLowerCase()}.${emp.employeeId.toLowerCase()}@creditexpertindia.com`,
+        password: "Password@123",
+        name: emp.personal.fullName,
+        role: isExecutive ? "admin" : isHr ? "hr" : "employee",
+        branch: emp.employment.branch || "Delhi",
+        department: emp.employment.department || "General Operations",
+        avatar:
+          emp.personal.avatarUrl ||
+          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+        status: "Active",
+        createdAt: emp.createdAt || new Date().toISOString(),
+      };
+      memory.userAccounts.push(newAcc);
+    }
+  }
+
+  return memory.userAccounts;
+}
+
+export async function assignUserRole(
+  identifier: string,
+  newRole: string,
+  actor: { name: string; role: string }
+): Promise<UserAccount> {
+  memory.userAccounts = memory.userAccounts || (isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : []);
+  const norm = identifier.toLowerCase().trim();
+  let account = memory.userAccounts.find(
+    (u) =>
+      u.uid.toLowerCase() === norm ||
+      u.employeeId.toLowerCase() === norm ||
+      u.email.toLowerCase() === norm
+  );
+
+  if (!account) {
+    const employees = await getEmployees();
+    const emp = employees.find(
+      (e) => e.employeeId.toLowerCase() === norm || e.id.toLowerCase() === norm
+    );
+    if (emp) {
+      account = {
+        uid: `usr-${emp.employeeId.toLowerCase()}`,
+        employeeId: emp.employeeId,
+        email:
+          emp.personal.workEmail ||
+          `${emp.personal.firstName.toLowerCase()}@creditexpertindia.com`,
+        password: "Password@123",
+        name: emp.personal.fullName,
+        role: newRole,
+        branch: emp.employment.branch || "Delhi",
+        department: emp.employment.department || "General Operations",
+        avatar: emp.personal.avatarUrl || "",
+        status: "Active",
+        createdAt: new Date().toISOString(),
+      };
+      memory.userAccounts.push(account);
+    } else {
+      throw new Error(`User or employee with identifier "${identifier}" not found.`);
+    }
+  }
+
+  const oldRole = account.role;
+  account.role = newRole;
+
+  await saveDocumentToFirestore("users", account.uid, account).catch((e) =>
+    console.warn("Firestore assignUserRole fallback:", e)
+  );
+
+  // Update active sessions in memory and firestore if this user has active sessions
+  for (const s of memory.sessions) {
+    if (s.userId === account.uid || s.employeeId === account.employeeId) {
+      s.role = newRole;
+      saveDocumentToFirestore("sessions", s.sessionId, s).catch(() => {});
+    }
+  }
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "USER_ROLE_CHANGED",
+    employeeId: account.employeeId,
+    employeeName: account.name,
+    details: `Updated system role for ${account.name} (${account.employeeId}) from ${oldRole.toUpperCase()} to ${newRole.toUpperCase()}`,
+  });
+
+  return account;
 }
 
 /**

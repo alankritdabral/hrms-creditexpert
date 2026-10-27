@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest, authFailureResponse } from "@/lib/api-auth";
 import { ROLE_PERMISSIONS } from "@/lib/permissions";
-import { getUserAccountById } from "@/lib/db/db-adapter";
+import { getUserAccountById, getCustomRoles } from "@/lib/db/db-adapter";
+import { APP_SECTIONS, DEFAULT_ROLES } from "@/lib/types";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -22,6 +23,15 @@ export async function GET(req: NextRequest) {
   }
 
   const userAccount = await getUserAccountById(auth.session.userId);
+  const roles = await getCustomRoles();
+  const effectiveRole = (userAccount?.role || auth.session.role || "employee").toLowerCase();
+  const matchedRole = roles.find((r) => r.id.toLowerCase() === effectiveRole);
+  const allowedSections =
+    effectiveRole === "admin"
+      ? APP_SECTIONS.map((s) => s.id)
+      : matchedRole
+      ? matchedRole.sections
+      : DEFAULT_ROLES.find((r) => r.id === "employee")?.sections || [];
 
   const userPayload = userAccount
     ? {
@@ -33,6 +43,7 @@ export async function GET(req: NextRequest) {
         branch: userAccount.branch,
         department: userAccount.department,
         avatar: userAccount.avatar,
+        allowedSections,
       }
     : {
         id: auth.session.userId,
@@ -41,16 +52,18 @@ export async function GET(req: NextRequest) {
         name: auth.session.name,
         role: auth.session.role,
         branch: auth.session.branch,
+        allowedSections,
       };
 
   return NextResponse.json({
     success: true,
     session: auth.session,
     user: userPayload,
-    role: auth.role,
+    role: userPayload.role,
     branch: auth.branch,
     branchScope: auth.branchScope,
     employeeId: auth.employeeId,
-    permissions: ROLE_PERMISSIONS[auth.role],
+    allowedSections,
+    permissions: ROLE_PERMISSIONS[auth.role as keyof typeof ROLE_PERMISSIONS] || [],
   });
 }

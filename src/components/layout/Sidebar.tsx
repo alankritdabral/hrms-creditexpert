@@ -34,15 +34,16 @@ import { useNotifications } from "@/lib/notifications-context";
 interface NavItem {
   name: string;
   href: string;
+  sectionId: string;
   icon: React.ReactNode;
-  allowedRoles: UserRole[];
+  allowedRoles?: UserRole[];
   badge?: string;
   badgeColor?: string;
 }
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentUser } = useAuth();
+  const { currentUser, canAccessSection } = useAuth();
   const { isOpen, closeSidebar } = useSidebar();
   const { counts } = useNotifications();
 
@@ -50,134 +51,132 @@ export function Sidebar() {
     {
       name: "Dashboard",
       href: "/dashboard",
+      sectionId: "dashboard",
       icon: <LayoutDashboard className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr", "employee"],
     },
     {
       name: "My Profile",
       href: currentUser.employeeId ? `/employees/${currentUser.employeeId}` : "/employees",
+      sectionId: "profile",
       icon: <User className="w-4 h-4" />,
-      allowedRoles: ["employee"],
       badge: "Photo & KYC",
       badgeColor: "bg-blue-50 text-blue-700 border border-blue-200",
     },
     {
       name: "Employees",
       href: "/employees",
+      sectionId: "employees",
       icon: <Users className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr"],
       badge: counts.employees > 0 ? `${counts.employees}` : undefined,
       badgeColor: "bg-slate-100 text-slate-700 border border-slate-200",
     },
     {
       name: "Onboarding",
       href: "/onboarding",
+      sectionId: "onboarding",
       icon: <UserCheck className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr"],
       badge: counts.activeOnboarding > 0 ? `${counts.activeOnboarding} Active` : undefined,
       badgeColor: "bg-indigo-50 text-indigo-700 border border-indigo-200",
     },
     {
       name: "Attendance",
       href: "/attendance",
+      sectionId: "attendance",
       icon: <Clock className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr", "employee"],
     },
     {
       name: "Leave Management",
       href: "/leaves",
+      sectionId: "leaves",
       icon: <CalendarDays className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr", "employee"],
       badge: counts.pendingLeaves > 0 ? `${counts.pendingLeaves} Pending` : undefined,
       badgeColor: "bg-amber-50 text-amber-700 border border-amber-200",
     },
     {
       name: "Holidays",
       href: "/holidays",
+      sectionId: "holidays",
       icon: <Calendar className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr", "employee"],
     },
     {
       name: "Payroll Engine",
       href: "/payroll",
+      sectionId: "payroll",
       icon: <CircleDollarSign className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr"],
       badge: counts.payrollReview ? (counts.payrollStatus || "Review") : undefined,
       badgeColor: "bg-emerald-50 text-emerald-700 border border-emerald-200",
     },
     {
       name: "Logins & Disbursals",
       href: "/logins",
+      sectionId: "logins",
       icon: <TrendingUp className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr", "employee"],
       badge: counts.loginsCount > 0 ? `${counts.loginsCount} Files` : undefined,
       badgeColor: "bg-blue-50 text-blue-700 border border-blue-200",
     },
     {
       name: "Incentives",
       href: "/incentives",
+      sectionId: "incentives",
       icon: <Award className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr", "employee"],
     },
     {
       name: "Payslips",
       href: "/payslips",
+      sectionId: "payslips",
       icon: <FileSpreadsheet className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr", "employee"],
     },
     {
       name: "Documents",
       href: "/documents",
+      sectionId: "documents",
       icon: <FolderLock className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr"],
       badge: counts.expiringDocs > 0 ? `${counts.expiringDocs} Alert` : undefined,
       badgeColor: "bg-rose-50 text-rose-700 border border-rose-200",
     },
     {
       name: "Assets",
       href: "/assets",
+      sectionId: "assets",
       icon: <Laptop className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr"],
     },
     {
       name: "HR Requests",
       href: "/requests",
+      sectionId: "requests",
       icon: <HelpCircle className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr", "employee"],
       badge: counts.pendingRequests > 0 ? `${counts.pendingRequests} Pending` : undefined,
       badgeColor: "bg-amber-50 text-amber-700 border border-amber-200",
     },
     {
       name: "Announcements",
       href: "/announcements",
+      sectionId: "announcements",
       icon: <Megaphone className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr", "employee"],
       badge: counts.announcements > 0 ? `${counts.announcements} Active` : undefined,
       badgeColor: "bg-sky-50 text-sky-700 border border-sky-200",
     },
     {
       name: "Reports & Analytics",
       href: "/reports",
+      sectionId: "reports",
       icon: <BarChart3 className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr"],
     },
     {
       name: "Audit Logs",
       href: "/audit-logs",
+      sectionId: "audit_logs",
       icon: <ScrollText className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr"],
     },
     {
       name: "Policy & Settings",
       href: "/settings",
+      sectionId: "settings",
       icon: <Sliders className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr"],
     },
   ];
 
-  const visibleItems = navItems.filter(
-    (item) => currentUser.role === "admin" || currentUser.role === "hr" || item.allowedRoles.includes(currentUser.role)
-  );
+  const visibleItems = navItems.filter((item) => canAccessSection(item.sectionId));
 
   return (
     <>

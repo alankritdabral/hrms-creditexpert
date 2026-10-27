@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Employee,
@@ -113,6 +113,71 @@ export function EmployeeProfile({
   const [passportPhotoInputUrl, setPassportPhotoInputUrl] = useState<string>("");
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [photoMessage, setPhotoMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // User Role Management for this employee
+  const [employeeRole, setEmployeeRole] = useState<string>("employee");
+  const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string }[]>([]);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [roleMessage, setRoleMessage] = useState("");
+
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const res = await fetch("/api/roles");
+        const data = await res.json();
+        if (data.success) {
+          if (data.roles) {
+            setAvailableRoles(data.roles.map((r: any) => ({ id: r.id, name: r.name })));
+          }
+          if (data.users) {
+            const userMatch = data.users.find(
+              (u: any) =>
+                u.employeeId?.toLowerCase() === employee.employeeId.toLowerCase() ||
+                (employee.personal.workEmail && u.email?.toLowerCase() === employee.personal.workEmail.toLowerCase())
+            );
+            if (userMatch) {
+              setEmployeeRole(userMatch.role || "employee");
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching user role:", e);
+      }
+    }
+    fetchUserRole();
+  }, [employee.employeeId, employee.personal.workEmail]);
+
+  const handleRoleChange = async (newRole: string) => {
+    setIsUpdatingRole(true);
+    setRoleMessage("");
+    try {
+      const res = await fetch("/api/roles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assign_role",
+          identifier: employee.employeeId,
+          role: newRole,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEmployeeRole(newRole);
+        setRoleMessage("Role updated!");
+        if (currentUser.employeeId === employee.employeeId) {
+          refreshSession();
+        }
+        setTimeout(() => setRoleMessage(""), 3000);
+      } else {
+        alert(data.error || "Failed to update role");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error updating role");
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
 
   // Resolve official passport photo (from documents KYC or personal)
   const passportDoc = documents.find(
@@ -444,6 +509,44 @@ export function EmployeeProfile({
                   <MapPin className="w-2.5 h-2.5 text-blue-500" />
                   {employee.employment.branch || "Delhi"}
                 </span>
+
+                {/* System Role Badge / Dropdown */}
+                {currentUser.role === "admin" || currentUser.role === "hr" ? (
+                  <div className="inline-flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-lg px-2 py-0.5 shadow-2xs">
+                    <ShieldCheck className="w-3 h-3 text-indigo-400" />
+                    <span className="text-[10px] text-slate-400 font-medium">Role:</span>
+                    <select
+                      value={employeeRole}
+                      disabled={isUpdatingRole}
+                      onChange={(e) => handleRoleChange(e.target.value)}
+                      className="bg-transparent text-[11px] font-bold text-indigo-300 focus:outline-none cursor-pointer"
+                    >
+                      {availableRoles.length > 0 ? (
+                        availableRoles.map((r) => (
+                          <option key={r.id} value={r.id} className="bg-slate-900 text-white">
+                            {r.name}
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="admin" className="bg-slate-900 text-white">Admin</option>
+                          <option value="hr" className="bg-slate-900 text-white">HR</option>
+                          <option value="employee" className="bg-slate-900 text-white">Employee</option>
+                        </>
+                      )}
+                    </select>
+                    {roleMessage && (
+                      <span className="text-[10px] text-emerald-400 font-semibold animate-pulse">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 text-[10px]">
+                    <ShieldCheck className="w-2.5 h-2.5 text-indigo-500" />
+                    Role: {availableRoles.find((r) => r.id === employeeRole)?.name || employeeRole.toUpperCase()}
+                  </span>
+                )}
               </div>
               <p className="text-sm text-slate-300 mt-1 font-medium">
                 {employee.employment.designation} • {employee.employment.department}
