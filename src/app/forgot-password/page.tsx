@@ -158,7 +158,7 @@ export default function ForgotPasswordPage() {
       </div>
 
       {/* Top Header */}
-      <header className="relative z-10 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-6 py-4">
+      <header className="relative z-10 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-4 sm:px-6 py-3.5 sm:py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -192,7 +192,7 @@ export default function ForgotPasswordPage() {
         )}
 
         {/* Card */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 backdrop-blur-xl">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-2xl p-4 sm:p-8 backdrop-blur-xl">
           {/* ============================================================== */}
           {/* STEP 1: ENTER REGISTERED EMAIL */}
           {/* ============================================================== */}

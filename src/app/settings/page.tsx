@@ -626,12 +626,13 @@ export default function SettingsPage() {
                 isLoading={isDetectingLocation}
                 icon={<Crosshair className="w-4 h-4 text-emerald-400" />}
                 onClick={handleDetectCurrentGPS}
+                className="w-full sm:w-auto justify-center"
               >
                 Use My Current Device GPS
               </Button>
 
-              <div className="flex items-center gap-2">
-                <Button type="submit" size="sm" isLoading={isSavingOffice} icon={<Save className="w-4 h-4" />}>
+              <div className="w-full sm:w-auto flex items-center justify-end gap-2">
+                <Button type="submit" size="sm" isLoading={isSavingOffice} icon={<Save className="w-4 h-4" />} className="w-full sm:w-auto justify-center">
                   Save Office Geofence
                 </Button>
               </div>

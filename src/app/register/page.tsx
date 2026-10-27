@@ -673,7 +673,7 @@ export default function RegisterPage() {
         {/* Progress Tracker */}
         {currentStep < 5 && (
           <div className="mb-8">
-            <div className="grid grid-cols-4 gap-2 sm:gap-4 text-center">
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-4 text-center">
               {[
                 { step: 1, title: "Account & OTP" },
                 { step: 2, title: "Personal Details" },
@@ -699,7 +699,7 @@ export default function RegisterPage() {
                     }`}
                   >
                     <div
-                      className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all mb-2 ${
+                      className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold transition-all mb-1 sm:mb-2 ${
                         isDone
                           ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20 group-hover:ring-2 group-hover:ring-emerald-400"
                           : isActive
@@ -709,10 +709,10 @@ export default function RegisterPage() {
                           : "bg-slate-800 text-slate-500 border border-slate-700"
                       }`}
                     >
-                      {isDone ? <CheckCircle2 className="w-4 h-4" /> : item.step}
+                      {isDone ? <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : item.step}
                     </div>
                     <span
-                      className={`text-xs font-medium tracking-tight ${
+                      className={`text-[10px] sm:text-xs font-medium tracking-tight line-clamp-1 sm:line-clamp-none ${
                         isActive
                           ? "text-indigo-400 font-semibold"
                           : isDone
@@ -1619,8 +1619,8 @@ export default function RegisterPage() {
 
       {/* Draft Saved Confirmation Modal */}
       {showSaveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl text-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl text-slate-200">
             <button
               type="button"
               onClick={() => setShowSaveModal(false)}
@@ -1652,11 +1652,11 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => router.push("/login")}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80 transition-colors cursor-pointer"
+                className="w-full sm:w-auto justify-center px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80 transition-colors cursor-pointer text-center"
               >
                 Exit to Sign In
               </button>
@@ -1665,6 +1665,7 @@ export default function RegisterPage() {
                 variant="primary"
                 size="md"
                 onClick={() => setShowSaveModal(false)}
+                className="w-full sm:w-auto justify-center"
               >
                 Continue Editing
               </Button>

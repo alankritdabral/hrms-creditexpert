@@ -307,8 +307,8 @@ export default function LeavesPage() {
       {/* Leave History Table */}
       <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
         <h2 className="text-base font-bold text-white">Leave Application History</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <table className="w-full text-left text-xs min-w-[700px]">
             <thead>
               <tr className="border-b border-slate-800 text-slate-400">
                 <th className="pb-3 font-medium">Employee</th>
@@ -377,7 +377,7 @@ export default function LeavesPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Start Date *</label>
               <input
@@ -429,16 +429,17 @@ export default function LeavesPage() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setIsApplyModalOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isApplying}>
+            <Button type="submit" size="sm" isLoading={isApplying} className="w-full sm:w-auto">
               Submit Application
             </Button>
           </div>
@@ -503,12 +504,13 @@ export default function LeavesPage() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setReviewingLeave(null)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
@@ -516,7 +518,7 @@ export default function LeavesPage() {
               type="submit"
               size="sm"
               isLoading={isReviewing}
-              className={reviewAction === "Approved" ? "bg-emerald-600 hover:bg-emerald-500" : "bg-rose-600 hover:bg-rose-500"}
+              className={`w-full sm:w-auto ${reviewAction === "Approved" ? "bg-emerald-600 hover:bg-emerald-500" : "bg-rose-600 hover:bg-rose-500"}`}
             >
               Confirm {reviewAction}
             </Button>

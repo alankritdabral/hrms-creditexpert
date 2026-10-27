@@ -17,7 +17,7 @@ import {
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Employee, AttendanceRecord, LeaveRequest, PayrollRun, EmployeeRequestItem, Holiday } from "@/lib/types";
+import { Employee, AttendanceRecord, LeaveRequest, PayrollRun, EmployeeRequestItem, Holiday, EmployeeDocument } from "@/lib/types";
 import { formatISTTime12 } from "@/lib/attendance/ist-time";
 
 export function AdminDashboard() {
@@ -27,18 +27,20 @@ export function AdminDashboard() {
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
   const [requests, setRequests] = useState<EmployeeRequestItem[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [empRes, attRes, levRes, payRes, reqRes, holRes] = await Promise.all([
+        const [empRes, attRes, levRes, payRes, reqRes, holRes, docRes] = await Promise.all([
           fetch("/api/employees").then((r) => r.json()),
           fetch("/api/attendance").then((r) => r.json()),
           fetch("/api/leaves").then((r) => r.json()),
           fetch("/api/payroll").then((r) => r.json()),
           fetch("/api/requests").then((r) => r.json()),
           fetch("/api/holidays").then((r) => r.json()),
+          fetch("/api/documents").then((r) => r.json()),
         ]);
 
         if (empRes.success) setEmployees(empRes.data);
@@ -47,6 +49,7 @@ export function AdminDashboard() {
         if (payRes.success) setPayrollRuns(payRes.data);
         if (reqRes.success) setRequests(reqRes.data);
         if (holRes.success) setHolidays(holRes.data);
+        if (docRes.success) setDocuments(docRes.data);
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       } finally {
@@ -72,10 +75,38 @@ export function AdminDashboard() {
 
   const latestPayroll = payrollRuns[0];
 
+  const now = new Date();
+  const expiringDocs = documents.filter((d) => {
+    if (!d.expiryDate) return false;
+    const exp = new Date(d.expiryDate);
+    const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays <= 45;
+  });
+
+  const currentMonthNum = (now.getMonth() + 1).toString().padStart(2, "0");
+  const celebrations = employees
+    .filter((e) => {
+      const dobMonth = e.personal.dob ? e.personal.dob.split("-")[1] : null;
+      const dojMonth = e.employment.dateOfJoining ? e.employment.dateOfJoining.split("-")[1] : null;
+      return dobMonth === currentMonthNum || dojMonth === currentMonthNum;
+    })
+    .map((e) => {
+      const dobMonth = e.personal.dob ? e.personal.dob.split("-")[1] : null;
+      const isBirthday = dobMonth === currentMonthNum;
+      const dobDay = e.personal.dob ? e.personal.dob.split("-")[2] : "";
+      const dojDay = e.employment.dateOfJoining ? e.employment.dateOfJoining.split("-")[2] : "";
+      return {
+        id: e.id,
+        name: `${e.personal.firstName} ${e.personal.lastName}`,
+        type: isBirthday ? "Birthday" : "Anniversary",
+        date: isBirthday ? `${dobDay} Oct` : `${dojDay} Oct`,
+      };
+    });
+
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Top Banner & Quick Actions with Credit Expert India Blue Gradient */}
-      <div className="hero-banner flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 lg:p-8 rounded-3xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-md shadow-blue-500/15 relative overflow-hidden">
+      <div className="hero-banner flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-md shadow-blue-500/15 relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center gap-2">
             <span className="banner-pill px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-semibold backdrop-blur-xs">
@@ -83,22 +114,22 @@ export function AdminDashboard() {
             </span>
             <span className="text-xs text-blue-100 font-mono">HR & Operations Command</span>
           </div>
-          <h1 className="text-2xl lg:text-3xl font-extrabold text-white mt-2 tracking-tight">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mt-2 tracking-tight">
             Workforce Overview & Intelligence
           </h1>
-          <p className="text-sm text-blue-100 mt-1 max-w-2xl">
+          <p className="text-xs sm:text-sm text-blue-100 mt-1 max-w-2xl">
             Real-time tracking of employee attendance, salary structures, statutory compliance, and payroll.
           </p>
         </div>
-        <div className="flex items-center gap-3 relative z-10">
-          <Link href="/employees">
-            <button className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/20 transition-all cursor-pointer">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 relative z-10 w-full md:w-auto">
+          <Link href="/employees" className="flex-1 sm:flex-none">
+            <button className="w-full justify-center px-4 py-2 rounded-xl text-xs font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/20 transition-all cursor-pointer">
               View All Employees
             </button>
           </Link>
-          <Link href="/payroll">
-            <button className="btn-banner-white px-4 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-blue-50 text-blue-700 shadow-sm transition-all flex items-center gap-2 cursor-pointer">
-              <CircleDollarSign className="w-4 h-4 text-blue-700" />
+          <Link href="/payroll" className="flex-1 sm:flex-none">
+            <button className="w-full justify-center btn-banner-white px-4 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-blue-50 text-blue-700 shadow-sm transition-all flex items-center gap-2 cursor-pointer">
+              <CircleDollarSign className="w-4 h-4 text-blue-700 shrink-0" />
               <span>Process Payroll</span>
             </button>
           </Link>
@@ -209,7 +240,7 @@ export function AdminDashboard() {
         </div>
 
         {/* Live Attendance Activity Log */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
+        <div className="lg:col-span-2 bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-900 text-base">Today&apos;s Attendance Logs</h3>
@@ -220,8 +251,8 @@ export function AdminDashboard() {
             </Link>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <table className="w-full text-left text-xs min-w-[560px]">
               <thead>
                 <tr className="border-b border-slate-100 text-slate-500">
                   <th className="pb-3 font-semibold">Employee</th>
@@ -329,33 +360,78 @@ export function AdminDashboard() {
         </div>
 
         {/* Document Expiry Warnings */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <FolderArchive className="w-4 h-4 text-emerald-500" />
-              Document Expiry Alerts
-            </span>
-            <Badge variant="success">0 Alerts</Badge>
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <FolderArchive className="w-4 h-4 text-emerald-500" />
+                Document Expiry Alerts
+              </span>
+              <Badge variant={expiringDocs.length > 0 ? "warning" : "success"}>
+                {expiringDocs.length} {expiringDocs.length === 1 ? "Alert" : "Alerts"}
+              </Badge>
+            </div>
+            {expiringDocs.length > 0 ? (
+              <div className="space-y-2 text-xs">
+                {expiringDocs.slice(0, 2).map((d) => (
+                  <div key={d.id} className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/70 text-xs">
+                    <p className="font-semibold text-slate-800 truncate">{d.title}</p>
+                    <p className="text-[11px] text-amber-800 mt-0.5">
+                      {d.employeeName} • Due: {d.expiryDate}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-center text-slate-500">
+                <p className="font-medium">All documents are up-to-date</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">No expiring credentials or statutory KYC</p>
+              </div>
+            )}
           </div>
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-center text-slate-500">
-            <p className="font-medium">All documents are up-to-date</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">No expiring credentials or statutory KYC</p>
-          </div>
+          <Link href="/documents" className="mt-4">
+            <Button variant="outline" size="sm" className="w-full">
+              Manage Documents
+            </Button>
+          </Link>
         </div>
 
         {/* Culture & Celebrations */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Cake className="w-4 h-4 text-pink-500" />
-              Birthdays & Milestones
-            </span>
-            <span className="text-xs text-slate-400 font-medium">Calendar</span>
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Cake className="w-4 h-4 text-pink-500" />
+                Birthdays & Milestones
+              </span>
+              <Badge variant="indigo">{celebrations.length} This Month</Badge>
+            </div>
+            {celebrations.length > 0 ? (
+              <div className="space-y-2 text-xs">
+                {celebrations.slice(0, 3).map((c) => (
+                  <div key={c.id} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-semibold text-slate-800">{c.name}</p>
+                      <p className="text-[11px] text-slate-500">{c.type}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold text-pink-700 bg-pink-50 px-2 py-0.5 rounded border border-pink-200">
+                      {c.date}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-center text-slate-500">
+                <p className="font-medium">No celebrations scheduled</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Milestones will appear automatically</p>
+              </div>
+            )}
           </div>
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-center text-slate-500">
-            <p className="font-medium">No celebrations scheduled</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Milestones will appear automatically</p>
-          </div>
+          <Link href="/employees" className="mt-4">
+            <Button variant="outline" size="sm" className="w-full">
+              View Directory
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

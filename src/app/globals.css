@@ -245,3 +245,27 @@ button.bg-rose-600 *,
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Mobile Responsiveness & Touch Utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Smooth momentum scrolling on mobile devices */
+.overflow-x-auto,
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent auto-zoom on mobile Safari / Chrome when focusing on inputs */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

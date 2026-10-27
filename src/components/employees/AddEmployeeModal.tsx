@@ -132,14 +132,14 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
       subtitle="Create an employee record with employment details, salary structure, and statutory information."
       maxWidth="2xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
         {/* Step indicator */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3 gap-1 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveStep(1)}
-            className={`text-xs font-semibold pb-1 cursor-pointer transition-colors ${
-              activeStep === 1 ? "text-indigo-400 border-b-2 border-indigo-500" : "text-slate-400"
+            className={`text-xs font-semibold pb-1 cursor-pointer transition-colors whitespace-nowrap flex-1 text-center ${
+              activeStep === 1 ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-400"
             }`}
           >
             1. Personal Info
@@ -147,8 +147,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
           <button
             type="button"
             onClick={() => setActiveStep(2)}
-            className={`text-xs font-semibold pb-1 cursor-pointer transition-colors ${
-              activeStep === 2 ? "text-indigo-400 border-b-2 border-indigo-500" : "text-slate-400"
+            className={`text-xs font-semibold pb-1 cursor-pointer transition-colors whitespace-nowrap flex-1 text-center ${
+              activeStep === 2 ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-400"
             }`}
           >
             2. Employment & CTC
@@ -156,8 +156,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
           <button
             type="button"
             onClick={() => setActiveStep(3)}
-            className={`text-xs font-semibold pb-1 cursor-pointer transition-colors ${
-              activeStep === 3 ? "text-indigo-400 border-b-2 border-indigo-500" : "text-slate-400"
+            className={`text-xs font-semibold pb-1 cursor-pointer transition-colors whitespace-nowrap flex-1 text-center ${
+              activeStep === 3 ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-400"
             }`}
           >
             3. Statutory & Bank
@@ -167,7 +167,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
         {/* STEP 1: Personal Info */}
         {activeStep === 1 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">First Name *</label>
                 <input
@@ -193,7 +193,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Gender</label>
                 <select
@@ -219,7 +219,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Mobile Number *</label>
                 <input
@@ -263,7 +263,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
         {/* STEP 2: Employment & CTC */}
         {activeStep === 2 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Department *</label>
                 <select
@@ -294,7 +294,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Employment Type</label>
                 <select
@@ -352,7 +352,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
                 Compensation Structure
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() =>
@@ -413,7 +413,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
                   Monthly Net Salary (₹ In-Hand) *
@@ -602,7 +602,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
         {/* STEP 3: Statutory & Bank */}
         {activeStep === 3 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">PAN Number *</label>
                 <input
@@ -631,7 +631,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Bank Account Number *</label>
                 <input
@@ -673,7 +673,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
         )}
 
         {/* Modal Footer Controls */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+        <div className="flex items-center justify-between pt-4 border-t border-slate-200 gap-2 flex-wrap">
           <div>
             {activeStep > 1 && (
               <Button
@@ -686,7 +686,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
               </Button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <Button type="button" variant="ghost" size="sm" onClick={onClose}>
               Cancel
             </Button>

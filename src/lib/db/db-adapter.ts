@@ -14,6 +14,7 @@ import {
   INITIAL_HOLIDAYS,
   INITIAL_ONBOARDING_RECORDS,
   INITIAL_OFFICES,
+  INITIAL_EMPLOYEE_LOGINS,
   SEED_USERS,
   SEED_USER_ACCOUNTS,
 } from "./seed-data";
@@ -47,7 +48,12 @@ import {
   RegistrationDraft,
   OfficeLocation,
   LocationVerificationStatus,
+  EmployeeLoginRecord,
+  BankDisbursalBreakdown,
+  CustomerDisbursalEntry,
+  IncentiveCalculationBreakdown,
 } from "../types";
+import { calculateDisbursalIncentive } from "../incentive-calculator";
 import { calculateSalaryBreakdown, calculateSalaryFromMonthly } from "../payroll-engine";
 import { sendAccountApprovedEmail } from "../email";
 import {
@@ -87,11 +93,18 @@ class MemoryStore {
   holidays: Holiday[] = isLocalEnvironment() ? [...INITIAL_HOLIDAYS] : [];
   onboardingRecords: OnboardingRecord[] = isLocalEnvironment() ? [...INITIAL_ONBOARDING_RECORDS] : [];
   registrationDrafts: Map<string, RegistrationDraft> = new Map();
+  employeeLogins: EmployeeLoginRecord[] = isLocalEnvironment() ? [...INITIAL_EMPLOYEE_LOGINS] : [];
 }
 
 const globalForMemory = globalThis as unknown as { __hrms_memory_store?: MemoryStore };
 const memory = (globalForMemory.__hrms_memory_store ??= new MemoryStore());
 memory.offices ??= isLocalEnvironment() ? [...INITIAL_OFFICES] : [];
+if ((!memory.employees || memory.employees.length === 0) && isLocalEnvironment()) {
+  memory.employees = [...INITIAL_EMPLOYEES];
+}
+if ((!memory.employeeLogins || memory.employeeLogins.length === 0) && isLocalEnvironment()) {
+  memory.employeeLogins = [...INITIAL_EMPLOYEE_LOGINS];
+}
 
 // Helper to log audit events
 export async function recordAuditLog({
@@ -137,6 +150,11 @@ export async function getEmployees(): Promise<Employee[]> {
     }
   } catch (e) {
     console.warn("Firestore getEmployees fallback:", e);
+  }
+
+  if ((!list || list.length === 0) && isLocalEnvironment()) {
+    list = INITIAL_EMPLOYEES;
+    memory.employees = [...INITIAL_EMPLOYEES];
   }
 
   // Helper to normalize legacy records (Probation -> Active, and Basic Pay = Net Pay apart from PF)
@@ -1140,6 +1158,377 @@ export async function recordEmployeeIncentive(
 }
 
 export const addIncentiveRecord = recordEmployeeIncentive;
+
+export async function updateEmployeeIncentive(
+  id: string,
+  updates: Partial<EmployeeIncentiveRecord>,
+  actor: { name: string; role: string }
+): Promise<EmployeeIncentiveRecord | null> {
+  const idx = memory.employeeIncentives.findIndex((i) => i.id === id);
+  if (idx === -1) return null;
+
+  const current = memory.employeeIncentives[idx];
+  const updated: EmployeeIncentiveRecord = {
+    ...current,
+    ...updates,
+    id: current.id,
+  };
+
+  memory.employeeIncentives[idx] = updated;
+  saveDocumentToFirestore("incentives", updated.id, updated).catch(() => {});
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "INCENTIVE_UPDATED",
+    employeeId: updated.employeeId,
+    employeeName: updated.employeeName,
+    details: `Updated incentive record to ₹${updated.incentiveAmount} (Status: ${updated.status})`,
+  });
+
+  return updated;
+}
+
+export async function deleteEmployeeIncentive(
+  id: string,
+  actor: { name: string; role: string }
+): Promise<boolean> {
+  const idx = memory.employeeIncentives.findIndex((i) => i.id === id);
+  if (idx === -1) return false;
+
+  const removed = memory.employeeIncentives.splice(idx, 1)[0];
+  deleteDocumentFromFirestore("incentives", id).catch(() => {});
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "INCENTIVE_DELETED",
+    employeeId: removed.employeeId,
+    employeeName: removed.employeeName,
+    details: `Deleted incentive record of ₹${removed.incentiveAmount} for ${removed.month}`,
+  });
+
+  return true;
+}
+
+export async function updateIncentiveScheme(
+  id: string,
+  updates: Partial<IncentiveScheme>,
+  actor: { name: string; role: string }
+): Promise<IncentiveScheme | null> {
+  const idx = memory.incentiveSchemes.findIndex((s) => s.id === id);
+  if (idx === -1) {
+    const newScheme: IncentiveScheme = {
+      id,
+      name: updates.name || "Custom Scheme",
+      type: updates.type || "slab",
+      description: updates.description || "",
+      active: true,
+      ...updates,
+    };
+    memory.incentiveSchemes.push(newScheme);
+    return newScheme;
+  }
+
+  memory.incentiveSchemes[idx] = {
+    ...memory.incentiveSchemes[idx],
+    ...updates,
+  };
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "INCENTIVE_SCHEME_UPDATED",
+    details: `Updated incentive scheme ${id}`,
+  });
+
+  return memory.incentiveSchemes[idx];
+}
+
+export async function deleteEmployeeLogin(
+  id: string,
+  actor: { name: string; role: string }
+): Promise<boolean> {
+  const idx = memory.employeeLogins.findIndex((l) => l.id === id);
+  if (idx === -1) return false;
+
+  const removed = memory.employeeLogins.splice(idx, 1)[0];
+  deleteDocumentFromFirestore("employee_logins", id).catch(() => {});
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "LOGIN_DELETED",
+    employeeId: removed.employeeId,
+    employeeName: removed.employeeName,
+    details: `Deleted login record for ${removed.month}`,
+  });
+
+  return true;
+}
+
+export async function getEmployeeLogins(month?: string): Promise<EmployeeLoginRecord[]> {
+  try {
+    const firestoreDocs = await getCollectionFromFirestore<EmployeeLoginRecord>("employee_logins");
+    if (firestoreDocs && firestoreDocs.length > 0) {
+      for (const doc of firestoreDocs) {
+        const idx = memory.employeeLogins.findIndex((l) => l.id === doc.id);
+        if (idx >= 0) {
+          memory.employeeLogins[idx] = doc;
+        } else {
+          memory.employeeLogins.push(doc);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Firestore getEmployeeLogins fallback:", e);
+  }
+
+  const targetMonth = month || new Date().toISOString().slice(0, 7);
+
+  // If no logins exist for this month, auto-initialize from active employees
+  const monthLogins = memory.employeeLogins.filter((l) => l.month === targetMonth);
+  if (monthLogins.length === 0) {
+    const employees = await getEmployees();
+    const activeEmployees = employees.filter(
+      (e) => !["Exited", "Terminated", "Resigned"].includes(e.employment.employmentStatus)
+    );
+
+    const initialLogins: EmployeeLoginRecord[] = activeEmployees.map((emp, index) => {
+      const isSales =
+        emp.employment.department?.toLowerCase().includes("sales") ||
+        emp.employment.department?.toLowerCase().includes("loan") ||
+        emp.employment.department?.toLowerCase().includes("credit") ||
+        index < 4;
+
+      const defaultAxisCustomers: CustomerDisbursalEntry[] = isSales
+        ? [
+            {
+              id: `cust-${emp.employeeId}-1`,
+              customerName: "Rohan Verma",
+              amount: 2500000,
+              status: "Disbursed",
+              remarks: "Personal Loan processed via Axis Bank",
+              date: `${targetMonth}-10`,
+            },
+          ]
+        : [];
+
+      const defaultOtherCustomers: CustomerDisbursalEntry[] = isSales
+        ? [
+            {
+              id: `cust-${emp.employeeId}-2`,
+              customerName: "Pooja Sharma",
+              amount: 5500000,
+              status: "Disbursed",
+              remarks: "Home Loan disbursed via HDFC Bank",
+              date: `${targetMonth}-16`,
+            },
+          ]
+        : [];
+
+      const axisTotal = defaultAxisCustomers.reduce((acc, c) => acc + (c.status === "Disbursed" ? c.amount : 0), 0);
+      const otherTotal = defaultOtherCustomers.reduce((acc, c) => acc + (c.status === "Disbursed" ? c.amount : 0), 0);
+      const totalDisbursal = axisTotal + otherTotal;
+
+      const record: EmployeeLoginRecord = {
+        id: `login-${emp.employeeId}-${targetMonth}`,
+        employeeId: emp.employeeId,
+        employeeName: emp.personal.fullName,
+        department: emp.employment.department,
+        branch: emp.employment.branch,
+        month: targetMonth,
+        commitment: isSales ? 10000000 : 3000000,
+        loginsCount: isSales ? 8 : 3,
+        submissionDate: `${targetMonth}-05`,
+        lastLoginDate: `${targetMonth}-22`,
+        totalDisbursal,
+        axisBankDisbursal: axisTotal,
+        otherBanksDisbursal: otherTotal,
+        banks: [
+          {
+            id: `bank-axis-${emp.employeeId}`,
+            bankName: "Axis Bank",
+            isAxisBank: true,
+            totalAmount: axisTotal,
+            customers: defaultAxisCustomers,
+          },
+          {
+            id: `bank-hdfc-${emp.employeeId}`,
+            bankName: "HDFC Bank",
+            isAxisBank: false,
+            totalAmount: otherTotal,
+            customers: defaultOtherCustomers,
+          },
+        ],
+        remarks: isSales ? "Files submitted across Axis and partner lenders." : "Branch regular submissions.",
+        lastUpdatedAt: new Date().toISOString(),
+        updatedBy: "System",
+      };
+
+      return record;
+    });
+
+    memory.employeeLogins.push(...initialLogins);
+    for (const rec of initialLogins) {
+      saveDocumentToFirestore("employee_logins", rec.id, rec).catch(() => {});
+    }
+
+    return initialLogins;
+  }
+
+  return monthLogins;
+}
+
+export async function saveEmployeeLogin(
+  data: Partial<EmployeeLoginRecord> & { employeeId: string; month: string },
+  actor: { name: string; role: string }
+): Promise<EmployeeLoginRecord> {
+  const employees = await getEmployees();
+  const emp = employees.find((e) => e.employeeId === data.employeeId);
+  const targetMonth = data.month;
+  const id = data.id || `login-${data.employeeId}-${targetMonth}-${Date.now()}`;
+
+  // Recalculate totals from banks
+  let banks = data.banks || [];
+  let axisBankDisbursal = 0;
+  let otherBanksDisbursal = 0;
+
+  banks = banks.map((bank) => {
+    const isAxis = bank.isAxisBank || bank.bankName.toLowerCase().includes("axis");
+    const totalAmount = (bank.customers || []).reduce((sum, cust) => {
+      return sum + (cust.status === "Disbursed" ? Number(cust.amount) || 0 : 0);
+    }, 0);
+
+    if (isAxis) {
+      axisBankDisbursal += totalAmount;
+    } else {
+      otherBanksDisbursal += totalAmount;
+    }
+
+    return {
+      ...bank,
+      isAxisBank: isAxis,
+      totalAmount,
+    };
+  });
+
+  const totalDisbursal = axisBankDisbursal + otherBanksDisbursal;
+
+  const existingIdx = data.id
+    ? memory.employeeLogins.findIndex((l) => l.id === data.id)
+    : -1;
+
+  const existing = existingIdx >= 0 ? memory.employeeLogins[existingIdx] : null;
+
+  const record: EmployeeLoginRecord = {
+    id: existing?.id || id,
+    employeeId: data.employeeId,
+    employeeName: data.employeeName || emp?.personal.fullName || existing?.employeeName || data.employeeId,
+    department: data.department || emp?.employment.department || existing?.department || "Sales",
+    branch: data.branch || emp?.employment.branch || existing?.branch || "Delhi",
+    month: targetMonth,
+    commitment: Number(data.commitment ?? existing?.commitment ?? 0),
+    loginsCount: Number(data.loginsCount ?? existing?.loginsCount ?? 0),
+    submissionDate: data.submissionDate ?? existing?.submissionDate ?? new Date().toISOString().split("T")[0],
+    lastLoginDate: data.lastLoginDate ?? existing?.lastLoginDate ?? new Date().toISOString().split("T")[0],
+    totalDisbursal: banks.length > 0 ? totalDisbursal : Number(data.totalDisbursal ?? existing?.totalDisbursal ?? 0),
+    axisBankDisbursal: banks.length > 0 ? axisBankDisbursal : Number(data.axisBankDisbursal ?? existing?.axisBankDisbursal ?? 0),
+    otherBanksDisbursal: banks.length > 0 ? otherBanksDisbursal : Number(data.otherBanksDisbursal ?? existing?.otherBanksDisbursal ?? 0),
+    banks: banks.length > 0 ? banks : (existing?.banks || []),
+    remarks: data.remarks ?? existing?.remarks ?? "",
+    lastUpdatedAt: new Date().toISOString(),
+    updatedBy: actor.name,
+  };
+
+  if (existingIdx >= 0) {
+    memory.employeeLogins[existingIdx] = record;
+  } else {
+    memory.employeeLogins.unshift(record);
+  }
+
+  saveDocumentToFirestore("employee_logins", record.id, record).catch(() => {});
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "LOGINS_UPDATED",
+    employeeId: record.employeeId,
+    employeeName: record.employeeName,
+    details: `Updated logins record for ${record.month} (Total Disbursal: ₹${record.totalDisbursal.toLocaleString("en-IN")}, Axis: ₹${record.axisBankDisbursal.toLocaleString("en-IN")})`,
+  });
+
+  return record;
+}
+
+export async function calculateAndSyncIncentivesFromLogins(
+  month: string,
+  actor: { name: string; role: string }
+): Promise<EmployeeIncentiveRecord[]> {
+  const employees = await getEmployees();
+  const logins = await getEmployeeLogins(month);
+  const updatedRecords: EmployeeIncentiveRecord[] = [];
+
+  for (const login of logins) {
+    const emp = employees.find(
+      (e) =>
+        e.employeeId === login.employeeId ||
+        e.personal?.fullName?.toLowerCase() === login.employeeName?.toLowerCase()
+    );
+
+    const monthlySalary =
+      emp?.currentSalary?.grossSalary ||
+      emp?.currentSalary?.basic ||
+      emp?.currentSalary?.monthlyCtc ||
+      15000;
+    const breakdown = calculateDisbursalIncentive({
+      monthlySalary,
+      totalDisbursal: login.totalDisbursal,
+      axisBankDisbursal: login.axisBankDisbursal,
+      otherBanksDisbursal: login.otherBanksDisbursal,
+    });
+
+    const existingIdx = memory.employeeIncentives.findIndex(
+      (i) => i.employeeId === login.employeeId && i.month === month && i.schemeId === "scheme-disbursal-slab"
+    );
+
+    const record: EmployeeIncentiveRecord = {
+      id: existingIdx >= 0 ? memory.employeeIncentives[existingIdx].id : `inc-disbursal-${login.employeeId}-${month}`,
+      employeeId: login.employeeId,
+      employeeName: login.employeeName,
+      month,
+      schemeId: "scheme-disbursal-slab",
+      schemeName: "Disbursal Slab Incentive (CreditExpert)",
+      target: login.commitment,
+      achievement: login.totalDisbursal,
+      eligibleAmount: breakdown.remainingDisbursalForSlabs,
+      incentiveAmount: breakdown.totalIncentive,
+      status: "Approved",
+      approvedBy: actor.name,
+      approvedDate: new Date().toISOString().split("T")[0],
+      calculationBreakdown: breakdown,
+      sourceLoginRecordId: login.id,
+    };
+
+    if (existingIdx >= 0) {
+      memory.employeeIncentives[existingIdx] = record;
+    } else {
+      memory.employeeIncentives.unshift(record);
+    }
+
+    saveDocumentToFirestore("incentives", record.id, record).catch(() => {});
+    updatedRecords.push(record);
+  }
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "INCENTIVES_AUTO_CALCULATED",
+    details: `Auto-calculated disbursal incentives for ${updatedRecords.length} employees for ${month}`,
+  });
+
+  return updatedRecords;
+}
 
 // ----------------- ASSETS -----------------
 

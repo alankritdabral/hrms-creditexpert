@@ -20,7 +20,7 @@ import {
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Employee, AttendanceRecord, LeaveRequest, AnnouncementItem, Holiday } from "@/lib/types";
+import { Employee, AttendanceRecord, LeaveRequest, AnnouncementItem, Holiday, EmployeeIncentiveRecord, PayrollRun } from "@/lib/types";
 import {
   acquireDevicePosition,
   GeolocationClientError,
@@ -35,6 +35,8 @@ export function EmployeeDashboard() {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [incentive, setIncentive] = useState<EmployeeIncentiveRecord | null>(null);
+  const [latestPayroll, setLatestPayroll] = useState<PayrollRun | null>(null);
   const [isPunching, setIsPunching] = useState(false);
 
   const today = getISTDateString();
@@ -44,12 +46,14 @@ export function EmployeeDashboard() {
       try {
         const empId = currentUser.employeeId;
         if (!empId) return;
-        const [empRes, attRes, levRes, annRes, holRes] = await Promise.all([
+        const [empRes, attRes, levRes, annRes, holRes, incRes, payRes] = await Promise.all([
           fetch(`/api/employees/${empId}`).then((r) => r.json()),
           fetch(`/api/attendance?date=${today}`).then((r) => r.json()),
           fetch(`/api/leaves?employeeId=${empId}`).then((r) => r.json()),
           fetch("/api/announcements").then((r) => r.json()),
           fetch("/api/holidays").then((r) => r.json()),
+          fetch(`/api/incentives?employeeId=${empId}`).then((r) => r.json()),
+          fetch("/api/payroll").then((r) => r.json()),
         ]);
 
         if (empRes.success) setEmployee(empRes.data);
@@ -65,6 +69,15 @@ export function EmployeeDashboard() {
             (h) => h.branch === "All" || h.branch === empBranch
           );
           setHolidays(filtered);
+        }
+        if (incRes.success && incRes.data?.records) {
+          const myInc = (incRes.data.records as EmployeeIncentiveRecord[]).find(
+            (r) => r.employeeId === empId
+          );
+          setIncentive(myInc || null);
+        }
+        if (payRes.success && payRes.data && payRes.data.length > 0) {
+          setLatestPayroll(payRes.data[0]);
         }
       } catch (e) {
         console.error("Employee dashboard load error:", e);
@@ -145,11 +158,12 @@ export function EmployeeDashboard() {
     .filter((l) => l.leaveType === "Sick Leave")
     .reduce((sum, l) => sum + Number(l.days || 0), 0);
   const totalLeavesTaken = clTaken + slTaken;
+  const myPayrollItem = latestPayroll?.items?.find((i) => i.employeeId === currentUser.employeeId);
 
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Welcome Banner */}
-      <div className="hero-banner flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-6 lg:p-8 rounded-3xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-md shadow-blue-500/15 relative overflow-hidden">
+      <div className="hero-banner flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-md shadow-blue-500/15 relative overflow-hidden">
         <div>
           <div className="flex items-center gap-2">
             <span className="banner-pill px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-semibold backdrop-blur-xs">
@@ -159,18 +173,18 @@ export function EmployeeDashboard() {
               Employee Self-Service • {currentUser.department}
             </span>
           </div>
-          <h1 className="text-2xl lg:text-3xl font-extrabold text-white mt-2 tracking-tight">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mt-2 tracking-tight">
             Welcome back, {currentUser.name}! 👋
           </h1>
-          <p className="text-sm text-blue-100 mt-1 max-w-xl">
+          <p className="text-xs sm:text-sm text-blue-100 mt-1 max-w-xl">
             You are logged into your employee portal. Manage your attendance, leave applications, view payslips,
             and monitor performance incentives.
           </p>
         </div>
 
         {/* Live Attendance Clock-In Widget (Clock-In Only) */}
-        <div className="p-4 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 shadow-lg flex flex-col gap-3 min-w-[280px]">
-          <div className="flex items-center justify-between gap-4">
+        <div className="p-4 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 shadow-lg flex flex-col gap-3 w-full lg:w-auto min-w-0 sm:min-w-[280px]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div>
               <div className="text-[11px] text-blue-100 font-semibold uppercase tracking-wider">Today&apos;s Attendance</div>
               <div className="text-sm font-bold text-white mt-0.5">
@@ -185,19 +199,19 @@ export function EmployeeDashboard() {
               </div>
             </div>
 
-            <div>
+            <div className="w-full sm:w-auto">
               {!hasCheckedIn ? (
                 <button
                   onClick={handleClockIn}
                   disabled={isPunching}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-blue-700 hover:bg-blue-50 shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+                  className="w-full sm:w-auto justify-center px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-blue-700 hover:bg-blue-50 shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-wait"
                 >
-                  <MapPin className="w-4 h-4 text-blue-600 animate-pulse" />
+                  <MapPin className="w-4 h-4 text-blue-600 animate-pulse shrink-0" />
                   {isPunching ? "Verifying..." : "Clock In"}
                 </button>
               ) : (
-                <span className="py-2 px-3 rounded-xl text-xs font-bold bg-emerald-500/30 text-emerald-100 border border-emerald-400/50 flex items-center gap-1.5 shadow-xs font-mono">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                <span className="w-full sm:w-auto justify-center py-2 px-3 rounded-xl text-xs font-bold bg-emerald-500/30 text-emerald-100 border border-emerald-400/50 flex items-center gap-1.5 shadow-xs font-mono">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
                   Clocked In: {formatISTTime12(todayAttendance.checkIn)} IST ({todayAttendance.status})
                 </span>
               )}
@@ -274,11 +288,19 @@ export function EmployeeDashboard() {
           icon={<Calendar className="w-5 h-5" />}
         />
         <StatCard
-          title="October Incentive"
-          value="₹8,000"
-          subtitle="Customer Success Scheme"
-          change="Approved & Included"
-          trend="up"
+          title="Monthly Incentive"
+          value={
+            incentive
+              ? `₹${incentive.incentiveAmount.toLocaleString("en-IN")}`
+              : "₹0"
+          }
+          subtitle={
+            incentive
+              ? `₹${(incentive.achievement / 100000).toFixed(1)}L Disbursal (${incentive.status})`
+              : "Disbursal Linked Engine"
+          }
+          change={incentive ? `Status: ${incentive.status}` : "CreditExpert Scheme"}
+          trend={incentive && incentive.incentiveAmount > 0 ? "up" : "neutral"}
           color="emerald"
           icon={<Award className="w-5 h-5" />}
         />
@@ -318,29 +340,57 @@ export function EmployeeDashboard() {
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-900 text-base">Latest Payslip</h3>
-            <Badge variant="success">Paid</Badge>
+            <Badge variant={latestPayroll?.status === "PAID" ? "success" : "indigo"}>
+              {latestPayroll?.status || "PENDING"}
+            </Badge>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5 text-xs">
             <div className="flex justify-between">
               <span className="text-slate-500">Pay Period</span>
-              <span className="font-semibold text-slate-900">October 2026</span>
+              <span className="font-semibold text-slate-900">
+                {latestPayroll?.periodLabel || "Current Month"}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Basic + HRA</span>
-              <span className="text-slate-700 font-medium">₹31,575</span>
+              <span className="text-slate-700 font-medium">
+                {myPayrollItem
+                  ? `₹${((myPayrollItem.basic || 0) + (myPayrollItem.hra || 0)).toLocaleString("en-IN")}`
+                  : employee?.currentSalary
+                  ? `₹${((employee.currentSalary.basic || 0) + (employee.currentSalary.hra || 0)).toLocaleString("en-IN")}`
+                  : "—"}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Incentive / Bonus</span>
-              <span className="text-emerald-600 font-semibold">+₹8,000</span>
+              <span className="text-emerald-600 font-semibold">
+                +{myPayrollItem
+                  ? `₹${(myPayrollItem.incentive || 0).toLocaleString("en-IN")}`
+                  : incentive
+                  ? `₹${incentive.incentiveAmount.toLocaleString("en-IN")}`
+                  : "₹0"}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Statutory PF & PT</span>
-              <span className="text-rose-600 font-semibold">-₹2,000</span>
+              <span className="text-rose-600 font-semibold">
+                -{myPayrollItem
+                  ? `₹${((myPayrollItem.employeePf || 0) + (myPayrollItem.professionalTax || 0)).toLocaleString("en-IN")}`
+                  : employee?.currentSalary
+                  ? `₹${((employee.currentSalary.employeePf || 0) + (employee.currentSalary.professionalTax || 0)).toLocaleString("en-IN")}`
+                  : "₹0"}
+              </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-slate-200 font-semibold">
               <span className="text-slate-900">Net Take-Home Pay</span>
-              <span className="text-emerald-600 font-bold text-sm">₹42,500</span>
+              <span className="text-emerald-600 font-bold text-sm">
+                {myPayrollItem
+                  ? `₹${myPayrollItem.netSalary.toLocaleString("en-IN")}`
+                  : employee?.currentSalary?.netSalary
+                  ? `₹${employee.currentSalary.netSalary.toLocaleString("en-IN")}`
+                  : "—"}
+              </span>
             </div>
           </div>
 

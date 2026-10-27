@@ -186,14 +186,14 @@ export default function RequestsPage() {
             </div>
 
             {canResolve && r.status === "Pending" && (
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0 w-full md:w-auto">
                 <Button
                   size="sm"
                   onClick={() => {
                     setResolvingItem(r);
                     setResolutionStatus("Approved");
                   }}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-500"
+                  className="flex-1 sm:flex-none text-xs bg-emerald-600 hover:bg-emerald-500 justify-center"
                 >
                   Resolve / Approve
                 </Button>
@@ -204,7 +204,7 @@ export default function RequestsPage() {
                     setResolvingItem(r);
                     setResolutionStatus("Rejected");
                   }}
-                  className="text-xs"
+                  className="flex-1 sm:flex-none text-xs justify-center"
                 >
                   Reject
                 </Button>
@@ -271,16 +271,17 @@ export default function RequestsPage() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setIsNewModalOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isSubmitting}>
+            <Button type="submit" size="sm" isLoading={isSubmitting} className="w-full sm:w-auto">
               Submit Request
             </Button>
           </div>
@@ -323,16 +324,17 @@ export default function RequestsPage() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setResolvingItem(null)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isResolving}>
+            <Button type="submit" size="sm" isLoading={isResolving} className="w-full sm:w-auto">
               Save Resolution
             </Button>
           </div>

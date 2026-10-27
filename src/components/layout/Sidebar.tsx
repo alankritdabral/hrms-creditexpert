@@ -15,6 +15,7 @@ import {
   Calendar,
   CircleDollarSign,
   Award,
+  TrendingUp,
   FileSpreadsheet,
   FolderLock,
   Laptop,
@@ -28,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { UserRole } from "@/lib/types";
+import { useNotifications } from "@/lib/notifications-context";
 
 interface NavItem {
   name: string;
@@ -42,6 +44,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { currentUser } = useAuth();
   const { isOpen, closeSidebar } = useSidebar();
+  const { counts } = useNotifications();
 
   const navItems: NavItem[] = [
     {
@@ -63,14 +66,15 @@ export function Sidebar() {
       href: "/employees",
       icon: <Users className="w-4 h-4" />,
       allowedRoles: ["admin", "hr"],
-      badge: "5",
+      badge: counts.employees > 0 ? `${counts.employees}` : undefined,
+      badgeColor: "bg-slate-100 text-slate-700 border border-slate-200",
     },
     {
       name: "Onboarding",
       href: "/onboarding",
       icon: <UserCheck className="w-4 h-4" />,
       allowedRoles: ["admin", "hr"],
-      badge: "3 Active",
+      badge: counts.activeOnboarding > 0 ? `${counts.activeOnboarding} Active` : undefined,
       badgeColor: "bg-indigo-50 text-indigo-700 border border-indigo-200",
     },
     {
@@ -84,7 +88,7 @@ export function Sidebar() {
       href: "/leaves",
       icon: <CalendarDays className="w-4 h-4" />,
       allowedRoles: ["admin", "hr", "employee"],
-      badge: "1 Pending",
+      badge: counts.pendingLeaves > 0 ? `${counts.pendingLeaves} Pending` : undefined,
       badgeColor: "bg-amber-50 text-amber-700 border border-amber-200",
     },
     {
@@ -92,22 +96,28 @@ export function Sidebar() {
       href: "/holidays",
       icon: <Calendar className="w-4 h-4" />,
       allowedRoles: ["admin", "hr", "employee"],
-      badge: "Branches",
-      badgeColor: "bg-sky-50 text-sky-700 border border-sky-200",
     },
     {
       name: "Payroll Engine",
       href: "/payroll",
       icon: <CircleDollarSign className="w-4 h-4" />,
       allowedRoles: ["admin", "hr"],
-      badge: "Review",
+      badge: counts.payrollReview ? (counts.payrollStatus || "Review") : undefined,
       badgeColor: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    },
+    {
+      name: "Logins & Disbursals",
+      href: "/logins",
+      icon: <TrendingUp className="w-4 h-4" />,
+      allowedRoles: ["admin", "hr", "employee"],
+      badge: counts.loginsCount > 0 ? `${counts.loginsCount} Files` : undefined,
+      badgeColor: "bg-blue-50 text-blue-700 border border-blue-200",
     },
     {
       name: "Incentives",
       href: "/incentives",
       icon: <Award className="w-4 h-4" />,
-      allowedRoles: ["admin", "hr"],
+      allowedRoles: ["admin", "hr", "employee"],
     },
     {
       name: "Payslips",
@@ -120,7 +130,7 @@ export function Sidebar() {
       href: "/documents",
       icon: <FolderLock className="w-4 h-4" />,
       allowedRoles: ["admin", "hr"],
-      badge: "Alert",
+      badge: counts.expiringDocs > 0 ? `${counts.expiringDocs} Alert` : undefined,
       badgeColor: "bg-rose-50 text-rose-700 border border-rose-200",
     },
     {
@@ -134,12 +144,16 @@ export function Sidebar() {
       href: "/requests",
       icon: <HelpCircle className="w-4 h-4" />,
       allowedRoles: ["admin", "hr", "employee"],
+      badge: counts.pendingRequests > 0 ? `${counts.pendingRequests} Pending` : undefined,
+      badgeColor: "bg-amber-50 text-amber-700 border border-amber-200",
     },
     {
       name: "Announcements",
       href: "/announcements",
       icon: <Megaphone className="w-4 h-4" />,
       allowedRoles: ["admin", "hr", "employee"],
+      badge: counts.announcements > 0 ? `${counts.announcements} Active` : undefined,
+      badgeColor: "bg-sky-50 text-sky-700 border border-sky-200",
     },
     {
       name: "Reports & Analytics",

@@ -17,6 +17,8 @@ export type Permission =
   | "salary:manage"
   | "incentives:view_all"
   | "incentives:manage"
+  | "logins:view_all"
+  | "logins:manage"
   | "assets:view_all"
   | "assets:manage"
   | "documents:view_all"
@@ -58,6 +60,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "salary:manage",
     "incentives:view_all",
     "incentives:manage",
+    "logins:view_all",
+    "logins:manage",
     "assets:view_all",
     "assets:manage",
     "documents:view_all",
@@ -90,6 +94,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "salary:manage",
     "incentives:view_all",
     "incentives:manage",
+    "logins:view_all",
+    "logins:manage",
     "assets:view_all",
     "assets:manage",
     "documents:view_all",
@@ -106,6 +112,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
   employee: [
     "holidays:view",
+    "logins:view_all",
+    "logins:manage",
+    "incentives:view_all",
   ],
 };
 

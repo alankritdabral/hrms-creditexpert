@@ -269,7 +269,7 @@ export default function HolidaysPage() {
       {/* Filter and Branch Tab Bar */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
         {/* Branch Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full md:w-auto pb-1 md:pb-0">
           <button
             onClick={() => setSelectedBranch("All")}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
@@ -416,7 +416,7 @@ export default function HolidaysPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Holiday Date *</label>
               <input
@@ -476,16 +476,17 @@ export default function HolidaysPage() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setIsModalOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isSubmitting}>
+            <Button type="submit" size="sm" isLoading={isSubmitting} className="w-full sm:w-auto">
               {editingHoliday ? "Update Holiday" : "Publish Holiday"}
             </Button>
           </div>

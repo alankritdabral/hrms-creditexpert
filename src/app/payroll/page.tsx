@@ -179,7 +179,7 @@ export default function PayrollPage() {
       </div>
 
       {/* Runs Selector Tab Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-800">
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 border-b border-slate-800 -mx-3 px-3 sm:mx-0 sm:px-0">
         {runs.map((r) => {
           const isSelected = selectedRun?.id === r.id;
           return (
@@ -240,7 +240,7 @@ export default function PayrollPage() {
             </div>
 
             {/* Visual Stepper Track */}
-            <div className="relative overflow-x-auto pb-2">
+            <div className="relative overflow-x-auto no-scrollbar pb-2 -mx-3 px-3 sm:mx-0 sm:px-0">
               <div className="flex items-center justify-between min-w-[700px]">
                 {lifecycleStages.map((stage, idx) => {
                   const isDone = idx < currentStageIndex;
@@ -339,8 +339,8 @@ export default function PayrollPage() {
               <Badge variant="indigo">{selectedRun.items.length} Employees</Badge>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <table className="w-full text-left text-xs min-w-[760px]">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400">
                     <th className="pb-3 font-medium">Employee</th>
@@ -475,8 +475,8 @@ export default function PayrollPage() {
         {activePayslipItem && (
           <div className="space-y-6 text-xs text-slate-200">
             {/* Header info */}
-            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-3">
                   <div className="relative h-10 w-auto flex items-center bg-[#0a2540] px-2 py-1 rounded-lg border border-[#87bfff]/20">
                     <Image
@@ -535,7 +535,7 @@ export default function PayrollPage() {
             </div>
 
             {/* Earnings & Deductions Split */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Earnings */}
               <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
                 <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block border-b border-slate-800 pb-1.5">
@@ -608,7 +608,7 @@ export default function PayrollPage() {
             </div>
 
             {/* Net Salary in Words */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 flex items-center justify-between">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
                   Net Salary Payable
@@ -627,16 +627,17 @@ export default function PayrollPage() {
             </div>
 
             {/* Payslip Modal Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5 pt-3 border-t border-slate-800">
               <Button
                 variant="outline"
                 size="sm"
                 icon={<Printer className="w-4 h-4" />}
                 onClick={() => window.print()}
+                className="w-full sm:w-auto justify-center"
               >
                 Print / Save PDF
               </Button>
-              <Button size="sm" onClick={() => setActivePayslipItem(null)}>
+              <Button size="sm" onClick={() => setActivePayslipItem(null)} className="w-full sm:w-auto justify-center">
                 Close
               </Button>
             </div>

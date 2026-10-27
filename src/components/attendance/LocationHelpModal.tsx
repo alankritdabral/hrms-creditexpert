@@ -123,11 +123,11 @@ export function LocationHelpModal({
         )}
 
         {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-xs font-medium">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-xs font-medium overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab("android")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 ${
               activeTab === "android"
                 ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs font-semibold"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -140,7 +140,7 @@ export function LocationHelpModal({
           <button
             type="button"
             onClick={() => setActiveTab("ios")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 ${
               activeTab === "ios"
                 ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs font-semibold"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -153,7 +153,7 @@ export function LocationHelpModal({
           <button
             type="button"
             onClick={() => setActiveTab("http")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 ${
               activeTab === "http"
                 ? "bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs font-semibold"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -166,7 +166,7 @@ export function LocationHelpModal({
           <button
             type="button"
             onClick={() => setActiveTab("diagnostics")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 ${
               activeTab === "diagnostics"
                 ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-xs font-semibold"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"

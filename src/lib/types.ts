@@ -287,6 +287,61 @@ export interface IncentiveScheme {
   active: boolean;
 }
 
+export interface CustomerDisbursalEntry {
+  id: string;
+  customerName: string;
+  amount: number;
+  status: "Disbursed" | "Sanctioned" | "In Process" | "Rejected";
+  remarks?: string;
+  date: string; // YYYY-MM-DD
+}
+
+export interface BankDisbursalBreakdown {
+  id: string;
+  bankName: string;
+  isAxisBank: boolean;
+  totalAmount: number;
+  customers: CustomerDisbursalEntry[];
+}
+
+export interface EmployeeLoginRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  department?: string;
+  branch?: Branch;
+  month: string; // "YYYY-MM"
+  commitment: number;
+  loginsCount: number;
+  submissionDate?: string; // YYYY-MM-DD
+  lastLoginDate?: string; // YYYY-MM-DD
+  totalDisbursal: number;
+  axisBankDisbursal: number;
+  otherBanksDisbursal: number;
+  banks: BankDisbursalBreakdown[];
+  remarks?: string;
+  lastUpdatedAt: string;
+  updatedBy?: string;
+}
+
+export interface IncentiveCalculationBreakdown {
+  monthlySalary: number;
+  salaryHurdle: number; // Monthly salary * 100
+  totalDisbursal: number;
+  isEligible: boolean; // totalIncentive > 0
+  totalAxisDisbursal: number;
+  eligibleAxisDisbursal: number; // Disbursal from Axis Bank (exempt from salary deduction)
+  axisRatePerLakh: number; // 200 rs per 1,00,000
+  axisIncentive: number;
+  otherBanksDisbursal: number; // Disbursal from other banks apart from Axis Bank
+  disbursalAfterSalary: number; // max(0, otherBanksDisbursal - salaryHurdle)
+  remainingDisbursalForSlabs: number; // other banks disbursal submitted to slabs
+  slabBracket: string; // "< 15L", "15L - 26L", "26L - 36L", "36L - 56L", "> 56L"
+  slabRatePerLakh: number; // 0, 200, 300, 400, 500
+  slabIncentive: number;
+  totalIncentive: number; // axisIncentive + slabIncentive
+}
+
 export interface EmployeeIncentiveRecord {
   id: string;
   employeeId: string;
@@ -302,6 +357,8 @@ export interface EmployeeIncentiveRecord {
   approvedBy?: string;
   approvedDate?: string;
   payrollRunId?: string;
+  calculationBreakdown?: IncentiveCalculationBreakdown;
+  sourceLoginRecordId?: string;
 }
 
 export interface PayrollItemSnapshot {

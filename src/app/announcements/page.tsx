@@ -100,7 +100,7 @@ export default function AnnouncementsPage() {
         {announcements.map((ann) => (
           <div
             key={ann.id}
-            className={`glass-card rounded-2xl p-6 border transition-all ${
+            className={`glass-card rounded-2xl p-4 sm:p-6 border transition-all ${
               ann.priority === "High"
                 ? "border-amber-500/30 bg-gradient-to-r from-amber-500/5 via-slate-900 to-slate-900"
                 : "border-slate-800"
@@ -151,7 +151,7 @@ export default function AnnouncementsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">
                 Target Audience *
@@ -195,16 +195,17 @@ export default function AnnouncementsPage() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setIsModalOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isSubmitting}>
+            <Button type="submit" size="sm" isLoading={isSubmitting} className="w-full sm:w-auto">
               Broadcast Notice
             </Button>
           </div>

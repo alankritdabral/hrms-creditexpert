@@ -436,9 +436,9 @@ export default function AttendancePage() {
       </div>
 
       {/* Date Picker Filter Bar */}
-      <div className="glass-card rounded-2xl p-4 border border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Calendar className="w-4 h-4 text-indigo-400" />
+      <div className="glass-card rounded-2xl p-4 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
           <span className="text-xs font-medium text-slate-300">View Logs for Date:</span>
           <input
             type="date"
@@ -452,8 +452,8 @@ export default function AttendancePage() {
 
       {/* Attendance Table */}
       <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <table className="w-full text-left text-xs min-w-[750px]">
             <thead>
               <tr className="border-b border-slate-800 text-slate-400">
                 <th className="pb-3 font-medium">Employee</th>
@@ -601,16 +601,17 @@ export default function AttendancePage() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setEditingRecord(null)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isAdjusting}>
+            <Button type="submit" size="sm" isLoading={isAdjusting} className="w-full sm:w-auto">
               Save Adjustment
             </Button>
           </div>
@@ -626,7 +627,7 @@ export default function AttendancePage() {
         maxWidth="md"
       >
         <form onSubmit={handleSavePolicy} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">
                 Office Start Time
@@ -653,7 +654,7 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">
                 Grace Period (Minutes)
@@ -678,16 +679,17 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setIsPolicyModalOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isSavingPolicy}>
+            <Button type="submit" size="sm" isLoading={isSavingPolicy} className="w-full sm:w-auto">
               Update Policy
             </Button>
           </div>

@@ -38,14 +38,21 @@ export default function DocumentsPage() {
 
   const loadData = async () => {
     try {
-      const empRes = await fetch("/api/employees").then((r) => r.json());
+      const [empRes, docRes] = await Promise.all([
+        fetch("/api/employees").then((r) => r.json()),
+        fetch("/api/documents").then((r) => r.json()),
+      ]);
 
       if (empRes.success && empRes.data) {
         setEmployees(empRes.data);
         if (empRes.data.length > 0) setSelectedEmployeeId(empRes.data[0].employeeId);
       }
 
-      setDocuments([]);
+      if (docRes.success && Array.isArray(docRes.data)) {
+        setDocuments(docRes.data);
+      } else {
+        setDocuments([]);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -311,16 +318,17 @@ export default function DocumentsPage() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setIsModalOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isUploading}>
+            <Button type="submit" size="sm" isLoading={isUploading} className="w-full sm:w-auto">
               Upload Document
             </Button>
           </div>

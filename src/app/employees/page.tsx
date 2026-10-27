@@ -104,14 +104,14 @@ export default function EmployeesPage() {
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Filter className="w-3.5 h-3.5" />
-            <span>Dept:</span>
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-500 flex-1 sm:flex-none">
+            <Filter className="w-3.5 h-3.5 shrink-0" />
+            <span className="shrink-0">Dept:</span>
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
             >
               <option value="All">All Departments</option>
               {departments.map((d) => (
@@ -122,13 +122,13 @@ export default function EmployeesPage() {
             </select>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <MapPin className="w-3.5 h-3.5 text-slate-400" />
-            <span>Branch:</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-500 flex-1 sm:flex-none">
+            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="shrink-0">Branch:</span>
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
             >
               <option value="All">All Branches</option>
               {BRANCHES.map((b) => (
@@ -139,12 +139,12 @@ export default function EmployeesPage() {
             </select>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span>Status:</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-500 flex-1 sm:flex-none">
+            <span className="shrink-0">Status:</span>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
             >
               <option value="All">All Statuses</option>
               <option value="Active">Active</option>

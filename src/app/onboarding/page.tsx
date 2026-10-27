@@ -507,7 +507,7 @@ export default function OnboardingPage() {
               return (
                 <div
                   key={record.id}
-                  className="p-5 hover:bg-slate-50/60 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                  className="p-4 sm:p-5 hover:bg-slate-50/60 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4"
                 >
                   {/* Left: Identity & Info */}
                   <div className="flex items-start gap-4 min-w-[280px]">
@@ -612,7 +612,7 @@ export default function OnboardingPage() {
                   </div>
 
                   {/* Right: Actions */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 w-full lg:w-auto">
                     <button
                       onClick={() => {
                         setActiveChecklistRecord(record);
@@ -676,10 +676,10 @@ export default function OnboardingPage() {
 
       {/* MODAL 1: Interactive Checklist Drawer / Modal */}
       {activeChecklistRecord && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-3xl w-full border border-slate-200 shadow-xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-3xl w-full border border-slate-200 shadow-xl overflow-hidden my-auto max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] flex flex-col">
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between">
+            <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between shrink-0">
               <div className="space-y-1.5 flex-1 pr-4">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full">
@@ -756,7 +756,7 @@ export default function OnboardingPage() {
             </div>
 
             {/* Checklist Progress Overview Banner */}
-            <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-white border-b border-slate-100 flex items-center justify-between gap-3 sm:gap-4 flex-wrap shrink-0">
               <div className="flex-1 min-w-[200px]">
                 {(() => {
                   const modalCompleted = activeChecklistRecord.checklist ? activeChecklistRecord.checklist.filter((i) => i.completed).length : 0;
@@ -799,7 +799,7 @@ export default function OnboardingPage() {
             </div>
 
             {/* Candidate Profile Details Snapshot Card */}
-            <div className="mx-6 mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="mx-4 sm:mx-6 mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
                   Employee Number / ID
@@ -861,7 +861,7 @@ export default function OnboardingPage() {
 
             {/* Candidate Submitted KYC Documents & Details Review */}
             {activeChecklistRecord.kycDocuments && activeChecklistRecord.kycDocuments.length > 0 && (
-              <div className="mx-6 mt-4 p-4 rounded-xl bg-indigo-50/60 border border-indigo-200/80 space-y-3">
+              <div className="mx-4 sm:mx-6 mt-4 p-4 rounded-xl bg-indigo-50/60 border border-indigo-200/80 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
                     <FileText className="w-4 h-4 text-indigo-600" />
@@ -927,7 +927,7 @@ export default function OnboardingPage() {
             )}
 
             {/* Category Filter Tabs */}
-            <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
+            <div className="px-4 sm:px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
               {[
                 { id: "all", label: `All Items (${activeChecklistRecord.checklist.length})` },
                 { id: "statutory", label: `Statutory & Bank (${activeChecklistRecord.checklist.filter((i) => i.category === "statutory").length})` },
@@ -950,7 +950,7 @@ export default function OnboardingPage() {
             </div>
 
             {/* Checklist Items Scrollable Body */}
-            <div className="p-6 overflow-y-auto space-y-3 flex-1">
+            <div className="p-4 sm:p-6 overflow-y-auto overscroll-contain space-y-3 flex-1">
               {activeChecklistRecord.checklist
                 .filter((item) => selectedCategory === "all" || item.category === selectedCategory)
                 .map((item, index) => (
@@ -1068,13 +1068,13 @@ export default function OnboardingPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
               <span className="text-xs text-slate-500">
                 All checklist mutations are strictly recorded in the HRMS immutable audit ledger.
               </span>
               <button
                 onClick={() => setActiveChecklistRecord(null)}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-center"
               >
                 Done
               </button>
@@ -1085,9 +1085,9 @@ export default function OnboardingPage() {
 
       {/* MODAL 2: New Candidate Onboarding Initiation */}
       {isNewModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-xl overflow-hidden my-8">
-            <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-xl overflow-hidden my-auto max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] flex flex-col">
+            <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Initiate Candidate Onboarding</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -1102,7 +1102,7 @@ export default function OnboardingPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateOnboarding} className="p-6 space-y-4">
+            <form onSubmit={handleCreateOnboarding} className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto overscroll-contain">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Candidate Full Name *
@@ -1224,18 +1224,18 @@ export default function OnboardingPage() {
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsNewModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="w-full sm:w-auto justify-center px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="w-full sm:w-auto justify-center px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   {submitting ? "Initializing..." : "Initialize Checklist"}

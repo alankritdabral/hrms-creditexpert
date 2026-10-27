@@ -171,8 +171,8 @@ export default function PayslipsPage() {
         {activeItem && (
           <div className="space-y-6 text-xs text-slate-800">
             {/* Header info */}
-            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
                 <div className="flex items-center gap-3">
                   <div className="relative h-10 w-auto flex items-center bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
                     <Image
@@ -335,16 +335,17 @@ export default function PayslipsPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5 pt-3 border-t border-slate-200">
               <Button
                 variant="outline"
                 size="sm"
                 icon={<Printer className="w-4 h-4" />}
                 onClick={() => window.print()}
+                className="w-full sm:w-auto justify-center"
               >
                 Print / Save PDF
               </Button>
-              <Button size="sm" onClick={() => setActiveItem(null)}>
+              <Button size="sm" onClick={() => setActiveItem(null)} className="w-full sm:w-auto justify-center">
                 Close
               </Button>
             </div>

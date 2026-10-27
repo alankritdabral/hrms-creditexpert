@@ -15,13 +15,47 @@ import {
   LogOut,
   MapPin,
   Menu,
+  Calendar,
+  HelpCircle,
+  CircleDollarSign,
+  UserCheck,
+  TrendingUp,
+  Megaphone,
+  CheckCheck,
 } from "lucide-react";
 
 import { getISTLiveTimeWithSeconds } from "@/lib/attendance/ist-time";
+import { useNotifications, NotificationItem } from "@/lib/notifications-context";
+
+function getNotificationIcon(type: NotificationItem["type"]) {
+  switch (type) {
+    case "attendance":
+      return <Clock className="w-4 h-4 text-amber-600" />;
+    case "leave":
+      return <CalendarCheck className="w-4 h-4 text-emerald-600" />;
+    case "request":
+      return <HelpCircle className="w-4 h-4 text-blue-600" />;
+    case "payroll":
+      return <CircleDollarSign className="w-4 h-4 text-indigo-600" />;
+    case "document":
+      return <AlertTriangle className="w-4 h-4 text-rose-600" />;
+    case "onboarding":
+      return <UserCheck className="w-4 h-4 text-purple-600" />;
+    case "login":
+      return <TrendingUp className="w-4 h-4 text-blue-600" />;
+    case "announcement":
+      return <Megaphone className="w-4 h-4 text-sky-600" />;
+    case "holiday":
+      return <Calendar className="w-4 h-4 text-teal-600" />;
+    default:
+      return <Bell className="w-4 h-4 text-slate-500" />;
+  }
+}
 
 export function Header() {
   const { currentUser, logout } = useAuth();
   const { toggleSidebar } = useSidebar();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [time, setTime] = useState<string>("");
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -33,32 +67,6 @@ export function Header() {
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  const notifications: Array<{
-    id: string;
-    icon: React.ReactNode;
-    title: string;
-    desc: string;
-    time: string;
-    urgent?: boolean;
-  }> = [
-    {
-      id: "notif-1",
-      icon: <Clock className="w-4 h-4 text-blue-600" />,
-      title: "Daily Attendance Clock-In",
-      desc: "Ensure you clock in within your designated branch geofence boundary.",
-      time: "Today",
-      urgent: false,
-    },
-    {
-      id: "notif-2",
-      icon: <CalendarCheck className="w-4 h-4 text-emerald-600" />,
-      title: "Branch Holiday Calendar 2026",
-      desc: "View published official holidays for Delhi, Dehradun & Rudrapur.",
-      time: "Notice",
-      urgent: false,
-    },
-  ];
 
   const roleStyles = {
     admin: { label: "ADMIN", color: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -124,8 +132,10 @@ export function Header() {
             className="relative p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
           >
             <Bell className="w-4 h-4" />
-            {notifications.length > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
             )}
           </button>
 
@@ -135,35 +145,67 @@ export function Header() {
                 className="fixed inset-0 z-40"
                 onClick={() => setShowNotifications(false)}
               />
-              <div className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl bg-white border border-slate-200 shadow-xl z-50 p-3 space-y-2">
+              <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-xs sm:w-80 rounded-2xl bg-white border border-slate-200 shadow-xl z-50 p-3 space-y-2 animate-fadeIn">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 px-1">
-                  <span className="text-xs font-semibold text-slate-800">
-                    Notifications & Alerts
-                  </span>
-                  <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-medium border border-blue-200">
-                    {notifications.length} New
-                  </span>
-                </div>
-                <div className="space-y-1.5 max-h-80 overflow-y-auto">
-                  {notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      className={`p-2.5 rounded-xl border text-xs flex gap-3 transition-colors ${
-                        n.urgent
-                          ? "bg-amber-50/60 border-amber-200 hover:bg-amber-50"
-                          : "bg-slate-50 border-slate-100 hover:bg-blue-50/60"
-                      }`}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-slate-800">
+                      Notifications & Alerts
+                    </span>
+                    {unreadCount > 0 && (
+                      <span className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded-full font-bold border border-blue-200">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={markAllAsRead}
+                      className="text-[10px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 cursor-pointer"
                     >
-                      <div className="mt-0.5 shrink-0">{n.icon}</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-slate-800">{n.title}</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                          {n.desc}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
-                      </div>
+                      <CheckCheck className="w-3 h-3" />
+                      Mark read
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 max-h-80 overflow-y-auto pr-0.5">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-6 text-slate-400 text-xs">
+                      No notifications. You&apos;re all caught up!
                     </div>
-                  ))}
+                  ) : (
+                    notifications.map((n) => (
+                      <Link
+                        key={n.id}
+                        href={n.href}
+                        onClick={() => {
+                          markAsRead(n.id);
+                          setShowNotifications(false);
+                        }}
+                        className={`p-2.5 rounded-xl border text-xs flex gap-2.5 transition-all cursor-pointer block ${
+                          n.urgent
+                            ? "bg-amber-50/50 border-amber-200 hover:border-amber-300 hover:bg-amber-50"
+                            : "bg-slate-50/70 border-slate-150 hover:bg-blue-50/60 hover:border-blue-200"
+                        }`}
+                      >
+                        <div className="mt-0.5 shrink-0 p-1.5 rounded-lg bg-white shadow-2xs border border-slate-100">
+                          {getNotificationIcon(n.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="font-semibold text-slate-800 truncate">{n.title}</p>
+                            <span className="text-[9px] text-slate-400 font-medium shrink-0">
+                              {n.time}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed line-clamp-2">
+                            {n.desc}
+                          </p>
+                        </div>
+                      </Link>
+                    ))
+                  )}
                 </div>
               </div>
             </>

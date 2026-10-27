@@ -295,7 +295,7 @@ export default function AssetsPage() {
         maxWidth="md"
       >
         <form onSubmit={handleAddSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Asset Tag *</label>
               <input
@@ -377,16 +377,17 @@ export default function AssetsPage() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setIsAddModalOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isAdding}>
+            <Button type="submit" size="sm" isLoading={isAdding} className="w-full sm:w-auto">
               Save Asset
             </Button>
           </div>
@@ -436,16 +437,17 @@ export default function AssetsPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => setEditingAsset(null)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" isLoading={isUpdating}>
+            <Button type="submit" size="sm" isLoading={isUpdating} className="w-full sm:w-auto">
               Save Changes
             </Button>
           </div>

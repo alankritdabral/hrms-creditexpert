@@ -177,7 +177,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Report Category Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto no-scrollbar -mx-3 px-3 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveReportTab("headcount")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
@@ -245,8 +245,8 @@ export default function ReportsPage() {
                 <Badge variant="indigo">{employees.length} Total Headcount</Badge>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                <table className="w-full text-left text-xs min-w-[650px]">
                   <thead>
                     <tr className="border-b border-slate-800 text-slate-400">
                       <th className="pb-3 font-medium">Employee</th>
@@ -321,8 +321,8 @@ export default function ReportsPage() {
 
           <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
             <h3 className="font-semibold text-white text-base">Statutory Compliance & Remittance Sheet</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <table className="w-full text-left text-xs min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400">
                     <th className="pb-3 font-medium">Employee</th>
@@ -363,8 +363,8 @@ export default function ReportsPage() {
             <span className="text-xs text-slate-400">Grace period: 15 mins (Cutoff 10:15 AM)</span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <table className="w-full text-left text-xs min-w-[720px]">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400">
                   <th className="pb-3 font-medium">Employee</th>

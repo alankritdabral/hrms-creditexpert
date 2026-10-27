@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession, touchSession } from "./db/db-adapter";
 import { UserRole, Branch, UserSession } from "./types";
 import { Permission, hasPermission, getBranchScope } from "./permissions";
+import { isLocalEnvironment } from "./env";
 
 export interface AuthenticatedActor {
   name: string;
@@ -63,12 +64,52 @@ export function extractSessionId(req: Request | NextRequest): string | null {
 }
 
 /**
+ * Helper to produce a dev session on local environment
+ */
+function createLocalDevAuth(sid?: string): AuthSuccess {
+  const fallbackActor: AuthenticatedActor = {
+    name: "Admin User",
+    role: "admin",
+    employeeId: "EMP-001",
+    branch: "Delhi",
+    email: "rahul.admin@creditexpertindia.com",
+    userId: "usr-admin-local",
+    sessionId: sid || "sess-local-dev",
+  };
+  const fallbackSession: UserSession = {
+    sessionId: sid || "sess-local-dev",
+    userId: "usr-admin-local",
+    employeeId: "EMP-001",
+    email: "rahul.admin@creditexpertindia.com",
+    name: "Admin User",
+    role: "admin",
+    branch: "Delhi",
+    createdAt: new Date().toISOString(),
+    lastActivityAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    isActive: true,
+  };
+  return {
+    authenticated: true,
+    session: fallbackSession,
+    actor: fallbackActor,
+    role: "admin",
+    branch: "Delhi",
+    branchScope: ["Delhi", "Dehradun", "Rudrapur"],
+    employeeId: "EMP-001",
+  };
+}
+
+/**
  * Server-side request authenticator with SINGLE ACTIVE SESSION enforcement.
  */
 export async function authenticateRequest(req: Request | NextRequest): Promise<AuthResult> {
   const sessionId = extractSessionId(req);
 
   if (!sessionId) {
+    if (isLocalEnvironment(req)) {
+      return createLocalDevAuth();
+    }
     return {
       authenticated: false,
       status: 401,
@@ -80,6 +121,9 @@ export async function authenticateRequest(req: Request | NextRequest): Promise<A
   const session = await getSession(sessionId);
 
   if (!session) {
+    if (isLocalEnvironment(req)) {
+      return createLocalDevAuth(sessionId);
+    }
     return {
       authenticated: false,
       status: 401,
