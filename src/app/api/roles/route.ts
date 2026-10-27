@@ -16,35 +16,45 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [roles, users] = await Promise.all([
-      getCustomRoles(),
-      getAllUserAccounts(),
-    ]);
+    const roles = await getCustomRoles().catch((err) => {
+      console.warn("getCustomRoles fallback warning:", err);
+      return [];
+    });
+    const users = await getAllUserAccounts().catch((err) => {
+      console.warn("getAllUserAccounts fallback warning:", err);
+      return [];
+    });
 
     // Map user accounts with clean display properties
-    const userSummaries = users.map((u) => {
-      const assignedRole = roles.find(
-        (r) => r.id.toLowerCase() === (u.role || "employee").toLowerCase()
+    const safeRoles = Array.isArray(roles) ? roles : [];
+    const safeUsers = Array.isArray(users) ? users : [];
+
+    const userSummaries = safeUsers.map((u) => {
+      const uRole = (u?.role || "employee").toString().toLowerCase().trim();
+      const assignedRole = safeRoles.find(
+        (r) => r?.id && r.id.toString().toLowerCase().trim() === uRole
       );
       return {
-        id: u.uid,
-        employeeId: u.employeeId,
-        name: u.name,
-        email: u.email,
-        role: u.role || "employee",
-        roleName: assignedRole ? assignedRole.name : u.role || "Employee",
-        roleColor: assignedRole ? assignedRole.color : "purple",
-        branch: u.branch || "Delhi",
-        department: u.department || "General Operations",
-        avatar: u.avatar,
-        status: u.status || "Active",
-        allowedSectionsCount: assignedRole ? assignedRole.sections.length : 10,
+        id: u?.uid || `usr-${u?.employeeId || Math.random().toString(36).slice(2)}`,
+        employeeId: u?.employeeId || "N/A",
+        name: u?.name || "Employee",
+        email: u?.email || "",
+        role: u?.role || "employee",
+        roleName: assignedRole?.name || (u?.role ? String(u.role).charAt(0).toUpperCase() + String(u.role).slice(1) : "Employee"),
+        roleColor: assignedRole?.color || "purple",
+        branch: u?.branch || "Delhi",
+        department: u?.department || "General Operations",
+        avatar: u?.avatar || "",
+        status: u?.status || "Active",
+        allowedSectionsCount: assignedRole?.sections && Array.isArray(assignedRole.sections)
+          ? assignedRole.sections.length
+          : (uRole === "admin" ? APP_SECTIONS.length : 10),
       };
     });
 
     return NextResponse.json({
       success: true,
-      roles,
+      roles: safeRoles,
       sections: APP_SECTIONS,
       users: userSummaries,
     });

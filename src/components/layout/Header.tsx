@@ -114,8 +114,12 @@ export function Header() {
             className="flex items-center gap-2 hover:opacity-85 transition-opacity cursor-pointer group"
           >
             <img
-              src={currentUser.avatar}
+              src={currentUser.avatar || "/img/logo.webp"}
               alt={currentUser.name}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/img/logo.webp";
+              }}
               className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-blue-600/30 group-hover:border-blue-600 shadow-xs shrink-0 transition-colors"
             />
             <div className="hidden lg:block text-left">

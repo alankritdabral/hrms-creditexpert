@@ -29,12 +29,21 @@ export function isLocalhost(): boolean {
  */
 export function isLocalEnvironment(req?: Request | { headers: { get: (name: string) => string | null } }): boolean {
   if (req) {
-    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
-    if (host.includes("localhost") || host.includes("127.0.0.1")) {
+    const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "").toLowerCase();
+    const hostname = host.split(":")[0];
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.endsWith(".localhost") ||
+      hostname === "[::1]" ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("172.")
+    ) {
       return true;
     }
-    // If request comes from a non-localhost production domain (e.g. creditexpertindia.com)
-    if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
+    // If request comes from a verified production domain (e.g. creditexpertindia.com)
+    if (host && (host.includes("creditexpertindia.com") || host.includes("vercel.app"))) {
       return false;
     }
   }

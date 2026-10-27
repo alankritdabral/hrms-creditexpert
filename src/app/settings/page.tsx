@@ -840,6 +840,10 @@ export default function SettingsPage() {
                               <img
                                 src={u.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100"}
                                 alt={u.name}
+                                onError={(e) => {
+                                  e.currentTarget.onerror = null;
+                                  e.currentTarget.src = "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100";
+                                }}
                                 className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0"
                               />
                               <div>

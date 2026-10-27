@@ -96,6 +96,18 @@ function handleQuotaExhausted(operation: string, err: any) {
 }
 
 /**
+ * Wraps a promise with an automatic timeout to prevent hanging on slow/offline connections
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs = 3500): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Firestore operation timed out after ${timeoutMs}ms`)), timeoutMs)
+    ),
+  ]);
+}
+
+/**
  * Invalidate in-memory cache for a collection or specific document
  */
 export function invalidateFirestoreCache(collectionName?: string, docId?: string) {
@@ -169,7 +181,7 @@ export async function getCollectionFromFirestore<T>(
     if (options?.limitCount) {
       q = query(q, firestoreLimit(options.limitCount));
     }
-    const snapshot = await getDocs(q);
+    const snapshot = await withTimeout(getDocs(q), 4000);
     if (snapshot.empty) return [];
     const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as any) } as T));
     collectionCache.set(collectionName, { data: docs, cachedAt: Date.now() });
@@ -247,7 +259,7 @@ export async function getDocumentFromFirestore<T>(
 
   try {
     const docRef = doc(clientDb, collectionName, docId);
-    const docSnap = await getDoc(docRef);
+    const docSnap = await withTimeout(getDoc(docRef), 3000);
     if (!docSnap.exists()) return null;
     const data = { id: docSnap.id, ...(docSnap.data() as any) } as T;
     singleDocCache.set(cacheKey, { data, cachedAt: Date.now() });
@@ -303,7 +315,7 @@ export async function saveDocumentToFirestore(
 
   try {
     const docRef = doc(clientDb, collectionName, docId);
-    await setDoc(docRef, cleanData, { merge: true });
+    await withTimeout(setDoc(docRef, cleanData, { merge: true }), 3500);
     return true;
   } catch (err: any) {
     if (isQuotaExhaustedError(err)) {

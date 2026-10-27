@@ -2015,6 +2015,7 @@ export async function getCustomRoles(): Promise<CustomRole[]> {
     const firestoreRoles = await getCollectionFromFirestore<CustomRole>("custom_roles");
     if (firestoreRoles && firestoreRoles.length > 0) {
       for (const fr of firestoreRoles) {
+        if (!fr || !fr.id) continue;
         const idx = memory.customRoles.findIndex((r) => r.id === fr.id);
         if (idx !== -1) {
           memory.customRoles[idx] = fr;
@@ -2034,16 +2035,29 @@ export async function getCustomRoles(): Promise<CustomRole[]> {
     }
   }
 
-  // Calculate user counts for each role
-  const allUsers = await getAllUserAccounts();
-  return memory.customRoles.map((role) => {
-    const count = allUsers.filter(
-      (u) =>
-        u.role.toLowerCase() === role.id.toLowerCase() ||
-        (role.id === "employee" && (!u.role || u.role === "employee"))
-    ).length;
-    return { ...role, userCount: count };
-  });
+  // Calculate user counts for each role safely
+  try {
+    const allUsers = await getAllUserAccounts();
+    return memory.customRoles.map((role) => {
+      const targetRole = (role?.id || "").toString().toLowerCase().trim();
+      const count = (allUsers || []).filter((u) => {
+        const uRole = (u?.role || "employee").toString().toLowerCase().trim();
+        return uRole === targetRole || (targetRole === "employee" && (!u?.role || uRole === "employee"));
+      }).length;
+      return {
+        ...role,
+        sections: Array.isArray(role.sections) ? role.sections : [],
+        userCount: count,
+      };
+    });
+  } catch (err) {
+    console.warn("getCustomRoles calculate user counts error:", err);
+    return memory.customRoles.map((role) => ({
+      ...role,
+      sections: Array.isArray(role.sections) ? role.sections : [],
+      userCount: 0,
+    }));
+  }
 }
 
 export async function saveCustomRole(
@@ -2132,8 +2146,12 @@ export async function getAllUserAccounts(): Promise<UserAccount[]> {
     const firestoreUsers = await getCollectionFromFirestore<UserAccount>("users");
     if (firestoreUsers && firestoreUsers.length > 0) {
       for (const fu of firestoreUsers) {
+        if (!fu) continue;
+        const fuEmail = fu.email ? fu.email.toLowerCase().trim() : null;
         const idx = memory.userAccounts.findIndex(
-          (u) => u.uid === fu.uid || u.email.toLowerCase() === fu.email.toLowerCase()
+          (u) =>
+            (fu.uid && u.uid === fu.uid) ||
+            (fuEmail && u.email && u.email.toLowerCase().trim() === fuEmail)
         );
         if (idx !== -1) {
           memory.userAccounts[idx] = fu;
@@ -2147,37 +2165,45 @@ export async function getAllUserAccounts(): Promise<UserAccount[]> {
   }
 
   // Ensure every Employee in the directory has a matching UserAccount representation
-  const employees = await getEmployees();
-  for (const emp of employees) {
-    const hasAccount = memory.userAccounts.some(
-      (u) =>
-        u.employeeId.toLowerCase() === emp.employeeId.toLowerCase() ||
-        (emp.personal.workEmail && u.email.toLowerCase() === emp.personal.workEmail.toLowerCase())
-    );
-    if (!hasAccount) {
-      const isExecutive =
-        emp.employment.department?.toLowerCase().includes("executive") || emp.employeeId === "EMP-001";
-      const isHr =
-        emp.employment.department?.toLowerCase().includes("human") || emp.employeeId === "EMP-002";
-      const newAcc: UserAccount = {
-        uid: `usr-${emp.employeeId.toLowerCase()}`,
-        employeeId: emp.employeeId,
-        email:
-          emp.personal.workEmail ||
-          `${emp.personal.firstName.toLowerCase()}.${emp.employeeId.toLowerCase()}@creditexpertindia.com`,
-        password: "Password@123",
-        name: emp.personal.fullName,
-        role: isExecutive ? "admin" : isHr ? "hr" : "employee",
-        branch: emp.employment.branch || "Delhi",
-        department: emp.employment.department || "General Operations",
-        avatar:
-          emp.personal.avatarUrl ||
-          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-        status: "Active",
-        createdAt: emp.createdAt || new Date().toISOString(),
-      };
-      memory.userAccounts.push(newAcc);
+  try {
+    const employees = await getEmployees();
+    for (const emp of employees) {
+      if (!emp || !emp.employeeId) continue;
+      const empIdLower = emp.employeeId.toLowerCase().trim();
+      const empWorkEmailLower = emp.personal?.workEmail ? emp.personal.workEmail.toLowerCase().trim() : null;
+
+      const hasAccount = memory.userAccounts.some(
+        (u) =>
+          (u.employeeId && u.employeeId.toLowerCase().trim() === empIdLower) ||
+          (empWorkEmailLower && u.email && u.email.toLowerCase().trim() === empWorkEmailLower)
+      );
+      if (!hasAccount) {
+        const isExecutive =
+          emp.employment?.department?.toLowerCase().includes("executive") || emp.employeeId === "EMP-001";
+        const isHr =
+          emp.employment?.department?.toLowerCase().includes("human") || emp.employeeId === "EMP-002";
+        const newAcc: UserAccount = {
+          uid: `usr-${emp.employeeId.toLowerCase().trim()}`,
+          employeeId: emp.employeeId,
+          email:
+            emp.personal?.workEmail ||
+            `${(emp.personal?.firstName || "employee").toLowerCase()}.${emp.employeeId.toLowerCase()}@creditexpertindia.com`,
+          password: "Password@123",
+          name: emp.personal?.fullName || "Employee",
+          role: isExecutive ? "admin" : isHr ? "hr" : "employee",
+          branch: emp.employment?.branch || "Delhi",
+          department: emp.employment?.department || "General Operations",
+          avatar:
+            emp.personal?.avatarUrl ||
+            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+          status: "Active",
+          createdAt: emp.createdAt || new Date().toISOString(),
+        };
+        memory.userAccounts.push(newAcc);
+      }
     }
+  } catch (empErr) {
+    console.warn("getAllUserAccounts employee sync error:", empErr);
   }
 
   return memory.userAccounts;
@@ -2188,33 +2214,47 @@ export async function assignUserRole(
   newRole: string,
   actor: { name: string; role: string }
 ): Promise<UserAccount> {
-  memory.userAccounts = memory.userAccounts || (isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : []);
-  const norm = identifier.toLowerCase().trim();
+  // 1. Ensure user accounts are freshly synced
+  await getAllUserAccounts().catch(() => {});
+  const norm = (identifier || "").toString().toLowerCase().trim();
+
   let account = memory.userAccounts.find(
     (u) =>
-      u.uid.toLowerCase() === norm ||
-      u.employeeId.toLowerCase() === norm ||
-      u.email.toLowerCase() === norm
+      (u.uid && u.uid.toLowerCase().trim() === norm) ||
+      (u.employeeId && u.employeeId.toLowerCase().trim() === norm) ||
+      (u.email && u.email.toLowerCase().trim() === norm)
   );
 
+  // 2. Direct Firestore fallback if not present in memory
   if (!account) {
-    const employees = await getEmployees();
+    const directUser = await getUserAccountById(identifier).catch(() => null);
+    if (directUser) {
+      account = directUser;
+      memory.userAccounts.push(account);
+    }
+  }
+
+  // 3. Match against employees if not yet registered in users
+  if (!account) {
+    const employees = await getEmployees().catch(() => []);
     const emp = employees.find(
-      (e) => e.employeeId.toLowerCase() === norm || e.id.toLowerCase() === norm
+      (e) =>
+        (e.employeeId && e.employeeId.toLowerCase().trim() === norm) ||
+        (e.id && e.id.toLowerCase().trim() === norm)
     );
     if (emp) {
       account = {
-        uid: `usr-${emp.employeeId.toLowerCase()}`,
+        uid: `usr-${emp.employeeId.toLowerCase().trim()}`,
         employeeId: emp.employeeId,
         email:
-          emp.personal.workEmail ||
-          `${emp.personal.firstName.toLowerCase()}@creditexpertindia.com`,
+          emp.personal?.workEmail ||
+          `${(emp.personal?.firstName || "user").toLowerCase()}@creditexpertindia.com`,
         password: "Password@123",
-        name: emp.personal.fullName,
+        name: emp.personal?.fullName || "Employee",
         role: newRole,
-        branch: emp.employment.branch || "Delhi",
-        department: emp.employment.department || "General Operations",
-        avatar: emp.personal.avatarUrl || "",
+        branch: emp.employment?.branch || "Delhi",
+        department: emp.employment?.department || "General Operations",
+        avatar: emp.personal?.avatarUrl || "",
         status: "Active",
         createdAt: new Date().toISOString(),
       };
@@ -2224,7 +2264,7 @@ export async function assignUserRole(
     }
   }
 
-  const oldRole = account.role;
+  const oldRole = account.role || "employee";
   account.role = newRole;
 
   await saveDocumentToFirestore("users", account.uid, account).catch((e) =>
@@ -2233,19 +2273,19 @@ export async function assignUserRole(
 
   // Update active sessions in memory and firestore if this user has active sessions
   for (const s of memory.sessions) {
-    if (s.userId === account.uid || s.employeeId === account.employeeId) {
+    if (s.userId === account.uid || (account.employeeId && s.employeeId === account.employeeId)) {
       s.role = newRole;
       saveDocumentToFirestore("sessions", s.sessionId, s).catch(() => {});
     }
   }
 
   await recordAuditLog({
-    who: actor.name,
-    role: actor.role,
+    who: actor?.name || "System",
+    role: actor?.role || "admin",
     action: "USER_ROLE_CHANGED",
     employeeId: account.employeeId,
     employeeName: account.name,
-    details: `Updated system role for ${account.name} (${account.employeeId}) from ${oldRole.toUpperCase()} to ${newRole.toUpperCase()}`,
+    details: `Updated system role for ${account.name} (${account.employeeId}) from ${(oldRole || "employee").toUpperCase()} to ${(newRole || "employee").toUpperCase()}`,
   });
 
   return account;

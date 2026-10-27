@@ -453,6 +453,10 @@ export function EmployeeProfile({
               <img
                 src={displayAvatar}
                 alt={employee.personal.fullName}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150";
+                }}
                 className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-xl shadow-indigo-500/10"
               />
               {/* Badge: Passport Photo Default vs Custom */}
@@ -1184,7 +1188,15 @@ export function EmployeeProfile({
                     <div className="flex items-start gap-3">
                       {isPhotoDoc && d.fileUrl && (
                         <div className="w-12 h-14 rounded-lg overflow-hidden border border-slate-700 shrink-0">
-                          <img src={d.fileUrl} alt={d.title} className="w-full h-full object-cover" />
+                          <img
+                            src={d.fileUrl}
+                            alt={d.title}
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = "/img/logo.webp";
+                            }}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                       )}
                       <div>
