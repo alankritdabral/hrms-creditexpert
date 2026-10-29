@@ -7,10 +7,12 @@ import {
   deleteDoc,
   writeBatch,
   query,
+  where,
   limit as firestoreLimit,
 } from "firebase/firestore";
 import { getFirebaseFirestore } from "./firebase";
 import { getFirebaseAdminFirestore } from "./firebase-admin";
+import { UserSession } from "./types";
 import {
   INITIAL_EMPLOYEES,
   INITIAL_ATTENDANCE,
@@ -206,20 +208,23 @@ export async function getDocumentFromFirestore<T>(
   const cacheKey = `${collectionName}/${docId}`;
 
   // 1. Check if the parent collection is already cached in memory (0 Firestore reads!)
-  const cachedCol = collectionCache.get(collectionName);
-  if (cachedCol && Date.now() - cachedCol.cachedAt < CACHE_TTL_MS) {
-    const list = cachedCol.data as any[];
-    const match = list.find(
-      (item) =>
-        item.id === docId ||
-        item.employeeId === docId ||
-        item.runCode === docId ||
-        item.assetTag === docId ||
-        item.uid === docId
-    );
-    if (match) {
-      cacheHits++;
-      return match as T;
+  // Note: "sessions" collection must never use stale collection cache to ensure instant revocation/authentication
+  if (collectionName !== "sessions") {
+    const cachedCol = collectionCache.get(collectionName);
+    if (cachedCol && Date.now() - cachedCol.cachedAt < CACHE_TTL_MS) {
+      const list = cachedCol.data as any[];
+      const match = list.find(
+        (item) =>
+          item.id === docId ||
+          item.employeeId === docId ||
+          item.runCode === docId ||
+          item.assetTag === docId ||
+          item.uid === docId
+      );
+      if (match) {
+        cacheHits++;
+        return match as T;
+      }
     }
   }
 
@@ -316,6 +321,9 @@ export async function saveDocumentToFirestore(
   try {
     const docRef = doc(clientDb, collectionName, docId);
     await withTimeout(setDoc(docRef, cleanData, { merge: true }), 3500);
+    if (collectionName === "sessions") {
+      singleDocCache.set(`${collectionName}/${docId}`, { data: cleanData, cachedAt: Date.now() });
+    }
     return true;
   } catch (err: any) {
     if (isQuotaExhaustedError(err)) {
@@ -325,6 +333,61 @@ export async function saveDocumentToFirestore(
     }
     return false;
   }
+}
+
+/**
+ * Query active sessions for a specific user ID directly from Firestore (Admin or Client SDK)
+ */
+export async function getUserSessionsFromFirestore(userId: string): Promise<UserSession[]> {
+  // 1. Try Admin SDK
+  const adminDb = getFirebaseAdminFirestore();
+  if (adminDb) {
+    try {
+      const snapshot = await adminDb
+        .collection("sessions")
+        .where("userId", "==", userId)
+        .where("isActive", "==", true)
+        .get();
+      if (!snapshot.empty) {
+        return snapshot.docs.map((d: any) => ({ sessionId: d.id, ...d.data() } as UserSession));
+      }
+      return [];
+    } catch (err: any) {
+      console.warn("Admin SDK getUserSessionsFromFirestore fallback:", err?.message);
+    }
+  }
+
+  // 2. Try Client SDK
+  const clientDb = getFirebaseFirestore();
+  if (clientDb) {
+    try {
+      const q = query(
+        collection(clientDb, "sessions"),
+        where("userId", "==", userId),
+        where("isActive", "==", true)
+      );
+      const snapshot = await withTimeout(getDocs(q), 3000);
+      if (snapshot && !snapshot.empty) {
+        return snapshot.docs.map((docSnap) => ({ sessionId: docSnap.id, ...(docSnap.data() as any) } as UserSession));
+      }
+      return [];
+    } catch (err: any) {
+      // In case composite indexing is needed, fallback to simple query by userId
+      try {
+        const qSimple = query(collection(clientDb, "sessions"), where("userId", "==", userId));
+        const snapshot = await withTimeout(getDocs(qSimple), 3000);
+        if (snapshot && !snapshot.empty) {
+          return snapshot.docs
+            .map((docSnap) => ({ sessionId: docSnap.id, ...(docSnap.data() as any) } as UserSession))
+            .filter((s) => s.isActive);
+        }
+      } catch (innerErr: any) {
+        console.warn("Client SDK getUserSessionsFromFirestore fallback:", innerErr?.message);
+      }
+    }
+  }
+
+  return [];
 }
 
 /**

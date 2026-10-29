@@ -220,6 +220,7 @@ export interface UserSession {
   isActive: boolean;
   revokedAt?: string;
   revocationReason?: "signed_in_from_another_device" | "user_logged_out" | "expired" | "admin_revoked";
+  environment?: "development" | "production";
 }
 
 export interface PersonalInfo {

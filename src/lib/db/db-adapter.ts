@@ -63,6 +63,7 @@ import { sendAccountApprovedEmail } from "../email";
 import {
   getCollectionFromFirestore,
   getDocumentFromFirestore,
+  getUserSessionsFromFirestore,
   saveDocumentToFirestore,
   deleteDocumentFromFirestore,
   clearCollectionInFirestore,
@@ -2291,9 +2292,18 @@ export async function assignUserRole(
   return account;
 }
 
+function getSessionEnvironment(session: UserSession): "development" | "production" {
+  if (session.environment) return session.environment;
+  if (session.ipHash === "::1" || session.ipHash === "127.0.0.1" || session.sessionId?.startsWith("sess-local")) {
+    return "development";
+  }
+  return "production";
+}
+
 /**
  * Creates a new active session and enforces SINGLE ACTIVE SESSION rule:
- * Any prior active session for this user is instantly revoked in memory and Firestore.
+ * Isolates local development workstation sessions from live production sessions.
+ * Any prior active session for this user in the same environment is revoked.
  */
 export async function createSession(data: {
   userId: string;
@@ -2305,37 +2315,50 @@ export async function createSession(data: {
   deviceId?: string;
   userAgent?: string;
   ipHash?: string;
+  environment?: "development" | "production";
 }): Promise<UserSession> {
   const now = new Date().toISOString();
+  const targetEnv = data.environment || (isLocalEnvironment() ? "development" : "production");
 
-  // 1. Enforce Single Active Session: revoke any existing active session for this user
-  const priorSessions = memory.sessions.filter((s) => s.userId === data.userId && s.isActive);
+  // 1. Enforce Single Active Session within the same environment:
+  // (Development workstation sessions on localhost and production sessions are strictly isolated)
+  const priorSessions = memory.sessions.filter(
+    (s) => s.userId === data.userId && s.isActive && getSessionEnvironment(s) === targetEnv
+  );
   for (const oldSess of priorSessions) {
     oldSess.isActive = false;
     oldSess.revokedAt = now;
     oldSess.revocationReason = "signed_in_from_another_device";
-    saveDocumentToFirestore("sessions", oldSess.sessionId, oldSess).catch(() => {});
+    await saveDocumentToFirestore("sessions", oldSess.sessionId, oldSess).catch(() => {});
   }
 
-  // Also verify across Firestore sessions
+  // Also verify across Firestore sessions for this user & environment
+  let revokedAnyFirestore = false;
   try {
-    const firestoreSessions = await getCollectionFromFirestore<UserSession>("sessions");
-    for (const s of firestoreSessions) {
-      if (s.userId === data.userId && s.isActive && !priorSessions.some((p) => p.sessionId === s.sessionId)) {
+    const firestoreUserSessions = await getUserSessionsFromFirestore(data.userId);
+    for (const s of firestoreUserSessions) {
+      if (
+        s.isActive &&
+        getSessionEnvironment(s) === targetEnv &&
+        !priorSessions.some((p) => p.sessionId === s.sessionId)
+      ) {
         s.isActive = false;
         s.revokedAt = now;
         s.revocationReason = "signed_in_from_another_device";
-        saveDocumentToFirestore("sessions", s.sessionId, s).catch(() => {});
+        revokedAnyFirestore = true;
+        await saveDocumentToFirestore("sessions", s.sessionId, s).catch(() => {});
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Firestore prior session revocation fallback:", e);
+  }
 
-  if (priorSessions.length > 0) {
+  if (priorSessions.length > 0 || revokedAnyFirestore) {
     await recordAuditLog({
       who: data.name,
       role: data.role,
       action: "SESSION_REVOKED",
-      details: `Active session for ${data.name} was revoked because the account signed in from another device`,
+      details: `Active session for ${data.name} was revoked because the account signed in from another device (${targetEnv})`,
     });
   }
 
@@ -2358,16 +2381,20 @@ export async function createSession(data: {
     userAgent: data.userAgent,
     ipHash: data.ipHash,
     isActive: true,
+    environment: targetEnv,
   };
 
   memory.sessions.push(newSession);
-  saveDocumentToFirestore("sessions", newSession.sessionId, newSession).catch(() => {});
+  // CRITICAL FOR SERVERLESS: Must await write to Firestore so subsequent API calls immediately find it
+  await saveDocumentToFirestore("sessions", newSession.sessionId, newSession).catch((err) => {
+    console.warn("Failed to commit session to Firestore:", err);
+  });
 
   await recordAuditLog({
     who: data.name,
     role: data.role,
     action: "LOGIN",
-    details: `${data.role.toUpperCase()} "${data.name}" authenticated. Single active session started for branch: ${data.branch}`,
+    details: `${data.role.toUpperCase()} "${data.name}" authenticated (${targetEnv}). Single active session started for branch: ${data.branch}`,
   });
 
   return newSession;
@@ -2398,7 +2425,10 @@ export async function revokeSession(
   sessionId: string,
   reason: "signed_in_from_another_device" | "user_logged_out" | "expired" | "admin_revoked" = "user_logged_out"
 ): Promise<boolean> {
-  const session = memory.sessions.find((s) => s.sessionId === sessionId);
+  let session = memory.sessions.find((s) => s.sessionId === sessionId);
+  if (!session) {
+    session = (await getDocumentFromFirestore<UserSession>("sessions", sessionId)) || undefined;
+  }
   if (!session) return false;
 
   const now = new Date().toISOString();
@@ -2406,7 +2436,7 @@ export async function revokeSession(
   session.revokedAt = now;
   session.revocationReason = reason;
 
-  saveDocumentToFirestore("sessions", session.sessionId, session).catch(() => {});
+  await saveDocumentToFirestore("sessions", session.sessionId, session).catch(() => {});
 
   await recordAuditLog({
     who: session.name,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserAccountByEmail, createSession, recordAuditLog } from "@/lib/db/db-adapter";
 import { ROLE_PERMISSIONS, getBranchScope } from "@/lib/permissions";
+import { isLocalEnvironment } from "@/lib/env";
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,8 +54,11 @@ export async function POST(req: NextRequest) {
     const forwardedFor = req.headers.get("x-forwarded-for");
     const ip = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
 
+    const isDev = isLocalEnvironment(req);
+    const environment: "development" | "production" = isDev ? "development" : "production";
+
     // Create session — enforces SINGLE ACTIVE SESSION rule:
-    // Any existing active session for this user is instantly revoked!
+    // Any existing active session for this user in the same environment is instantly revoked!
     const session = await createSession({
       userId: userAccount.uid,
       employeeId: userAccount.employeeId,
@@ -65,6 +69,7 @@ export async function POST(req: NextRequest) {
       deviceId: deviceId || "browser-" + Math.random().toString(36).substring(2, 8),
       userAgent,
       ipHash: ip,
+      environment,
     });
 
     const branchScope = getBranchScope(userAccount.role, userAccount.branch);
@@ -102,10 +107,11 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Auth login error:", error);
+    const msg = error instanceof Error ? error.message : "Internal authentication error";
     return NextResponse.json(
-      { success: false, error: error.message || "Internal authentication error" },
+      { success: false, error: msg },
       { status: 500 }
     );
   }

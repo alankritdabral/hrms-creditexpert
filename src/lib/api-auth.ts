@@ -132,6 +132,16 @@ export async function authenticateRequest(req: Request | NextRequest): Promise<A
     };
   }
 
+  // Prevent development workstation sessions from being accepted on live production portal
+  if (!isLocalEnvironment(req) && session.environment === "development") {
+    return {
+      authenticated: false,
+      status: 401,
+      error: "Development session cannot be used on live portal. Please log in.",
+      code: "UNAUTHENTICATED",
+    };
+  }
+
   // Enforce single active session check: Was this session revoked because of another login?
   if (!session.isActive || session.revokedAt) {
     return {
