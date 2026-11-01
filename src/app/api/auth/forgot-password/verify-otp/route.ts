@@ -1,8 +1,11 @@
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyPasswordResetOtp } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = enforceRateLimit(req, "pwd-verify", 10, 10 * 60 * 1000);
+    if (limited) return limited as NextResponse;
     const body = await req.json();
     const { email, otp } = body;
 

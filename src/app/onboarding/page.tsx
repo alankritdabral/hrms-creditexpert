@@ -57,7 +57,7 @@ export default function OnboardingPage() {
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
 
   // New onboarding form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     candidateName: "",
     email: "",
     phone: "",
@@ -67,7 +67,7 @@ export default function OnboardingPage() {
     joiningDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
     annualCtc: 500000,
     notes: "",
-  });
+  }));
 
   const fetchRecords = async () => {
     try {

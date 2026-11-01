@@ -9,9 +9,13 @@ import {
   clearPasswordResetOtp,
   sendPasswordChangedEmail,
 } from "@/lib/email";
+import { hashPassword } from "@/lib/password";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = enforceRateLimit(req, "pwd-reset", 10, 15 * 60 * 1000);
+    if (limited) return limited as NextResponse;
     const body = await req.json();
     const { email, newPassword, confirmPassword } = body;
 
@@ -61,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Update password
     await updateUserAccount(user.uid, {
-      password: newPassword,
+      password: hashPassword(newPassword),
     });
 
     // 5. Consume OTP

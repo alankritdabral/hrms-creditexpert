@@ -27,30 +27,13 @@ export function isLocalhost(): boolean {
  * Server and Client runtime environment checker.
  * Returns true only when executing on a local development host.
  */
-export function isLocalEnvironment(req?: Request | { headers: { get: (name: string) => string | null } }): boolean {
-  if (req) {
-    const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "").toLowerCase();
-    const hostname = host.split(":")[0];
-    if (
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname.endsWith(".localhost") ||
-      hostname === "[::1]" ||
-      hostname.startsWith("192.168.") ||
-      hostname.startsWith("10.") ||
-      hostname.startsWith("172.")
-    ) {
-      return true;
-    }
-    // If request comes from a verified production domain (e.g. creditexpertindia.com)
-    if (host && (host.includes("creditexpertindia.com") || host.includes("vercel.app"))) {
-      return false;
-    }
-  }
-
+export function isLocalEnvironment(_req?: Request | { headers: { get: (name: string) => string | null } }): boolean {
+  // SECURITY: never derive "local" from request headers (Host / X-Forwarded-Host are
+  // attacker-controlled). On the server, trust only the build/runtime mode, so a
+  // production deployment can never be tricked into the dev auth bypass, dev OTP
+  // disclosure, or the seed endpoint. The `_req` parameter is kept for API compatibility.
   if (typeof window !== "undefined") {
     return isLocalhost();
   }
-
   return process.env.NODE_ENV !== "production";
 }

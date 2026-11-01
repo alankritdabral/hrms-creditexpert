@@ -75,6 +75,7 @@ import {
   evaluateLateArrivalIST,
 } from "../attendance/ist-time";
 import { isLocalEnvironment } from "../env";
+import { hashPassword, generateTempPassword } from "../password";
 
 // Memory storage for fallback/dev cache
 class MemoryStore {
@@ -699,13 +700,22 @@ export async function updateAttendanceRecord(
   updates: Partial<AttendanceRecord>,
   actor: { name: string; role: string }
 ): Promise<AttendanceRecord | null> {
-  const index = memory.attendance.findIndex((a) => a.id === recordId);
-  if (index === -1) return null;
+  let index = memory.attendance.findIndex((a) => a.id === recordId);
+  if (index === -1) {
+    // Record may only exist in Firestore (e.g. after a server restart) — hydrate it.
+    const remote = await getDocumentFromFirestore<AttendanceRecord>("attendance", recordId).catch(() => null);
+    if (!remote) return null;
+    memory.attendance.unshift(remote);
+    index = 0;
+  }
 
   const updated = {
     ...memory.attendance[index],
     ...updates,
   };
+  if (updates.status !== undefined) {
+    updated.lateArrival = updates.status === "Late";
+  }
   memory.attendance[index] = updated;
 
   // Sync to Firestore
@@ -938,6 +948,39 @@ export async function punchAttendance(
 }
 
 export const adjustAttendance = updateAttendanceRecord;
+
+/**
+ * HR/Admin sheet edit: update the record for (employee, date) or create it if the cell was blank.
+ */
+export async function upsertAttendanceRecord(
+  employee: { employeeId: string; employeeName: string },
+  date: string,
+  updates: Partial<Pick<AttendanceRecord, "status" | "checkIn" | "remarks">>,
+  actor: { name: string; role: string }
+): Promise<AttendanceRecord> {
+  const existing = (await getAttendanceRecords(date)).find((r) => r.employeeId === employee.employeeId);
+  if (existing) {
+    const updated = await updateAttendanceRecord(existing.id, updates, actor);
+    if (updated) return updated;
+  }
+  const status = updates.status || "Present";
+  return createAttendanceRecord(
+    {
+      employeeId: employee.employeeId,
+      employeeName: employee.employeeName,
+      date,
+      checkIn: updates.checkIn || undefined,
+      totalWorkingHours: 0,
+      breakDurationMinutes: 0,
+      status,
+      lateArrival: status === "Late",
+      earlyDeparture: false,
+      overtimeHours: 0,
+      remarks: updates.remarks || "Added manually by HR",
+    },
+    actor
+  );
+}
 
 // ----------------- LEAVES -----------------
 
@@ -2189,7 +2232,7 @@ export async function getAllUserAccounts(): Promise<UserAccount[]> {
           email:
             emp.personal?.workEmail ||
             `${(emp.personal?.firstName || "employee").toLowerCase()}.${emp.employeeId.toLowerCase()}@creditexpertindia.com`,
-          password: "Password@123",
+          password: hashPassword(generateTempPassword()),
           name: emp.personal?.fullName || "Employee",
           role: isExecutive ? "admin" : isHr ? "hr" : "employee",
           branch: emp.employment?.branch || "Delhi",
@@ -2250,7 +2293,7 @@ export async function assignUserRole(
         email:
           emp.personal?.workEmail ||
           `${(emp.personal?.firstName || "user").toLowerCase()}@creditexpertindia.com`,
-        password: "Password@123",
+        password: hashPassword(generateTempPassword()),
         name: emp.personal?.fullName || "Employee",
         role: newRole,
         branch: emp.employment?.branch || "Delhi",
@@ -2812,16 +2855,16 @@ export async function activateOnboardedEmployee(
       employmentStatus: "Active",
       probationMonths: 0,
       employeeCategory: "White Collar",
-      reportingManagerName: "Priya Verma (HR)",
+      reportingManagerName: "HR Team",
     },
     statutory: {
-      pan: record.statutoryDetails?.pan || "ABCDE1234F",
-      aadhaar: record.statutoryDetails?.aadhaar || "123456789012",
-      uan: "100987654321",
-      pfAccountNumber: `DL/${record.branch.toUpperCase()}/001/0001`,
-      bankAccountNumber: record.statutoryDetails?.bankAccountNumber || "50100012345678",
-      ifscCode: record.statutoryDetails?.ifscCode || "HDFC0000123",
-      bankName: record.statutoryDetails?.bankName || "HDFC Bank Ltd",
+      pan: record.statutoryDetails?.pan || "",
+      aadhaar: record.statutoryDetails?.aadhaar || "",
+      uan: "",
+      pfAccountNumber: "",
+      bankAccountNumber: record.statutoryDetails?.bankAccountNumber || "",
+      ifscCode: record.statutoryDetails?.ifscCode || "",
+      bankName: record.statutoryDetails?.bankName || "",
     },
     currentSalary: salaryBreakdown,
     salaryHistory: [
@@ -2899,7 +2942,7 @@ export async function activateOnboardedEmployee(
       uid: record.userId || `usr-${Date.now()}`,
       employeeId: newEmpId,
       email: record.email.toLowerCase().trim(),
-      password: "Password@123",
+      password: hashPassword(generateTempPassword()),
       name: record.candidateName,
       role: "employee",
       branch: record.branch,

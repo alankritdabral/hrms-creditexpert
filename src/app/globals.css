@@ -269,3 +269,18 @@ button.bg-rose-600 *,
     font-size: 16px !important;
   }
 }
+
+/* ---- Attendance sheet printing ---- */
+.print-only { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  body * { visibility: hidden !important; }
+  #attendance-print-area, #attendance-print-area * { visibility: visible !important; }
+  #attendance-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .print-overflow-visible { overflow: visible !important; }
+  #attendance-print-area table { font-size: 8px; }
+  #attendance-print-area .sticky { position: static !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

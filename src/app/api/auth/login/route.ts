@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserAccountByEmail, createSession, recordAuditLog } from "@/lib/db/db-adapter";
 import { ROLE_PERMISSIONS, getBranchScope } from "@/lib/permissions";
 import { isLocalEnvironment } from "@/lib/env";
+import { verifyPassword, hashPassword, isHashedPassword } from "@/lib/password";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { updateUserAccount } from "@/lib/db/db-adapter";
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = enforceRateLimit(req, "login-ip", 20, 15 * 60 * 1000);
+    if (limited) return limited as NextResponse;
     const body = await req.json();
     const { email, password, deviceId } = body;
 
@@ -15,9 +20,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const limitedAcct = enforceRateLimit(req, "login-acct", 8, 15 * 60 * 1000, String(email).toLowerCase().trim());
+    if (limitedAcct) return limitedAcct as NextResponse;
+
     const userAccount = await getUserAccountByEmail(email);
 
-    if (!userAccount || userAccount.password !== password) {
+    if (!userAccount || !verifyPassword(String(password), userAccount.password)) {
       await recordAuditLog({
         who: email,
         role: "unauthenticated",
@@ -29,6 +37,13 @@ export async function POST(req: NextRequest) {
         { success: false, error: "Invalid email or password." },
         { status: 401 }
       );
+    }
+
+    // Transparently upgrade legacy plaintext passwords to scrypt hashes on successful login
+    if (!isHashedPassword(userAccount.password)) {
+      const upgraded = hashPassword(String(password));
+      await updateUserAccount(userAccount.uid, { password: upgraded }).catch(() => {});
+      userAccount.password = upgraded;
     }
 
     if (userAccount.status !== "Active") {

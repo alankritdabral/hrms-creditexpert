@@ -13,8 +13,12 @@ export async function GET(req: NextRequest) {
     const month = searchParams.get("month") || new Date().toISOString().slice(0, 7);
     let logins = await getEmployeeLogins(month);
 
-    if (auth.role === "employee" && searchParams.get("scope") === "mine") {
+    // Employees may only ever see their own records (enforced server-side, not by a client hint).
+    if (auth.role === "employee" || searchParams.get("scope") === "mine") {
       logins = logins.filter((l) => l.employeeId === auth.employeeId);
+    } else {
+      // Managers/HR are limited to their branch scope.
+      logins = logins.filter((l) => !l.branch || auth.branchScope.includes(l.branch));
     }
 
     return NextResponse.json({ success: true, data: logins });

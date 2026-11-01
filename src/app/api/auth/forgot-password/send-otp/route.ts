@@ -1,3 +1,4 @@
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserAccountByEmail } from "@/lib/db/db-adapter";
 import { sendPasswordResetOtp } from "@/lib/email";
@@ -5,6 +6,8 @@ import { isLocalEnvironment } from "@/lib/env";
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = enforceRateLimit(req, "pwd-otp", 5, 10 * 60 * 1000);
+    if (limited) return limited as NextResponse;
     const body = await req.json();
     const { email } = body;
 

@@ -127,7 +127,26 @@ export function invalidateFirestoreCache(collectionName?: string, docId?: string
 /**
  * Reads a full collection from Firestore with smart Free-Plan TTL caching
  */
-export async function getCollectionFromFirestore<T>(
+const inflightReads = new Map<string, Promise<unknown[]>>();
+
+/**
+ * Reads a collection, sharing a single in-flight request between concurrent callers
+ * (e.g. a dashboard firing several API calls that all need the same collection).
+ */
+export function getCollectionFromFirestore<T>(
+  collectionName: string,
+  options?: { forceRefresh?: boolean; limitCount?: number }
+): Promise<T[]> {
+  const key = `${collectionName}|${options?.limitCount ?? ""}`;
+  if (options?.forceRefresh) return fetchCollection<T>(collectionName, options);
+  const existing = inflightReads.get(key);
+  if (existing) return existing as Promise<T[]>;
+  const p = fetchCollection<T>(collectionName, options).finally(() => inflightReads.delete(key));
+  inflightReads.set(key, p);
+  return p;
+}
+
+async function fetchCollection<T>(
   collectionName: string,
   options?: { forceRefresh?: boolean; limitCount?: number }
 ): Promise<T[]> {
@@ -161,7 +180,6 @@ export async function getCollectionFromFirestore<T>(
         queryRef = queryRef.limit(options.limitCount);
       }
       const snapshot = await queryRef.get();
-      if (snapshot.empty) return [];
       const docs = snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() } as T));
       collectionCache.set(collectionName, { data: docs, cachedAt: Date.now() });
       return docs;
@@ -184,7 +202,6 @@ export async function getCollectionFromFirestore<T>(
       q = query(q, firestoreLimit(options.limitCount));
     }
     const snapshot = await withTimeout(getDocs(q), 4000);
-    if (snapshot.empty) return [];
     const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as any) } as T));
     collectionCache.set(collectionName, { data: docs, cachedAt: Date.now() });
     return docs;

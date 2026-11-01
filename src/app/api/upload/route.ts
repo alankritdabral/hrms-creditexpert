@@ -1,3 +1,4 @@
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
 import {
   validateKycFile,
@@ -8,6 +9,8 @@ import { uploadKycDocument } from "@/lib/cloudinary";
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = enforceRateLimit(req, "upload", 20, 10 * 60 * 1000);
+    if (limited) return limited as NextResponse;
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const documentType = (formData.get("documentType") as string) || "KYC_Document";

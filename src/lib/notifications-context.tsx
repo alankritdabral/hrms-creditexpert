@@ -105,9 +105,16 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     fetchNotifications();
 
-    // Poll every 30 seconds for live updates
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+    // Poll every 2 minutes, only while the tab is visible; refresh when it regains focus.
+    const tick = () => {
+      if (document.visibilityState === "visible") fetchNotifications();
+    };
+    const interval = setInterval(tick, 120000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [fetchNotifications]);
 
   const markAsRead = (id: string) => {

@@ -3,13 +3,17 @@ import {
   getAttendanceRecords,
   punchAttendance,
   adjustAttendance,
+  upsertAttendanceRecord,
+  getEmployees,
   clearAttendanceRecords,
 } from "@/lib/db/db-adapter";
 import {
   authenticateRequest,
   authFailureResponse,
   requirePermission,
+  requireBranchScope,
 } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 import { validateCoordinates } from "@/lib/attendance/geolocation";
 
 export async function GET(req: NextRequest) {
@@ -25,11 +29,17 @@ export async function GET(req: NextRequest) {
 
     let records = await getAttendanceRecords(date);
 
-    // If requesting user is an employee, restrict strictly to their own attendance
-    if (auth.role === "employee") {
+    // Own records only, unless the role may view everyone — and then only within its branch scope.
+    if (auth.role === "employee" || !hasPermission(auth.role, "attendance:view_all")) {
       records = records.filter((r) => r.employeeId === auth.employeeId);
-    } else if (requestedEmpId) {
-      records = records.filter((r) => r.employeeId === requestedEmpId);
+    } else {
+      const allowed = new Set(
+        (await getEmployees())
+          .filter((e) => auth.branchScope.includes(e.employment.branch))
+          .map((e) => e.employeeId)
+      );
+      records = records.filter((r) => allowed.has(r.employeeId));
+      if (requestedEmpId) records = records.filter((r) => r.employeeId === requestedEmpId);
     }
 
     return NextResponse.json({ success: true, data: records });
@@ -136,23 +146,50 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { recordId, updates } = body;
+    const { recordId, updates, employeeId, date } = body;
 
-    if (!recordId || !updates) {
+    if ((!recordId && !(employeeId && date)) || !updates) {
       return NextResponse.json(
-        { success: false, error: "recordId and updates are required" },
+        { success: false, error: "updates plus recordId (or employeeId + date) are required" },
         { status: 400 }
       );
     }
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ success: false, error: "date must be YYYY-MM-DD" }, { status: 400 });
+    }
 
-    const updated = await adjustAttendance(
-      recordId,
-      updates,
-      {
-        name: auth.actor.name,
-        role: auth.actor.role,
+    // Only allow editing of these fields, and only within the editor's branch scope.
+    const safe: Record<string, unknown> = {};
+    for (const k of ["status", "checkIn", "remarks"]) if (k in updates) safe[k] = updates[k];
+    const actor = { name: auth.actor.name, role: auth.actor.role };
+    const employees = await getEmployees();
+
+    let updated;
+    if (employeeId && date) {
+      const emp = employees.find((e) => e.employeeId === employeeId);
+      if (!emp) {
+        return NextResponse.json({ success: false, error: "Employee not found" }, { status: 404 });
       }
-    );
+      const scopeErr = requireBranchScope(auth, emp.employment.branch);
+      if (scopeErr) return scopeErr;
+      updated = await upsertAttendanceRecord(
+        { employeeId, employeeName: emp.personal.fullName || emp.personal.firstName },
+        date,
+        safe,
+        actor
+      );
+    } else {
+      const existing = (await getAttendanceRecords()).find((r) => r.id === recordId);
+      const emp = existing && employees.find((e) => e.employeeId === existing.employeeId);
+      if (emp) {
+        const scopeErr = requireBranchScope(auth, emp.employment.branch);
+        if (scopeErr) return scopeErr;
+      }
+      updated = await adjustAttendance(recordId, safe, actor);
+      if (!updated) {
+        return NextResponse.json({ success: false, error: "Record not found" }, { status: 404 });
+      }
+    }
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {

@@ -830,7 +830,7 @@ export default function LoginsPage() {
 
                       {/* Last Updated Date */}
                       <td className="py-3 px-4 text-slate-500 text-[11px]">
-                        <div>{new Date(record.lastUpdatedAt || Date.now()).toLocaleDateString("en-IN")}</div>
+                        <div>{record.lastUpdatedAt ? new Date(record.lastUpdatedAt).toLocaleDateString("en-IN") : "—"}</div>
                         <div className="text-[10px] text-slate-400">
                           by {record.updatedBy || "System"}
                         </div>

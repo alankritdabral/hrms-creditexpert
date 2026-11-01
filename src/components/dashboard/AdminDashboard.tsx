@@ -18,6 +18,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Employee, AttendanceRecord, LeaveRequest, PayrollRun, EmployeeRequestItem, Holiday, EmployeeDocument } from "@/lib/types";
+import { TeamProgress } from "@/components/dashboard/TeamProgress";
 import { formatISTTime12 } from "@/lib/attendance/ist-time";
 
 export function AdminDashboard() {
@@ -99,7 +100,7 @@ export function AdminDashboard() {
         id: e.id,
         name: `${e.personal.firstName} ${e.personal.lastName}`,
         type: isBirthday ? "Birthday" : "Anniversary",
-        date: isBirthday ? `${dobDay} Oct` : `${dojDay} Oct`,
+        date: `${isBirthday ? dobDay : dojDay} ${now.toLocaleString("en-IN", { month: "short" })}`,
       };
     });
 
@@ -177,6 +178,9 @@ export function AdminDashboard() {
           icon={<CircleDollarSign className="w-5 h-5" />}
         />
       </div>
+
+      {/* Employee progress against monthly targets */}
+      <TeamProgress />
 
       {/* Mid Section: Approvals & Real-Time Attendance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

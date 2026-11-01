@@ -27,6 +27,7 @@ import {
   acquireDevicePosition,
   GeolocationClientError,
 } from "@/lib/attendance/client-geolocation";
+import { AttendanceDashboard } from "@/components/attendance/AttendanceDashboard";
 import { LocationHelpModal } from "@/components/attendance/LocationHelpModal";
 import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
 
@@ -61,6 +62,7 @@ export default function AttendancePage() {
   const [isSavingPolicy, setIsSavingPolicy] = useState(false);
 
   const canManage = ["admin", "hr"].includes(currentUser.role);
+  const [tab, setTab] = useState<"daily" | "dashboard">(() => (currentUser.role === "employee" ? "daily" : "dashboard"));
 
   const loadData = async () => {
     try {
@@ -278,6 +280,16 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      {/* View switcher */}
+      <div className="no-print inline-flex rounded-xl border border-slate-200 bg-white p-1 text-xs font-semibold">
+        {([["dashboard", currentUser.role === "employee" ? "My Attendance" : "Attendance Sheet"], ["daily", "Daily & Clock-In"]] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)} className={`px-4 py-1.5 rounded-lg cursor-pointer transition-colors ${tab === k ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "dashboard" && <AttendanceDashboard />}
+
+      <div className={tab === "daily" ? "space-y-6" : "hidden"}>
       {/* Clock in Banner & Policy Info */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Personal Clock In Card */}
@@ -549,6 +561,8 @@ export default function AttendancePage() {
             </tbody>
           </table>
         </div>
+      </div>
+
       </div>
 
       {/* Manual HR Adjustment Modal */}

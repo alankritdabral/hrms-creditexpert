@@ -1,3 +1,5 @@
+import { hashPassword } from "@/lib/password";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getUserAccountByEmail,
@@ -18,6 +20,8 @@ const REQUIRED_DOC_TYPES = [
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = enforceRateLimit(req, "reg-submit", 5, 60 * 60 * 1000);
+    if (limited) return limited as NextResponse;
     const body = await req.json();
     const {
       candidateName,
@@ -130,7 +134,7 @@ export async function POST(req: NextRequest) {
       uid: userId,
       employeeId: "PENDING",
       email: normalizedEmail,
-      password: password,
+      password: hashPassword(password),
       name: candidateName,
       role: "employee",
       branch: branch as Branch,
@@ -187,7 +191,7 @@ export async function POST(req: NextRequest) {
         designation: designation || "Associate",
         joiningDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         annualCtc: 480000,
-        assignedHrName: "Priya Verma (HR)",
+        assignedHrName: "HR Team",
         notes: "Self-registered online. KYC documents uploaded and awaiting HR verification.",
         selfRegistered: true,
         kycDocuments: docList.map((d: any) => ({
