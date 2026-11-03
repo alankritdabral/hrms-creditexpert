@@ -62,6 +62,8 @@ import { calculateSalaryBreakdown, calculateSalaryFromMonthly } from "../payroll
 import { sendAccountApprovedEmail } from "../email";
 import {
   getCollectionFromFirestore,
+  queryCollectionFromFirestore,
+  type QueryFilter,
   getDocumentFromFirestore,
   getUserSessionsFromFirestore,
   saveDocumentToFirestore,
@@ -650,23 +652,49 @@ export async function reviseSalary(
 
 // ----------------- ATTENDANCE -----------------
 
-export async function getAttendanceRecords(date?: string): Promise<AttendanceRecord[]> {
+export interface AttendanceQuery {
+  date?: string;
+  from?: string; // inclusive YYYY-MM-DD
+  to?: string; // inclusive YYYY-MM-DD
+  employeeId?: string;
+}
+
+/**
+ * Reads attendance with the filtering done by the database. Always prefer passing a
+ * date / range / employee — an unfiltered call loads the whole (ever-growing) collection.
+ */
+export async function getAttendanceRecords(dateOrQuery?: string | AttendanceQuery): Promise<AttendanceRecord[]> {
+  const q: AttendanceQuery = typeof dateOrQuery === "string" ? { date: dateOrQuery } : dateOrQuery || {};
+  const inMemory = (a: AttendanceRecord) =>
+    (!q.date || a.date === q.date) &&
+    (!q.from || a.date >= q.from) &&
+    (!q.to || a.date <= q.to) &&
+    (!q.employeeId || a.employeeId === q.employeeId);
+
   try {
-    const firestoreDocs = await getCollectionFromFirestore<AttendanceRecord>("attendance");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      if (date) {
-        return firestoreDocs.filter((a) => a.date === date);
-      }
-      return firestoreDocs;
+    let docs: AttendanceRecord[];
+    if (q.date) {
+      docs = await queryCollectionFromFirestore<AttendanceRecord>("attendance", [{ field: "date", op: "==", value: q.date }]);
+    } else if (q.from || q.to) {
+      const filters: QueryFilter[] = [];
+      if (q.from) filters.push({ field: "date", op: ">=", value: q.from });
+      if (q.to) filters.push({ field: "date", op: "<=", value: q.to });
+      docs = await queryCollectionFromFirestore<AttendanceRecord>("attendance", filters);
+    } else if (q.employeeId) {
+      docs = await queryCollectionFromFirestore<AttendanceRecord>("attendance", [
+        { field: "employeeId", op: "==", value: q.employeeId },
+      ]);
+    } else {
+      docs = await getCollectionFromFirestore<AttendanceRecord>("attendance");
     }
+    // Remaining conditions (single-field queries only → no composite indexes required)
+    docs = docs.filter(inMemory);
+    if (docs.length > 0) return docs;
   } catch (e) {
     console.warn("Firestore getAttendanceRecords fallback:", e);
   }
 
-  if (date) {
-    return memory.attendance.filter((a) => a.date === date);
-  }
-  return memory.attendance;
+  return memory.attendance.filter(inMemory);
 }
 
 export async function createAttendanceRecord(
@@ -1319,124 +1347,58 @@ export async function deleteEmployeeLogin(
 }
 
 export async function getEmployeeLogins(month?: string): Promise<EmployeeLoginRecord[]> {
+  const targetMonth = month || getISTDateString().slice(0, 7);
+
+  // Read only this month's records (not the whole, ever-growing collection).
+  let stored: EmployeeLoginRecord[] = [];
   try {
-    const firestoreDocs = await getCollectionFromFirestore<EmployeeLoginRecord>("employee_logins");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      for (const doc of firestoreDocs) {
-        const idx = memory.employeeLogins.findIndex((l) => l.id === doc.id);
-        if (idx >= 0) {
-          memory.employeeLogins[idx] = doc;
-        } else {
-          memory.employeeLogins.push(doc);
-        }
-      }
-    }
+    stored = await queryCollectionFromFirestore<EmployeeLoginRecord>("employee_logins", [
+      { field: "month", op: "==", value: targetMonth },
+    ]);
   } catch (e) {
     console.warn("Firestore getEmployeeLogins fallback:", e);
   }
 
-  const targetMonth = month || new Date().toISOString().slice(0, 7);
+  const byId = new Map<string, EmployeeLoginRecord>();
+  for (const l of memory.employeeLogins) if (l.month === targetMonth) byId.set(l.id, l);
+  for (const d of stored) {
+    byId.set(d.id, d);
+    const idx = memory.employeeLogins.findIndex((l) => l.id === d.id);
+    if (idx >= 0) memory.employeeLogins[idx] = d;
+    else memory.employeeLogins.push(d);
+  }
 
-  // If no logins exist for this month, auto-initialize from active employees
-  const monthLogins = memory.employeeLogins.filter((l) => l.month === targetMonth);
-  if (monthLogins.length === 0) {
-    const employees = await getEmployees();
-    const activeEmployees = employees.filter(
-      (e) => !["Exited", "Terminated", "Resigned"].includes(e.employment.employmentStatus)
-    );
-
-    const initialLogins: EmployeeLoginRecord[] = activeEmployees.map((emp, index) => {
-      const isSales =
-        emp.employment.department?.toLowerCase().includes("sales") ||
-        emp.employment.department?.toLowerCase().includes("loan") ||
-        emp.employment.department?.toLowerCase().includes("credit") ||
-        index < 4;
-
-      const defaultAxisCustomers: CustomerDisbursalEntry[] = isSales
-        ? [
-            {
-              id: `cust-${emp.employeeId}-1`,
-              customerName: "Rohan Verma",
-              amount: 2500000,
-              status: "Disbursed",
-              remarks: "Personal Loan processed via Axis Bank",
-              date: `${targetMonth}-10`,
-            },
-          ]
-        : [];
-
-      const defaultOtherCustomers: CustomerDisbursalEntry[] = isSales
-        ? [
-            {
-              id: `cust-${emp.employeeId}-2`,
-              customerName: "Pooja Sharma",
-              amount: 5500000,
-              status: "Disbursed",
-              remarks: "Home Loan disbursed via HDFC Bank",
-              date: `${targetMonth}-16`,
-            },
-          ]
-        : [];
-
-      const axisTotal = defaultAxisCustomers.reduce((acc, c) => acc + (c.status === "Disbursed" ? c.amount : 0), 0);
-      const otherTotal = defaultOtherCustomers.reduce((acc, c) => acc + (c.status === "Disbursed" ? c.amount : 0), 0);
-      const totalDisbursal = axisTotal + otherTotal;
-
-      const record: EmployeeLoginRecord = {
-        id: `login-${emp.employeeId}-${targetMonth}`,
-        employeeId: emp.employeeId,
-        employeeName: emp.personal.fullName,
-        department: emp.employment.department,
-        branch: emp.employment.branch,
-        month: targetMonth,
-        commitment: isSales ? 10000000 : 3000000,
-        loginCommitment: isSales ? 12 : 5,
-        loginsCount: isSales ? 8 : 3,
-        submissionDate: `${targetMonth}-05`,
-        lastLoginDate: `${targetMonth}-22`,
-        totalDisbursal,
-        axisBankDisbursal: axisTotal,
-        otherBanksDisbursal: otherTotal,
-        banks: [
-          {
-            id: `bank-axis-${emp.employeeId}`,
-            bankName: "Axis Bank",
-            isAxisBank: true,
-            totalAmount: axisTotal,
-            customers: defaultAxisCustomers,
-          },
-          {
-            id: `bank-hdfc-${emp.employeeId}`,
-            bankName: "HDFC Bank",
-            isAxisBank: false,
-            totalAmount: otherTotal,
-            customers: defaultOtherCustomers,
-          },
-        ],
-        remarks: isSales ? "Files submitted across Axis and partner lenders." : "Branch regular submissions.",
-        lastUpdatedAt: new Date().toISOString(),
-        updatedBy: "System",
-      };
-
-      return record;
+  // Every active employee gets a row. Employees with no saved record yet get an EMPTY,
+  // zeroed placeholder (never fabricated numbers, never written to the database) that is
+  // only persisted when someone actually saves it — it uses the same deterministic id.
+  const employees = await getEmployees();
+  for (const emp of employees) {
+    if (["Exited", "Terminated", "Resigned"].includes(emp.employment.employmentStatus as string)) continue;
+    if ([...byId.values()].some((l) => l.employeeId === emp.employeeId)) continue;
+    const id = `login-${emp.employeeId}-${targetMonth}`;
+    byId.set(id, {
+      id,
+      employeeId: emp.employeeId,
+      employeeName: emp.personal.fullName,
+      department: emp.employment.department,
+      branch: emp.employment.branch,
+      month: targetMonth,
+      commitment: 0,
+      loginCommitment: 0,
+      loginsCount: 0,
+      totalDisbursal: 0,
+      axisBankDisbursal: 0,
+      otherBanksDisbursal: 0,
+      banks: [],
+      remarks: "",
+      lastUpdatedAt: "",
     });
-
-    memory.employeeLogins.push(...initialLogins);
-    for (const rec of initialLogins) {
-      saveDocumentToFirestore("employee_logins", rec.id, rec).catch(() => {});
-    }
-
-    return initialLogins;
   }
 
-  // Ensure every returned login record has a valid loginCommitment count
-  for (const l of monthLogins) {
-    if (typeof l.loginCommitment !== "number" || isNaN(l.loginCommitment) || l.loginCommitment <= 0) {
-      l.loginCommitment = l.commitment >= 10000000 ? 15 : l.commitment >= 5000000 ? 10 : 5;
-    }
-  }
-
-  return monthLogins;
+  // Never invent targets: a missing/invalid login target is simply 0 ("not set").
+  return [...byId.values()].map((l) =>
+    typeof l.loginCommitment === "number" && l.loginCommitment > 0 ? l : { ...l, loginCommitment: 0 }
+  );
 }
 
 export async function saveEmployeeLogin(
@@ -1446,7 +1408,8 @@ export async function saveEmployeeLogin(
   const employees = await getEmployees();
   const emp = employees.find((e) => e.employeeId === data.employeeId);
   const targetMonth = data.month;
-  const id = data.id || `login-${data.employeeId}-${targetMonth}-${Date.now()}`;
+  // Deterministic id → one record per employee per month (no duplicates on repeated saves)
+  const id = data.id || `login-${data.employeeId}-${targetMonth}`;
 
   // Recalculate totals from banks
   let banks = data.banks || [];

@@ -31,7 +31,7 @@ export default function ReportsPage() {
       try {
         const [empRes, attRes, payRes] = await Promise.all([
           fetch("/api/employees").then((r) => r.json()),
-          fetch("/api/attendance").then((r) => r.json()),
+          fetch(`/api/attendance?month=${getISTDateString().slice(0, 7)}`).then((r) => r.json()),
           fetch("/api/payroll").then((r) => r.json()),
         ]);
         if (empRes.success) setEmployees(empRes.data);

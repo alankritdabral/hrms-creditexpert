@@ -57,6 +57,58 @@ const collectionCache = new Map<string, CacheEntry<any>>();
 const singleDocCache = new Map<string, CacheEntry<any>>();
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
+// Filtered-query cache (server-side `where` reads) — keeps large, ever-growing
+// collections such as attendance from ever being loaded in full.
+export type QueryFilter = { field: string; op: "==" | ">=" | "<="; value: string | number | boolean };
+interface QueryCacheEntry extends CacheEntry<any[]> { collection: string; filters: QueryFilter[] }
+const queryCache = new Map<string, QueryCacheEntry>();
+const inflightQueries = new Map<string, Promise<unknown[]>>();
+
+function matchesFilters(doc: any, filters: QueryFilter[]): boolean {
+  return filters.every((f) => {
+    const v = doc?.[f.field];
+    if (v === undefined || v === null) return false;
+    if (f.op === "==") return v === f.value;
+    if (f.op === ">=") return v >= f.value;
+    return v <= f.value;
+  });
+}
+
+/** Cache key for a collection read; limited reads must never be mistaken for the full collection. */
+const colKey = (name: string, limitCount?: number) => (limitCount ? `${name}#limit${limitCount}` : name);
+
+/**
+ * Write-through: after a successful write, patch every cached copy in place
+ * instead of discarding it, so a single clock-in/edit doesn't force a full re-read.
+ */
+function applyWriteToCaches(collectionName: string, docId: string, data: any | null) {
+  // Limited (top-N) caches can't be patched correctly — drop them.
+  for (const k of Array.from(collectionCache.keys())) {
+    if (k.startsWith(`${collectionName}#`)) collectionCache.delete(k);
+  }
+  const patchList = (list: any[], filters?: QueryFilter[]): any[] => {
+    const idx = list.findIndex((d) => d.id === docId);
+    if (data === null) return idx === -1 ? list : list.filter((_, i) => i !== idx);
+    const merged = { ...(idx === -1 ? {} : list[idx]), ...data, id: docId };
+    const belongs = !filters || matchesFilters(merged, filters);
+    if (idx === -1) return belongs ? [...list, merged] : list;
+    if (!belongs) return list.filter((_, i) => i !== idx);
+    const next = list.slice();
+    next[idx] = merged;
+    return next;
+  };
+  const col = collectionCache.get(collectionName);
+  if (col) col.data = patchList(col.data);
+  for (const q of queryCache.values()) {
+    if (q.collection === collectionName) q.data = patchList(q.data, q.filters);
+  }
+  if (data === null) singleDocCache.delete(`${collectionName}/${docId}`);
+  else if (collectionName !== "sessions") {
+    const sd = singleDocCache.get(`${collectionName}/${docId}`);
+    singleDocCache.set(`${collectionName}/${docId}`, { data: { ...(sd?.data || {}), ...data, id: docId }, cachedAt: Date.now() });
+  }
+}
+
 // Spark Plan Quota & Telemetry Metrics
 let totalReadsAttempted = 0;
 let cacheHits = 0;
@@ -116,9 +168,15 @@ export function invalidateFirestoreCache(collectionName?: string, docId?: string
   if (!collectionName) {
     collectionCache.clear();
     singleDocCache.clear();
+    queryCache.clear();
     return;
   }
-  collectionCache.delete(collectionName);
+  for (const k of Array.from(collectionCache.keys())) {
+    if (k === collectionName || k.startsWith(`${collectionName}#`)) collectionCache.delete(k);
+  }
+  for (const [k, q] of Array.from(queryCache.entries())) {
+    if (q.collection === collectionName) queryCache.delete(k);
+  }
   if (docId) {
     singleDocCache.delete(`${collectionName}/${docId}`);
   }
@@ -155,14 +213,14 @@ async function fetchCollection<T>(
   // 1. Check Circuit Breaker (If quota is exhausted, fail-fast to memory fallback tier)
   if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
     // Return cached data if present, otherwise empty array to let memory store take over
-    const cached = collectionCache.get(collectionName);
+    const cached = collectionCache.get(colKey(collectionName, options?.limitCount));
     if (cached) return cached.data as T[];
     return [];
   }
 
   // 2. Check In-Memory TTL Cache (Conserves reads against 50k daily limit)
   if (!options?.forceRefresh) {
-    const cached = collectionCache.get(collectionName);
+    const cached = collectionCache.get(colKey(collectionName, options?.limitCount));
     if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
       cacheHits++;
       return cached.data as T[];
@@ -181,7 +239,7 @@ async function fetchCollection<T>(
       }
       const snapshot = await queryRef.get();
       const docs = snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() } as T));
-      collectionCache.set(collectionName, { data: docs, cachedAt: Date.now() });
+      collectionCache.set(colKey(collectionName, options?.limitCount), { data: docs, cachedAt: Date.now() });
       return docs;
     } catch (err: any) {
       if (isQuotaExhaustedError(err)) {
@@ -203,7 +261,7 @@ async function fetchCollection<T>(
     }
     const snapshot = await withTimeout(getDocs(q), 4000);
     const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as any) } as T));
-    collectionCache.set(collectionName, { data: docs, cachedAt: Date.now() });
+    collectionCache.set(colKey(collectionName, options?.limitCount), { data: docs, cachedAt: Date.now() });
     return docs;
   } catch (err: any) {
     if (isQuotaExhaustedError(err)) {
@@ -211,6 +269,70 @@ async function fetchCollection<T>(
     } else {
       console.warn(`Firestore Client read failed for collection "${collectionName}":`, err.message);
     }
+    return [];
+  }
+}
+
+/**
+ * Server-side filtered read (single-field filters only, so no composite index is needed).
+ * Cached per filter set, patched in place by writes, and shared between concurrent callers.
+ */
+export function queryCollectionFromFirestore<T>(
+  collectionName: string,
+  filters: QueryFilter[]
+): Promise<T[]> {
+  const key = `${collectionName}|${JSON.stringify(filters)}`;
+  const cached = queryCache.get(key);
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+    cacheHits++;
+    return Promise.resolve(cached.data as T[]);
+  }
+  // A fresh full-collection copy can answer the query with zero reads.
+  const full = collectionCache.get(collectionName);
+  if (full && Date.now() - full.cachedAt < CACHE_TTL_MS) {
+    cacheHits++;
+    return Promise.resolve(full.data.filter((d: any) => matchesFilters(d, filters)) as T[]);
+  }
+  const existing = inflightQueries.get(key);
+  if (existing) return existing as Promise<T[]>;
+  const p = runQuery<T>(collectionName, filters, key).finally(() => inflightQueries.delete(key));
+  inflightQueries.set(key, p);
+  return p;
+}
+
+async function runQuery<T>(collectionName: string, filters: QueryFilter[], key: string): Promise<T[]> {
+  totalReadsAttempted++;
+  if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
+    return (queryCache.get(key)?.data as T[]) || [];
+  }
+  cacheMisses++;
+  const store = (docs: T[]) => {
+    queryCache.set(key, { data: docs, cachedAt: Date.now(), collection: collectionName, filters });
+    return docs;
+  };
+
+  const adminDb = getFirebaseAdminFirestore();
+  if (adminDb) {
+    try {
+      let ref: any = adminDb.collection(collectionName);
+      for (const f of filters) ref = ref.where(f.field, f.op, f.value);
+      const snap = await ref.get();
+      return store(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as T)));
+    } catch (err: any) {
+      if (isQuotaExhaustedError(err)) handleQuotaExhausted(`adminDb.query("${collectionName}")`, err);
+      else console.warn(`Firestore Admin query failed for "${collectionName}":`, err.message);
+    }
+  }
+
+  const clientDb = getFirebaseFirestore();
+  if (!clientDb) return [];
+  try {
+    const q = query(collection(clientDb, collectionName), ...filters.map((f) => where(f.field, f.op, f.value)));
+    const snap = await withTimeout(getDocs(q), 4000);
+    return store(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as T)));
+  } catch (err: any) {
+    if (isQuotaExhaustedError(err)) handleQuotaExhausted(`clientDb.query("${collectionName}")`, err);
+    else console.warn(`Firestore Client query failed for "${collectionName}":`, err.message);
     return [];
   }
 }
@@ -306,11 +428,9 @@ export async function saveDocumentToFirestore(
 ): Promise<boolean> {
   totalWrites++;
 
-  // Invalidate cache immediately on write so mutations are fresh
-  invalidateFirestoreCache(collectionName, docId);
-
   // If circuit breaker is tripped due to write quota, fail fast to Memory store
   if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
+    invalidateFirestoreCache(collectionName, docId);
     return false;
   }
 
@@ -321,6 +441,7 @@ export async function saveDocumentToFirestore(
   if (adminDb) {
     try {
       await adminDb.collection(collectionName).doc(docId).set(cleanData, { merge: true });
+      applyWriteToCaches(collectionName, docId, cleanData);
       return true;
     } catch (err: any) {
       if (isQuotaExhaustedError(err)) {
@@ -333,7 +454,10 @@ export async function saveDocumentToFirestore(
 
   // 2. Try Firebase Client SDK
   const clientDb = getFirebaseFirestore();
-  if (!clientDb) return false;
+  if (!clientDb) {
+    invalidateFirestoreCache(collectionName, docId);
+    return false;
+  }
 
   try {
     const docRef = doc(clientDb, collectionName, docId);
@@ -341,6 +465,7 @@ export async function saveDocumentToFirestore(
     if (collectionName === "sessions") {
       singleDocCache.set(`${collectionName}/${docId}`, { data: cleanData, cachedAt: Date.now() });
     }
+    applyWriteToCaches(collectionName, docId, cleanData);
     return true;
   } catch (err: any) {
     if (isQuotaExhaustedError(err)) {
@@ -348,6 +473,7 @@ export async function saveDocumentToFirestore(
     } else {
       console.warn(`Firestore Client write failed for "${collectionName}/${docId}":`, err.message);
     }
+    invalidateFirestoreCache(collectionName, docId);
     return false;
   }
 }
@@ -414,9 +540,8 @@ export async function deleteDocumentFromFirestore(
   collectionName: string,
   docId: string
 ): Promise<boolean> {
-  invalidateFirestoreCache(collectionName, docId);
-
   if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
+    invalidateFirestoreCache(collectionName, docId);
     return false;
   }
 
@@ -424,6 +549,7 @@ export async function deleteDocumentFromFirestore(
   if (adminDb) {
     try {
       await adminDb.collection(collectionName).doc(docId).delete();
+      applyWriteToCaches(collectionName, docId, null);
       return true;
     } catch (err: any) {
       if (isQuotaExhaustedError(err)) {
@@ -433,16 +559,21 @@ export async function deleteDocumentFromFirestore(
   }
 
   const clientDb = getFirebaseFirestore();
-  if (!clientDb) return false;
+  if (!clientDb) {
+    invalidateFirestoreCache(collectionName, docId);
+    return false;
+  }
 
   try {
     const docRef = doc(clientDb, collectionName, docId);
     await deleteDoc(docRef);
+    applyWriteToCaches(collectionName, docId, null);
     return true;
   } catch (err: any) {
     if (isQuotaExhaustedError(err)) {
       handleQuotaExhausted(`clientDb.delete("${collectionName}/${docId}")`, err);
     }
+    invalidateFirestoreCache(collectionName, docId);
     return false;
   }
 }
@@ -460,13 +591,17 @@ export async function clearCollectionInFirestore(collectionName: string): Promis
     try {
       const snapshot = await adminDb.collection(collectionName).get();
       if (!snapshot.empty) {
-        const batch = adminDb.batch();
-        snapshot.docs.forEach((d: any) => {
-          batch.delete(d.ref);
-          deletedCount++;
-        });
-        await batch.commit();
+        // Firestore batches are limited to 500 operations — commit in chunks.
+        for (let i = 0; i < snapshot.docs.length; i += 400) {
+          const batch = adminDb.batch();
+          snapshot.docs.slice(i, i + 400).forEach((d: any) => {
+            batch.delete(d.ref);
+            deletedCount++;
+          });
+          await batch.commit();
+        }
       }
+      invalidateFirestoreCache(collectionName);
       return deletedCount;
     } catch (err: any) {
       console.warn(`Admin clear collection "${collectionName}" error:`, err.message);
@@ -480,13 +615,16 @@ export async function clearCollectionInFirestore(collectionName: string): Promis
       const q = collection(clientDb, collectionName);
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        const batch = writeBatch(clientDb);
-        snapshot.docs.forEach((docSnap) => {
-          batch.delete(docSnap.ref);
-          deletedCount++;
-        });
-        await batch.commit();
+        for (let i = 0; i < snapshot.docs.length; i += 400) {
+          const batch = writeBatch(clientDb);
+          snapshot.docs.slice(i, i + 400).forEach((docSnap) => {
+            batch.delete(docSnap.ref);
+            deletedCount++;
+          });
+          await batch.commit();
+        }
       }
+      invalidateFirestoreCache(collectionName);
       return deletedCount;
     } catch (err: any) {
       console.warn(`Client clear collection "${collectionName}" error:`, err.message);

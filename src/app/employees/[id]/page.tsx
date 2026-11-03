@@ -22,7 +22,7 @@ function EmployeeDetailContent() {
     try {
       const [empRes, attRes, levRes, incRes, astRes, docRes] = await Promise.all([
         fetch(`/api/employees/${employeeId}`).then((r) => r.json()),
-        fetch("/api/attendance").then((r) => r.json()),
+        fetch(`/api/attendance?employeeId=${encodeURIComponent(employeeId)}`).then((r) => r.json()),
         fetch(`/api/leaves?employeeId=${employeeId}`).then((r) => r.json()),
         fetch("/api/incentives").then((r) => r.json()),
         fetch("/api/assets").then((r) => r.json()),

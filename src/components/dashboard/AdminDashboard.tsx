@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Employee, AttendanceRecord, LeaveRequest, PayrollRun, EmployeeRequestItem, Holiday, EmployeeDocument } from "@/lib/types";
 import { TeamProgress } from "@/components/dashboard/TeamProgress";
-import { formatISTTime12 } from "@/lib/attendance/ist-time";
+import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
 
 export function AdminDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -36,7 +36,7 @@ export function AdminDashboard() {
       try {
         const [empRes, attRes, levRes, payRes, reqRes, holRes, docRes] = await Promise.all([
           fetch("/api/employees").then((r) => r.json()),
-          fetch("/api/attendance").then((r) => r.json()),
+          fetch(`/api/attendance?date=${getISTDateString()}`).then((r) => r.json()),
           fetch("/api/leaves").then((r) => r.json()),
           fetch("/api/payroll").then((r) => r.json()),
           fetch("/api/requests").then((r) => r.json()),
@@ -65,7 +65,7 @@ export function AdminDashboard() {
     ["Active", "Confirmed", "Probation"].includes(e.employment.employmentStatus)
   ).length;
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getISTDateString();
   const todayAttendance = attendance.filter((a) => a.date === today);
   const presentToday = todayAttendance.filter((a) => a.status === "Present" || a.status === "Work From Home").length;
   const lateToday = todayAttendance.filter((a) => a.lateArrival).length;

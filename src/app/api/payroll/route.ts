@@ -72,7 +72,8 @@ export async function POST(req: NextRequest) {
       ["Active", "Probation", "Confirmed", "On Notice"].includes(e.employment.employmentStatus)
     );
 
-    const attendanceRecords = await getAttendanceRecords();
+    // Only the payroll month — previously this loaded (and counted) every month ever recorded.
+    const attendanceRecords = await getAttendanceRecords({ from: `${month}-01`, to: `${month}-31` });
     const approvedIncentives = (await getEmployeeIncentives(month)).filter(
       (i) => i.status === "Approved"
     );

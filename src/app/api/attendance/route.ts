@@ -14,6 +14,7 @@ import {
   requireBranchScope,
 } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/permissions";
+import { getISTDateString } from "@/lib/attendance/ist-time";
 import { validateCoordinates } from "@/lib/attendance/geolocation";
 
 export async function GET(req: NextRequest) {
@@ -27,7 +28,20 @@ export async function GET(req: NextRequest) {
     const date = searchParams.get("date") || undefined;
     const requestedEmpId = searchParams.get("employeeId") || undefined;
 
-    let records = await getAttendanceRecords(date);
+    const month = searchParams.get("month");
+    const from = searchParams.get("from") || (month ? `${month}-01` : undefined);
+    const to = searchParams.get("to") || (month ? `${month}-31` : undefined);
+    const own = auth.role === "employee" || !hasPermission(auth.role, "attendance:view_all");
+    const targetEmp = own ? auth.employeeId : requestedEmpId;
+
+    // Always scope the database read; with no filter at all, default to the current month
+    // instead of loading every record ever created.
+    const scoped = date || from || to || targetEmp;
+    let records = await getAttendanceRecords(
+      scoped
+        ? { date, from, to, employeeId: targetEmp }
+        : { from: `${getISTDateString().slice(0, 7)}-01` }
+    );
 
     // Own records only, unless the role may view everyone — and then only within its branch scope.
     if (auth.role === "employee" || !hasPermission(auth.role, "attendance:view_all")) {

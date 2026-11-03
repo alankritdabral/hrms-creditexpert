@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     const [allEmployees, allRecords, allLeaves, allHolidays] = await Promise.all([
       getEmployees(),
-      getAttendanceRecords(),
+      getAttendanceRecords({ from: `${month}-01`, to: `${month}-31` }),
       getLeaveRequests(),
       getHolidays(),
     ]);
