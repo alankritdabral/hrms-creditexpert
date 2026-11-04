@@ -1745,7 +1745,17 @@ export async function updateRequest(
   updates: Partial<EmployeeRequestItem>,
   actor: { name: string; role: string }
 ): Promise<EmployeeRequestItem | null> {
-  const index = memory.requests.findIndex((r) => r.id === requestId);
+  let index = memory.requests.findIndex((r) => r.id === requestId);
+  if (index === -1) {
+    // Memory may be cold; hydrate the record from Firestore
+    try {
+      const stored = await getDocumentFromFirestore<EmployeeRequestItem>("requests", requestId);
+      if (stored) {
+        memory.requests.unshift(stored);
+        index = 0;
+      }
+    } catch (e) {}
+  }
   if (index === -1) return null;
 
   const item = { ...memory.requests[index], ...updates, updatedAt: new Date().toISOString() };
