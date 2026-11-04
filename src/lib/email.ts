@@ -528,3 +528,49 @@ export async function sendPasswordChangedEmail(
 
   return true;
 }
+
+/**
+ * Daily reminder: attendance has not been marked yet.
+ */
+export async function sendAttendanceReminderEmail(
+  email: string,
+  name: string,
+  date: string
+): Promise<boolean> {
+  const transporter = getTransporter();
+  const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS" <no-reply@creditexpertindia.com>`;
+  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/attendance`;
+  const safeName = name.replace(/[<>&"]/g, "");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <h2 style="color: #f59e0b; margin: 0 0 12px 0;">Attendance Reminder</h2>
+      <p style="color: #334155; font-size: 15px;">Dear <strong>${safeName}</strong>,</p>
+      <p style="color: #475569; font-size: 14px;">
+        Your attendance for <strong>${date}</strong> has not been marked yet. Please clock in on the HRMS portal as soon as possible.
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${portalUrl}" style="background-color: #4f46e5; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Mark Attendance</a>
+      </div>
+      <p style="color: #94a3b8; font-size: 12px; text-align: center;">&copy; ${new Date().getFullYear()} Credit Expert India</p>
+    </div>
+  `;
+
+  if (transporter) {
+    try {
+      await transporter.sendMail({
+        from: fromAddress,
+        to: email.toLowerCase().trim(),
+        subject: `Reminder: Attendance not marked for ${date}`,
+        html,
+      });
+      return true;
+    } catch (e) {
+      console.error("Failed to send attendance reminder:", e);
+      return false;
+    }
+  }
+
+  console.log(`[DEV EMAIL] Attendance reminder -> ${email} (${date})`);
+  return true;
+}

@@ -3,20 +3,37 @@
 import React, { useState, useEffect } from "react";
 import { AuditLogItem } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
+import { Pagination } from "@/components/ui/Pagination";
 import { ScrollText, ShieldAlert, Clock, User, Filter } from "lucide-react";
 
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // One page of the ledger per request
+  useEffect(() => {
     async function loadLogs() {
+      setIsLoading(true);
       try {
-        const res = await fetch("/api/audit-logs");
+        const params = new URLSearchParams({ page: String(page), pageSize: "25" });
+        if (debouncedSearch) params.set("q", debouncedSearch);
+        const res = await fetch(`/api/audit-logs?${params.toString()}`);
         const data = await res.json();
         if (data.success) {
           setLogs(data.data);
+          setMeta({ total: data.meta.total, totalPages: data.meta.totalPages });
         }
       } catch (e) {
         console.error(e);
@@ -25,16 +42,9 @@ export default function AuditLogsPage() {
       }
     }
     loadLogs();
-  }, []);
+  }, [page, debouncedSearch]);
 
-  const filteredLogs = logs.filter((log) => {
-    return (
-      log.action.toLowerCase().includes(search.toLowerCase()) ||
-      log.who.toLowerCase().includes(search.toLowerCase()) ||
-      log.details.toLowerCase().includes(search.toLowerCase()) ||
-      (log.employeeName && log.employeeName.toLowerCase().includes(search.toLowerCase()))
-    );
-  });
+  const filteredLogs = logs;
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -65,7 +75,7 @@ export default function AuditLogsPage() {
           placeholder="Filter audit logs by user, action, employee, or detail..."
           className="w-full sm:w-96 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
         />
-        <span className="text-xs text-slate-400 shrink-0">{filteredLogs.length} events logged</span>
+        <span className="text-xs text-slate-400 shrink-0">{meta.total} events logged</span>
       </div>
 
       {/* Logs Table */}
@@ -109,6 +119,7 @@ export default function AuditLogsPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} totalPages={meta.totalPages} total={meta.total} onPageChange={setPage} disabled={isLoading} />
       </div>
     </div>
   );

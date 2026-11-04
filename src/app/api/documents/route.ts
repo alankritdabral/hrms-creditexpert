@@ -5,7 +5,11 @@ import {
   authFailureResponse,
   requireEmployeeScope,
 } from "@/lib/api-auth";
+import { paginateList } from "@/lib/pagination";
 import { EmployeeDocument } from "@/lib/types";
+
+const matchDoc = (d: EmployeeDocument, q: string) =>
+  [d.title, d.employeeName, d.documentType].some((v) => v?.toLowerCase().includes(q));
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -24,10 +28,14 @@ export async function GET(req: NextRequest) {
     } else if (auth.role === "employee") {
       // Employee without employeeId query parameter defaults to their own employeeId
       const docs = await getDocuments(auth.employeeId);
+      const pagedOwn = paginateList(docs, searchParams, matchDoc);
+      if (pagedOwn) return NextResponse.json({ success: true, ...pagedOwn });
       return NextResponse.json({ success: true, data: docs });
     }
 
     const docs = await getDocuments(employeeId);
+    const paged = paginateList(docs, searchParams, matchDoc);
+    if (paged) return NextResponse.json({ success: true, ...paged });
     return NextResponse.json({ success: true, data: docs });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

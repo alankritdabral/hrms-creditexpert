@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequests, createRequest, updateRequestStatus } from "@/lib/db/db-adapter";
+import { paginateList } from "@/lib/pagination";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
 
 export async function GET(req: NextRequest) {
@@ -20,6 +21,8 @@ export async function GET(req: NextRequest) {
       requests = requests.filter((r) => r.employeeId === requestedEmpId);
     }
 
+    const paged = paginateList(requests, searchParams);
+    if (paged) return NextResponse.json({ success: true, ...paged });
     return NextResponse.json({ success: true, data: requests });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

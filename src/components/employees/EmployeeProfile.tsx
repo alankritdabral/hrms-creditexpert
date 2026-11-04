@@ -65,6 +65,49 @@ export function EmployeeProfile({
     "overview" | "salary" | "attendance" | "leaves" | "documents" | "incentives" | "assets" | "lifecycle"
   >("overview");
 
+  // Statutory edit state (admin only)
+  const canEditStatutory = currentUser.role === "admin";
+  const [isEditingStatutory, setIsEditingStatutory] = useState(false);
+  const [isSavingStatutory, setIsSavingStatutory] = useState(false);
+  const [statutoryError, setStatutoryError] = useState("");
+  const [statutoryForm, setStatutoryForm] = useState({
+    pan: "", aadhaar: "", uan: "", pfAccountNumber: "", bankAccountNumber: "", ifscCode: "", bankName: "",
+  });
+
+  const startEditStatutory = () => {
+    const st = employee.statutory;
+    setStatutoryForm({
+      pan: st.pan || "", aadhaar: st.aadhaar || "", uan: st.uan || "",
+      pfAccountNumber: st.pfAccountNumber || "", bankAccountNumber: st.bankAccountNumber || "",
+      ifscCode: st.ifscCode || "", bankName: st.bankName || "",
+    });
+    setStatutoryError("");
+    setIsEditingStatutory(true);
+  };
+
+  const saveStatutory = async () => {
+    setIsSavingStatutory(true);
+    setStatutoryError("");
+    try {
+      const res = await fetch(`/api/employees/${employee.employeeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statutory: statutoryForm }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsEditingStatutory(false);
+        onRefresh?.();
+      } else {
+        setStatutoryError(data.error || "Failed to save");
+      }
+    } catch {
+      setStatutoryError("Network error");
+    } finally {
+      setIsSavingStatutory(false);
+    }
+  };
+
   // Salary Revision Modal State (Simplified: Net Salary & PF)
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [salaryBasis, setSalaryBasis] = useState<"monthly_net" | "monthly_gross" | "incentive_only">(
@@ -735,10 +778,48 @@ export function EmployeeProfile({
                 <Shield className="w-3.5 h-3.5 text-indigo-400" />
                 Statutory & Banking
               </h3>
-              <Badge variant="indigo" className="text-[10px]">
-                RBAC Masked
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="indigo" className="text-[10px]">
+                  RBAC Masked
+                </Badge>
+                {canEditStatutory && !isEditingStatutory && (
+                  <Button size="sm" variant="outline" onClick={startEditStatutory}>
+                    Edit
+                  </Button>
+                )}
+              </div>
             </div>
+            {isEditingStatutory ? (
+              <div className="space-y-3 text-xs">
+                {([
+                  ["pan", "PAN Number"],
+                  ["aadhaar", "Aadhaar Number"],
+                  ["uan", "Universal Account Number (UAN)"],
+                  ["pfAccountNumber", "PF Account Number"],
+                  ["bankAccountNumber", "Bank Account Number"],
+                  ["ifscCode", "IFSC Code"],
+                  ["bankName", "Bank"],
+                ] as const).map(([key, label]) => (
+                  <label key={key} className="block">
+                    <span className="text-slate-500 block mb-1">{label}</span>
+                    <input
+                      value={statutoryForm[key]}
+                      onChange={(e) => setStatutoryForm((f) => ({ ...f, [key]: e.target.value }))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </label>
+                ))}
+                {statutoryError && <p className="text-rose-400">{statutoryError}</p>}
+                <div className="flex gap-2 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => setIsEditingStatutory(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" isLoading={isSavingStatutory} onClick={saveStatutory}>
+                    Save
+                  </Button>
+                </div>
+              </div>
+            ) : (
             <div className="space-y-3 text-xs">
               <div>
                 <span className="text-slate-500 block">PAN Number</span>
@@ -766,6 +847,7 @@ export function EmployeeProfile({
                 </div>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}

@@ -7,6 +7,7 @@ import {
   requirePermission,
   requireBranchScope,
 } from "@/lib/api-auth";
+import { paginateList } from "@/lib/pagination";
 import { Branch } from "@/lib/types";
 
 export async function GET(req: NextRequest) {
@@ -49,6 +50,18 @@ export async function GET(req: NextRequest) {
       employees = employees.filter((e) => e.employment.branch === branchFilter);
     }
 
+    const allDepartments = Array.from(new Set(employees.map((e) => e.employment.department))).sort();
+    const department = searchParams.get("department");
+    const status = searchParams.get("status");
+    if (department && department !== "All") employees = employees.filter((e) => e.employment.department === department);
+    if (status && status !== "All") employees = employees.filter((e) => e.employment.employmentStatus === status);
+
+    const paged = paginateList(employees, searchParams, (e, q) =>
+      [e.personal.fullName, e.employeeId, e.employment.designation, e.employment.department, e.employment.branch].some(
+        (v) => v?.toLowerCase().includes(q)
+      )
+    );
+    if (paged) return NextResponse.json({ success: true, ...paged, departments: allDepartments });
     return NextResponse.json({ success: true, data: employees });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -112,8 +125,12 @@ export async function POST(req: NextRequest) {
           typeof pfValue === "number" ? pfValue : Number(pfValue) || 12
         );
     const ctc = salary.annualCtc;
-    const count = (await getEmployees()).length;
-    const empId = `EMP-${String(count + 1).padStart(4, "0")}`;
+    const existing = await getEmployees();
+    const highest = existing.reduce((max, e) => {
+      const m = /EMP-(\d+)/i.exec(e.employeeId);
+      return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    const empId = `EMP-${String(highest + 1).padStart(4, "0")}`;
 
     const newEmp = await createEmployee(
       {

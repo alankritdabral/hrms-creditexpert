@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEmployeeById, reviseSalary, updateEmployeeAvatar } from "@/lib/db/db-adapter";
+import { getEmployeeById, reviseSalary, updateEmployeeAvatar, updateEmployeeStatutory } from "@/lib/db/db-adapter";
 import {
   authenticateRequest,
   authFailureResponse,
@@ -134,6 +134,44 @@ export async function PATCH(
     if (branchErr) return branchErr;
 
     const body = await req.json();
+
+    // Statutory & banking edits: admin only
+    if (body.statutory && typeof body.statutory === "object") {
+      if (auth.actor.role !== "admin") {
+        return NextResponse.json(
+          { success: false, error: "Only admins can edit statutory and banking details" },
+          { status: 403 }
+        );
+      }
+      const s = body.statutory;
+      if (s.pan && !/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/.test(String(s.pan).trim())) {
+        return NextResponse.json({ success: false, error: "Invalid PAN format" }, { status: 400 });
+      }
+      if (s.aadhaar && !/^\d{12}$/.test(String(s.aadhaar).replace(/\s/g, ""))) {
+        return NextResponse.json({ success: false, error: "Aadhaar must be 12 digits" }, { status: 400 });
+      }
+      if (s.ifscCode && !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(String(s.ifscCode).trim())) {
+        return NextResponse.json({ success: false, error: "Invalid IFSC code" }, { status: 400 });
+      }
+      const result = await updateEmployeeStatutory(
+        id,
+        {
+          pan: s.pan,
+          aadhaar: s.aadhaar !== undefined ? String(s.aadhaar).replace(/\s/g, "") : undefined,
+          uan: s.uan,
+          pfAccountNumber: s.pfAccountNumber,
+          bankAccountNumber: s.bankAccountNumber,
+          ifscCode: s.ifscCode,
+          bankName: s.bankName,
+        },
+        { name: auth.actor.name, role: auth.actor.role }
+      );
+      if (!result) {
+        return NextResponse.json({ success: false, error: "Employee not found" }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, data: result });
+    }
+
     const { avatarUrl, passportPhotoUrl, customAvatarUrl, avatarPreference } = body;
 
     const updated = await updateEmployeeAvatar(

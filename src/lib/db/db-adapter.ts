@@ -20,6 +20,7 @@ import {
 } from "./seed-data";
 import {
   Employee,
+  StatutoryInfo,
   PersonalInfo,
   AttendanceRecord,
   LeaveRequest,
@@ -330,6 +331,14 @@ export async function createEmployee(
   data: Omit<Employee, "id" | "createdAt" | "updatedAt">,
   actor: { name: string; role: string }
 ): Promise<Employee> {
+  // Never overwrite an existing employee document (docs are keyed by employeeId)
+  const clash =
+    memory.employees.some((e) => e.employeeId === data.employeeId) ||
+    (await getDocumentFromFirestore<Employee>("employees", data.employeeId).catch(() => null));
+  if (clash) {
+    throw new Error(`Employee ID ${data.employeeId} already exists. Please retry.`);
+  }
+
   const newEmp: Employee = {
     ...data,
     id: `emp-${Date.now()}`,
@@ -391,6 +400,53 @@ export interface UpdateEmployeeAvatarInput {
   passportPhotoUrl?: string;
   customAvatarUrl?: string;
   avatarPreference?: "passport" | "custom";
+}
+
+export async function updateEmployeeStatutory(
+  employeeId: string,
+  input: Partial<Pick<StatutoryInfo, "pan" | "aadhaar" | "uan" | "pfAccountNumber" | "bankAccountNumber" | "ifscCode" | "bankName">>,
+  actor: { name: string; role: string }
+): Promise<Employee | null> {
+  let index = memory.employees.findIndex(
+    (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
+  );
+  if (index === -1) {
+    try {
+      const docEmp = await getDocumentFromFirestore<Employee>("employees", employeeId);
+      if (docEmp) {
+        memory.employees.push(docEmp);
+        index = memory.employees.length - 1;
+      }
+    } catch (e) {}
+  }
+  if (index === -1) return null;
+
+  const current = memory.employees[index];
+  const statutory = { ...current.statutory };
+  const changed: string[] = [];
+  for (const key of ["pan", "aadhaar", "uan", "pfAccountNumber", "bankAccountNumber", "ifscCode", "bankName"] as const) {
+    const v = input[key];
+    if (typeof v === "string" && v.trim() !== (statutory[key] || "")) {
+      statutory[key] = key === "pan" || key === "ifscCode" ? v.trim().toUpperCase() : v.trim();
+      changed.push(key);
+    }
+  }
+
+  const updated: Employee = { ...current, statutory, updatedAt: new Date().toISOString() };
+  memory.employees[index] = updated;
+  saveDocumentToFirestore("employees", updated.employeeId, updated).catch(() => {});
+
+  if (changed.length > 0) {
+    await recordAuditLog({
+      who: actor.name,
+      role: actor.role,
+      action: "STATUTORY_UPDATED",
+      employeeId: updated.employeeId,
+      employeeName: updated.personal.fullName,
+      details: `Updated statutory/banking fields: ${changed.join(", ")}`,
+    });
+  }
+  return updated;
 }
 
 export async function updateEmployeeAvatar(
@@ -1065,7 +1121,17 @@ export async function updateLeaveRequest(
   reviewNotes: string,
   actor: { name: string; role: string }
 ): Promise<LeaveRequest | null> {
-  const index = memory.leaves.findIndex((l) => l.id === leaveId);
+  let index = memory.leaves.findIndex((l) => l.id === leaveId);
+  if (index === -1) {
+    // Memory may be cold; hydrate the record from Firestore
+    try {
+      const stored = await getDocumentFromFirestore<LeaveRequest>("leaves", leaveId);
+      if (stored) {
+        memory.leaves.unshift(stored);
+        index = 0;
+      }
+    } catch (e) {}
+  }
   if (index === -1) return null;
 
   const leave = {

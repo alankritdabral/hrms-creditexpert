@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLeaveRequests, applyLeave, reviewLeave } from "@/lib/db/db-adapter";
+import { paginateList } from "@/lib/pagination";
 import {
   authenticateRequest,
   authFailureResponse,
@@ -25,6 +26,13 @@ export async function GET(req: NextRequest) {
       leaves = leaves.filter((l) => l.employeeId === requestedEmpId);
     }
 
+    // status=pending / status=past lets the UI page the history while keeping the pending queue whole
+    const statusFilter = searchParams.get("status");
+    if (statusFilter === "pending") leaves = leaves.filter((l) => l.status === "Pending");
+    else if (statusFilter === "past") leaves = leaves.filter((l) => l.status !== "Pending");
+
+    const paged = paginateList(leaves, searchParams);
+    if (paged) return NextResponse.json({ success: true, ...paged });
     return NextResponse.json({ success: true, data: leaves });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

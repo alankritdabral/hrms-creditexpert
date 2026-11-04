@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { EmployeeRequestItem, RequestStatus } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
+import { Pagination } from "@/components/ui/Pagination";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/lib/auth-context";
@@ -20,6 +21,8 @@ export default function RequestsPage() {
   const { currentUser } = useAuth();
   const [requests, setRequests] = useState<EmployeeRequestItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
 
   // New Request Modal
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -38,14 +41,13 @@ export default function RequestsPage() {
 
   const loadRequests = async () => {
     try {
-      const url =
-        currentUser.role === "employee"
-          ? `/api/requests?employeeId=${currentUser.employeeId}`
-          : "/api/requests";
-      const res = await fetch(url);
+      const params = new URLSearchParams({ page: String(page), pageSize: "10" });
+      if (currentUser.role === "employee") params.set("employeeId", currentUser.employeeId);
+      const res = await fetch(`/api/requests?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
         setRequests(data.data);
+        setMeta({ total: data.meta.total, totalPages: data.meta.totalPages });
       }
     } catch (e) {
       console.error(e);
@@ -56,7 +58,7 @@ export default function RequestsPage() {
 
   useEffect(() => {
     loadRequests();
-  }, [currentUser]);
+  }, [currentUser, page]);
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,6 +220,8 @@ export default function RequestsPage() {
             No requests found in helpdesk queue.
           </div>
         )}
+
+        <Pagination page={page} totalPages={meta.totalPages} total={meta.total} onPageChange={setPage} disabled={isLoading} />
       </div>
 
       {/* New Request Modal */}

@@ -15,6 +15,7 @@ import {
   Filter,
   MapPin,
 } from "lucide-react";
+import { Pagination } from "@/components/ui/Pagination";
 import { BRANCHES } from "@/lib/types";
 
 export default function EmployeesPage() {
@@ -27,12 +28,35 @@ export default function EmployeesPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
+  const [departments, setDepartments] = useState<string[]>([]);
+  const PAGE_SIZE = 12;
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Filters or search changing send the user back to the first page
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, departmentFilter, statusFilter, branchFilter]);
+
   const fetchEmployees = async () => {
     try {
-      const res = await fetch("/api/employees");
+      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      if (departmentFilter !== "All") params.set("department", departmentFilter);
+      if (statusFilter !== "All") params.set("status", statusFilter);
+      if (branchFilter !== "All") params.set("branch", branchFilter);
+      const res = await fetch(`/api/employees?${params.toString()}`);
       const json = await res.json();
       if (json.success) {
         setEmployees(json.data);
+        setMeta({ total: json.meta.total, totalPages: json.meta.totalPages });
+        if (json.departments) setDepartments(json.departments);
       }
     } catch (e) {
       console.error(e);
@@ -43,29 +67,11 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
+  }, [page, debouncedSearch, departmentFilter, statusFilter, branchFilter]);
 
   const canAdd = ["admin", "hr"].includes(currentUser.role);
 
-  const filteredEmployees = employees.filter((emp) => {
-    const matchesSearch =
-      emp.personal.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      emp.employeeId.toLowerCase().includes(search.toLowerCase()) ||
-      emp.employment.designation.toLowerCase().includes(search.toLowerCase()) ||
-      emp.employment.department.toLowerCase().includes(search.toLowerCase()) ||
-      (emp.employment.branch && emp.employment.branch.toLowerCase().includes(search.toLowerCase()));
-
-    const matchesDept =
-      departmentFilter === "All" || emp.employment.department === departmentFilter;
-    const matchesStatus =
-      statusFilter === "All" || emp.employment.employmentStatus === statusFilter;
-    const matchesBranch =
-      branchFilter === "All" || emp.employment.branch === branchFilter;
-
-    return matchesSearch && matchesDept && matchesStatus && matchesBranch;
-  });
-
-  const departments = Array.from(new Set(employees.map((e) => e.employment.department)));
+  const filteredEmployees = employees;
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -268,6 +274,8 @@ export default function EmployeesPage() {
           No employees match your search criteria.
         </div>
       ) : null}
+
+      <Pagination page={page} totalPages={meta.totalPages} total={meta.total} onPageChange={setPage} />
 
       {/* Add Employee Modal */}
       <AddEmployeeModal
