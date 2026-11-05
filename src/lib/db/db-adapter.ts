@@ -402,6 +402,58 @@ export interface UpdateEmployeeAvatarInput {
   avatarPreference?: "passport" | "custom";
 }
 
+export async function updateEmployeeBranch(
+  employeeId: string,
+  branch: Branch,
+  actor: { name: string; role: string }
+): Promise<Employee | null> {
+  let index = memory.employees.findIndex(
+    (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
+  );
+  if (index === -1) {
+    try {
+      const docEmp = await getDocumentFromFirestore<Employee>("employees", employeeId);
+      if (docEmp) {
+        memory.employees.push(docEmp);
+        index = memory.employees.length - 1;
+      }
+    } catch (e) {}
+  }
+  if (index === -1) return null;
+
+  const current = memory.employees[index];
+  const oldBranch = current.employment.branch || "Delhi";
+  const emp: Employee = {
+    ...current,
+    employment: { ...current.employment, branch, workLocation: `${branch} Branch` },
+    updatedAt: new Date().toISOString(),
+  };
+  memory.employees[index] = emp;
+  await saveDocumentToFirestore("employees", emp.employeeId, emp).catch((e) =>
+    console.warn("Firestore employee branch sync error:", e)
+  );
+
+  // Keep the login account in sync, since session branch scope is read from it
+  try {
+    const users = await getAllUserAccounts();
+    const acc = users.find((u) => u.employeeId?.toLowerCase() === emp.employeeId.toLowerCase());
+    if (acc) await updateUserAccount(acc.uid, { branch });
+  } catch (e) {
+    console.warn("User account branch sync error:", e);
+  }
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "EMPLOYEE_UPDATED",
+    employeeId: emp.employeeId,
+    employeeName: emp.personal.fullName,
+    details: `Branch changed from ${oldBranch} to ${branch}`,
+  });
+
+  return emp;
+}
+
 export async function updateEmployeeStatutory(
   employeeId: string,
   input: Partial<Pick<StatutoryInfo, "pan" | "aadhaar" | "uan" | "pfAccountNumber" | "bankAccountNumber" | "ifscCode" | "bankName">>,

@@ -108,6 +108,32 @@ export function EmployeeProfile({
     }
   };
 
+  // Branch change (admin & HR)
+  const canChangeBranch = currentUser.role === "admin" || currentUser.role === "hr";
+  const [isSavingBranch, setIsSavingBranch] = useState(false);
+  const [branchError, setBranchError] = useState("");
+
+  const changeBranch = async (branch: string) => {
+    if (branch === (employee.employment.branch || "Delhi")) return;
+    if (!window.confirm(`Move ${employee.personal.fullName} to the ${branch} branch?`)) return;
+    setIsSavingBranch(true);
+    setBranchError("");
+    try {
+      const res = await fetch(`/api/employees/${employee.employeeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch }),
+      });
+      const data = await res.json();
+      if (data.success) onRefresh?.();
+      else setBranchError(data.error || "Failed to change branch");
+    } catch {
+      setBranchError("Network error");
+    } finally {
+      setIsSavingBranch(false);
+    }
+  };
+
   // Salary Revision Modal State (Simplified: Net Salary & PF)
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [salaryBasis, setSalaryBasis] = useState<"monthly_net" | "monthly_gross" | "incentive_only">(
@@ -744,7 +770,21 @@ export function EmployeeProfile({
               </div>
               <div>
                 <span className="text-slate-500 block">Assigned Branch</span>
-                <span className="text-blue-600 font-semibold">{employee.employment.branch || "Delhi"} Branch</span>
+                {canChangeBranch ? (
+                  <select
+                    value={employee.employment.branch || "Delhi"}
+                    disabled={isSavingBranch}
+                    onChange={(e) => changeBranch(e.target.value)}
+                    className="mt-1 bg-transparent border border-slate-700 rounded-lg px-2 py-1 text-blue-600 font-semibold disabled:opacity-50"
+                  >
+                    {["Delhi", "Dehradun", "Rudrapur"].map((b) => (
+                      <option key={b} value={b}>{b} Branch</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-blue-600 font-semibold">{employee.employment.branch || "Delhi"} Branch</span>
+                )}
+                {branchError && <span className="text-red-500 block mt-1">{branchError}</span>}
               </div>
               <div>
                 <span className="text-slate-500 block">Department & Designation</span>

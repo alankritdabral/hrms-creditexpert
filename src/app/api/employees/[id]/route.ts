@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEmployeeById, reviseSalary, updateEmployeeAvatar, updateEmployeeStatutory } from "@/lib/db/db-adapter";
+import { getEmployeeById, reviseSalary, updateEmployeeAvatar, updateEmployeeBranch, updateEmployeeStatutory } from "@/lib/db/db-adapter";
+import { BRANCHES } from "@/lib/types";
 import {
   authenticateRequest,
   authFailureResponse,
@@ -134,6 +135,24 @@ export async function PATCH(
     if (branchErr) return branchErr;
 
     const body = await req.json();
+
+    // Branch change: admin & HR only
+    if (body.branch !== undefined) {
+      if (auth.actor.role !== "admin" && auth.actor.role !== "hr") {
+        return NextResponse.json(
+          { success: false, error: "Only admin or HR can change an employee's branch" },
+          { status: 403 }
+        );
+      }
+      if (!BRANCHES.includes(body.branch)) {
+        return NextResponse.json({ success: false, error: "Invalid branch" }, { status: 400 });
+      }
+      const result = await updateEmployeeBranch(id, body.branch, { name: auth.actor.name, role: auth.actor.role });
+      if (!result) {
+        return NextResponse.json({ success: false, error: "Employee not found" }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, data: result });
+    }
 
     // Statutory & banking edits: admin only
     if (body.statutory && typeof body.statutory === "object") {
