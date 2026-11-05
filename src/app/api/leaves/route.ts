@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeaveRequests, applyLeave, reviewLeave } from "@/lib/db/db-adapter";
+import { getLeaveRequests, applyLeave, reviewLeave, ConflictError } from "@/lib/db/db-adapter";
 import { paginateList } from "@/lib/pagination";
 import {
   authenticateRequest,
   authFailureResponse,
   requirePermission,
+  callerOf,
 } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
+import { ownOrScoped, resolveTargetEmployeeId } from "@/lib/access";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -19,10 +22,9 @@ export async function GET(req: NextRequest) {
 
     let leaves = await getLeaveRequests();
 
-    // If requesting user is an employee, restrict strictly to their own leave records
-    if (auth.role === "employee") {
-      leaves = leaves.filter((l) => l.employeeId === auth.employeeId);
-    } else if (requestedEmpId) {
+    // Callers without leaves:view_all (employees, custom roles) only ever see their own leave records
+    leaves = ownOrScoped(callerOf(auth), "leaves:view_all", leaves, (l) => l.employeeId);
+    if (requestedEmpId && hasPermission(auth.role, "leaves:view_all")) {
       leaves = leaves.filter((l) => l.employeeId === requestedEmpId);
     }
 
@@ -56,9 +58,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Security check: An employee can ONLY apply for leave under their own employeeId
-    const targetEmployeeId = auth.role === "employee" ? auth.employeeId : employeeId || auth.employeeId;
-    const targetEmployeeName = auth.role === "employee" ? auth.actor.name : employeeName || auth.actor.name;
+    // Only leaves:manage (admin/HR) may apply on someone else's behalf
+    const targetEmployeeId = resolveTargetEmployeeId(callerOf(auth), employeeId, "leaves:manage");
+    const targetEmployeeName = targetEmployeeId === auth.employeeId ? auth.actor.name : employeeName || targetEmployeeId;
 
     const newLeave = await applyLeave(
       {
@@ -120,6 +122,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: reviewed });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: error instanceof ConflictError ? 409 : 500 }
+    );
   }
 }

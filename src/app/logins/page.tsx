@@ -24,6 +24,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
+import { getISTDateString, getISTMonthString } from "@/lib/attendance/ist-time";
 
 const PRESET_BANKS = [
   "Axis Bank",
@@ -42,7 +43,7 @@ export default function LoginsPage() {
   const { currentUser } = useAuth();
   const [logins, setLogins] = useState<EmployeeLoginRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState("2026-10");
+  const [selectedMonth, setSelectedMonth] = useState(getISTMonthString());
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -68,8 +69,8 @@ export default function LoginsPage() {
   const [addCommitment, setAddCommitment] = useState<number | "">(5000000);
   const [addLoginCommitment, setAddLoginCommitment] = useState<number | "">(10);
   const [addLoginsCount, setAddLoginsCount] = useState<number | "">(5);
-  const [addSubmissionDate, setAddSubmissionDate] = useState(new Date().toISOString().split("T")[0]);
-  const [addLastLoginDate, setAddLastLoginDate] = useState(new Date().toISOString().split("T")[0]);
+  const [addSubmissionDate, setAddSubmissionDate] = useState(getISTDateString());
+  const [addLastLoginDate, setAddLastLoginDate] = useState(getISTDateString());
   const [addRemarks, setAddRemarks] = useState("");
   const [addInitialBank, setAddInitialBank] = useState("Axis Bank");
   const [addInitialDisbursal, setAddInitialDisbursal] = useState<number | "">("");
@@ -92,7 +93,7 @@ export default function LoginsPage() {
   const [newCustAmount, setNewCustAmount] = useState<number | "">("");
   const [newCustStatus, setNewCustStatus] = useState<"Disbursed" | "Sanctioned" | "In Process" | "Rejected">("Disbursed");
   const [newCustRemarks, setNewCustRemarks] = useState("");
-  const [newCustDate, setNewCustDate] = useState(new Date().toISOString().split("T")[0]);
+  const [newCustDate, setNewCustDate] = useState(getISTDateString());
 
   // Edit Existing Customer Form inside Bank Modal
   const [editingCustomer, setEditingCustomer] = useState<{
@@ -205,7 +206,7 @@ export default function LoginsPage() {
       amount: amountNum,
       status: newCustStatus,
       remarks: newCustRemarks.trim(),
-      date: newCustDate || new Date().toISOString().split("T")[0],
+      date: newCustDate || getISTDateString(),
     };
 
     const updatedBanks = modalBanks.map((bank) => {

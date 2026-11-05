@@ -6,6 +6,8 @@ import {
   MAX_KYC_FILE_SIZE_LABEL,
 } from "@/lib/upload-validation";
 import { uploadKycDocument } from "@/lib/cloudinary";
+import { authenticateRequest } from "@/lib/api-auth";
+import { isEmailOtpVerified } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +17,19 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
     const documentType = (formData.get("documentType") as string) || "KYC_Document";
     const userIdentifier = (formData.get("identifier") as string) || "candidate";
+
+    // Logged-in users may upload. Candidates who are still registering have no session, so they
+    // may upload only after proving control of the email address they register with.
+    const auth = await authenticateRequest(req);
+    if (!auth.authenticated) {
+      const verified = userIdentifier.includes("@") && (await isEmailOtpVerified(userIdentifier));
+      if (!verified) {
+        return NextResponse.json(
+          { success: false, error: "Sign in, or verify your email address, before uploading documents." },
+          { status: 401 }
+        );
+      }
+    }
 
     if (!file) {
       return NextResponse.json(

@@ -1,3 +1,4 @@
+import "server-only";
 import nodemailer from "nodemailer";
 import {
   saveDocumentToFirestore,
@@ -5,29 +6,67 @@ import {
   deleteDocumentFromFirestore,
 } from "./firestore-service";
 import { isLocalEnvironment } from "./env";
+import { generateOtpCode, hashOtp, otpMatches } from "./otp";
 
-// In-memory OTP storage with TTL and rate limiting
+// OTP records live in Firestore (collection "otps") so they survive restarts and work across
+// serverless instances; the memory maps are only a read-through cache. Only a hash of the code is stored.
 interface StoredOtp {
-  otp: string;
+  otpHash: string;
   expiresAt: number;
   attempts: number;
   verified: boolean;
   createdAt: number;
 }
 
-// Global store to retain OTPs across requests during Next.js dev execution
 const globalForOtp = globalThis as unknown as {
   __hrms_otp_store?: Map<string, StoredOtp>;
   __hrms_pwd_reset_otp_store?: Map<string, StoredOtp>;
 };
 
 const otpStore = (globalForOtp.__hrms_otp_store ??= new Map<string, StoredOtp>());
-
+const passwordResetOtpStore = (globalForOtp.__hrms_pwd_reset_otp_store ??= new Map<string, StoredOtp>());
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS = 5;
 
-function getOtpDocId(email: string): string {
-  return "otp_" + email.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, "_");
+type OtpKind = "registration" | "password_reset";
+const stores: Record<OtpKind, Map<string, StoredOtp>> = {
+  registration: otpStore,
+  password_reset: passwordResetOtpStore,
+};
+
+function getOtpDocId(kind: OtpKind, email: string): string {
+  const safe = email.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, "_");
+  return (kind === "registration" ? "otp_" : "pwdreset_") + safe;
+}
+
+async function loadOtp(kind: OtpKind, email: string): Promise<StoredOtp | undefined> {
+  const store = stores[kind];
+  let record = store.get(email);
+  if (!record) {
+    try {
+      const doc = await getDocumentFromFirestore<StoredOtp>("otps", getOtpDocId(kind, email));
+      if (doc && typeof doc.otpHash === "string") {
+        record = doc;
+        store.set(email, record);
+      }
+    } catch (e) {
+      console.warn("Firestore OTP fetch fallback:", e);
+    }
+  }
+  return record;
+}
+
+async function saveOtp(kind: OtpKind, email: string, record: StoredOtp): Promise<void> {
+  stores[kind].set(email, record);
+  // Awaited: on serverless the next request may land on another instance.
+  await saveDocumentToFirestore("otps", getOtpDocId(kind, email), record).catch((e) =>
+    console.warn("Failed to persist OTP:", e)
+  );
+}
+
+async function removeOtp(kind: OtpKind, email: string): Promise<void> {
+  stores[kind].delete(email);
+  await deleteDocumentFromFirestore("otps", getOtpDocId(kind, email)).catch(() => {});
 }
 
 // Check if SMTP is configured
@@ -52,7 +91,7 @@ function getTransporter() {
  * Generates a random 6-digit numeric OTP
  */
 export function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return generateOtpCode();
 }
 
 /**
@@ -69,15 +108,14 @@ export async function sendEmailOtp(
   const now = Date.now();
 
   const record: StoredOtp = {
-    otp: code,
+    otpHash: hashOtp(code, normalizedEmail),
     expiresAt: now + OTP_TTL_MS,
     attempts: 0,
     verified: false,
     createdAt: now,
   };
 
-  otpStore.set(normalizedEmail, record);
-  saveDocumentToFirestore("otps", getOtpDocId(normalizedEmail), record).catch(() => {});
+  await saveOtp("registration", normalizedEmail, record);
 
   // Always log OTP in development console for fast verification & debugging
   if (process.env.NODE_ENV !== "production") {
@@ -154,61 +192,7 @@ export async function verifyEmailOtp(
   email: string,
   submittedOtp: string
 ): Promise<{ success: boolean; error?: string }> {
-  const normalizedEmail = email.toLowerCase().trim();
-  let record = otpStore.get(normalizedEmail);
-
-  // Fallback to Firestore if memory store was refreshed
-  if (!record) {
-    try {
-      const doc = await getDocumentFromFirestore<StoredOtp>("otps", getOtpDocId(normalizedEmail));
-      if (doc) {
-        record = doc;
-        otpStore.set(normalizedEmail, record);
-      }
-    } catch (e) {
-      console.warn("Firestore OTP fetch fallback:", e);
-    }
-  }
-
-  if (!record) {
-    return {
-      success: false,
-      error: "No active verification code found for this email. Please request a new OTP.",
-    };
-  }
-
-  if (Date.now() > record.expiresAt) {
-    otpStore.delete(normalizedEmail);
-    deleteDocumentFromFirestore("otps", getOtpDocId(normalizedEmail)).catch(() => {});
-    return {
-      success: false,
-      error: "Verification code has expired. Please request a new one.",
-    };
-  }
-
-  if (record.attempts >= MAX_ATTEMPTS) {
-    otpStore.delete(normalizedEmail);
-    deleteDocumentFromFirestore("otps", getOtpDocId(normalizedEmail)).catch(() => {});
-    return {
-      success: false,
-      error: "Maximum verification attempts exceeded. Please request a new OTP.",
-    };
-  }
-
-  record.attempts += 1;
-
-  if (record.otp !== submittedOtp.trim()) {
-    const remaining = MAX_ATTEMPTS - record.attempts;
-    saveDocumentToFirestore("otps", getOtpDocId(normalizedEmail), record).catch(() => {});
-    return {
-      success: false,
-      error: `Invalid verification code. ${remaining} attempt(s) remaining.`,
-    };
-  }
-
-  record.verified = true;
-  saveDocumentToFirestore("otps", getOtpDocId(normalizedEmail), record).catch(() => {});
-  return { success: true };
+  return verifyOtp("registration", email, submittedOtp, "No active verification code found for this email. Please request a new OTP.");
 }
 
 /**
@@ -216,19 +200,44 @@ export async function verifyEmailOtp(
  */
 export async function isEmailOtpVerified(email: string): Promise<boolean> {
   const normalizedEmail = email.toLowerCase().trim();
-  let record = otpStore.get(normalizedEmail);
+  const record = await loadOtp("registration", normalizedEmail);
+  return Boolean(record && record.verified && Date.now() <= record.expiresAt + 60 * 60 * 1000);
+}
+
+async function verifyOtp(
+  kind: OtpKind,
+  email: string,
+  submittedOtp: string,
+  missingMessage: string
+): Promise<{ success: boolean; error?: string }> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const record = await loadOtp(kind, normalizedEmail);
 
   if (!record) {
-    try {
-      const doc = await getDocumentFromFirestore<StoredOtp>("otps", getOtpDocId(normalizedEmail));
-      if (doc) {
-        record = doc;
-        otpStore.set(normalizedEmail, record);
-      }
-    } catch {}
+    return { success: false, error: missingMessage };
   }
 
-  return Boolean(record && record.verified && Date.now() <= record.expiresAt + 60 * 60 * 1000);
+  if (Date.now() > record.expiresAt) {
+    await removeOtp(kind, normalizedEmail);
+    return { success: false, error: "Verification code has expired. Please request a new one." };
+  }
+
+  if (record.attempts >= MAX_ATTEMPTS) {
+    await removeOtp(kind, normalizedEmail);
+    return { success: false, error: "Maximum verification attempts exceeded. Please request a new code." };
+  }
+
+  record.attempts += 1;
+
+  if (!otpMatches(submittedOtp, normalizedEmail, record.otpHash)) {
+    const remaining = MAX_ATTEMPTS - record.attempts;
+    await saveOtp(kind, normalizedEmail, record);
+    return { success: false, error: `Invalid verification code. ${remaining} attempt(s) remaining.` };
+  }
+
+  record.verified = true;
+  await saveOtp(kind, normalizedEmail, record);
+  return { success: true };
 }
 
 /**
@@ -303,7 +312,6 @@ export async function sendAccountApprovedEmail(
 // PASSWORD RESET OTP & NOTIFICATION ENGINE
 // ============================================================================
 
-const passwordResetOtpStore = (globalForOtp.__hrms_pwd_reset_otp_store ??= new Map<string, StoredOtp>());
 
 /**
  * Sends a 6-digit password reset OTP to the user's email address.
@@ -316,8 +324,8 @@ export async function sendPasswordResetOtp(
   const code = generateOtp();
   const now = Date.now();
 
-  passwordResetOtpStore.set(normalizedEmail, {
-    otp: code,
+  await saveOtp("password_reset", normalizedEmail, {
+    otpHash: hashOtp(code, normalizedEmail),
     expiresAt: now + OTP_TTL_MS,
     attempts: 0,
     verified: false,
@@ -406,61 +414,28 @@ export async function verifyPasswordResetOtp(
   email: string,
   submittedOtp: string
 ): Promise<{ success: boolean; error?: string }> {
-  const normalizedEmail = email.toLowerCase().trim();
-  const record = passwordResetOtpStore.get(normalizedEmail);
-
-  if (!record) {
-    return {
-      success: false,
-      error: "No active password reset request found for this email. Please request a new code.",
-    };
-  }
-
-  if (Date.now() > record.expiresAt) {
-    passwordResetOtpStore.delete(normalizedEmail);
-    return {
-      success: false,
-      error: "Password reset code has expired. Please request a new one.",
-    };
-  }
-
-  if (record.attempts >= MAX_ATTEMPTS) {
-    passwordResetOtpStore.delete(normalizedEmail);
-    return {
-      success: false,
-      error: "Maximum verification attempts exceeded. Please request a new reset code.",
-    };
-  }
-
-  record.attempts += 1;
-
-  if (record.otp !== submittedOtp.trim()) {
-    const remaining = MAX_ATTEMPTS - record.attempts;
-    return {
-      success: false,
-      error: `Invalid verification code. ${remaining} attempt(s) remaining.`,
-    };
-  }
-
-  record.verified = true;
-  return { success: true };
+  return verifyOtp(
+    "password_reset",
+    email,
+    submittedOtp,
+    "No active password reset request found for this email. Please request a new code."
+  );
 }
 
 /**
  * Checks if a password reset OTP was verified in the last 15 minutes.
  */
-export function isPasswordResetOtpVerified(email: string): boolean {
+export async function isPasswordResetOtpVerified(email: string): Promise<boolean> {
   const normalizedEmail = email.toLowerCase().trim();
-  const record = passwordResetOtpStore.get(normalizedEmail);
+  const record = await loadOtp("password_reset", normalizedEmail);
   return Boolean(record && record.verified && Date.now() <= record.expiresAt + 15 * 60 * 1000);
 }
 
 /**
  * Consumes/clears the password reset OTP once the new password has been set.
  */
-export function clearPasswordResetOtp(email: string): void {
-  const normalizedEmail = email.toLowerCase().trim();
-  passwordResetOtpStore.delete(normalizedEmail);
+export async function clearPasswordResetOtp(email: string): Promise<void> {
+  await removeOtp("password_reset", email.toLowerCase().trim());
 }
 
 /**

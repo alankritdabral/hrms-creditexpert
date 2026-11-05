@@ -214,28 +214,37 @@ export default function EmployeesPage() {
                   {emp.employment.branch || "Delhi"}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Net Salary (In-Hand)</span>
-                {emp.currentSalary.isIncentiveOnly || (emp.currentSalary.annualCtc === 0 && emp.currentSalary.grossSalary === 0) ? (
-                  <span className="text-amber-700 font-semibold text-[10px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    ⚡ Incentive Only
-                  </span>
-                ) : (
-                  <span className="text-emerald-600 font-bold font-mono">
-                    ₹{(emp.currentSalary.netSalary || Math.max(0, emp.currentSalary.grossSalary - (emp.currentSalary.employeePf || 0))).toLocaleString("en-IN")}/mo
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Provident Fund (PF)</span>
-                <span className="text-slate-700 font-medium font-mono text-[11px]">
-                  {emp.currentSalary.isIncentiveOnly || (emp.currentSalary.annualCtc === 0 && emp.currentSalary.grossSalary === 0)
-                    ? "Exempted"
-                    : emp.currentSalary.employeePf > 0
-                    ? `₹${emp.currentSalary.employeePf.toLocaleString("en-IN")}/mo`
-                    : "Excluded"}
-                </span>
-              </div>
+              {emp.currentSalary ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Net Salary (In-Hand)</span>
+                    {emp.currentSalary.isIncentiveOnly || (emp.currentSalary.annualCtc === 0 && emp.currentSalary.grossSalary === 0) ? (
+                      <span className="text-amber-700 font-semibold text-[10px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        ⚡ Incentive Only
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600 font-bold font-mono">
+                        ₹{(emp.currentSalary.netSalary || Math.max(0, emp.currentSalary.grossSalary - (emp.currentSalary.employeePf || 0))).toLocaleString("en-IN")}/mo
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Provident Fund (PF)</span>
+                    <span className="text-slate-700 font-medium font-mono text-[11px]">
+                      {emp.currentSalary.isIncentiveOnly || (emp.currentSalary.annualCtc === 0 && emp.currentSalary.grossSalary === 0)
+                        ? "Exempted"
+                        : emp.currentSalary.employeePf > 0
+                        ? `₹${emp.currentSalary.employeePf.toLocaleString("en-IN")}/mo`
+                        : "Excluded"}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Salary</span>
+                  <span className="text-slate-400 text-[11px]">Restricted</span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Location</span>
                 <span className="text-slate-700">{emp.employment.workLocation}</span>

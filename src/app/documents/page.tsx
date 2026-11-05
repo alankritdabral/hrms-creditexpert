@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/lib/auth-context";
+import { uploadDocumentFile } from "@/lib/upload-client";
 import {
   FolderLock,
   Upload,
@@ -16,6 +17,7 @@ import {
   Download,
   Search,
 } from "lucide-react";
+import { getISTDateString } from "@/lib/attendance/ist-time";
 
 export default function DocumentsPage() {
   const { currentUser } = useAuth();
@@ -25,6 +27,7 @@ export default function DocumentsPage() {
   const [typeFilter, setTypeFilter] = useState("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [nowMs] = useState(() => Date.now());
 
   // Upload Form
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
@@ -33,6 +36,8 @@ export default function DocumentsPage() {
   const [expiryDate, setExpiryDate] = useState("");
   const [notes, setNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const canUpload = ["admin", "hr"].includes(currentUser.role);
 
@@ -45,7 +50,7 @@ export default function DocumentsPage() {
 
       if (empRes.success && empRes.data) {
         setEmployees(empRes.data);
-        if (empRes.data.length > 0) setSelectedEmployeeId(empRes.data[0].employeeId);
+        if (empRes.data.length > 0) setSelectedEmployeeId((prev) => prev || empRes.data[0].employeeId);
       }
 
       if (docRes.success && Array.isArray(docRes.data)) {
@@ -66,29 +71,44 @@ export default function DocumentsPage() {
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setUploadError(null);
+    if (!file) {
+      setUploadError("Choose a file to upload.");
+      return;
+    }
     setIsUploading(true);
-    const emp = employees.find((e) => e.employeeId === selectedEmployeeId);
+    const emp = employees.find((x) => x.employeeId === selectedEmployeeId);
 
-    const newDoc: EmployeeDocument = {
-      id: `doc-${Date.now()}`,
-      employeeId: selectedEmployeeId,
-      employeeName: emp?.personal.fullName || selectedEmployeeId,
-      documentType,
-      title: title || `${documentType.replace(/\s+/g, "_")}.pdf`,
-      fileUrl: "#",
-      uploadedBy: currentUser.name,
-      uploadDate: new Date().toISOString().split("T")[0],
-      expiryDate: expiryDate || undefined,
-      status: "Verified",
-      notes,
-    };
+    try {
+      // 1. Store the file, 2. record it against the employee
+      const stored = await uploadDocumentFile(file, "KYC_Document", selectedEmployeeId);
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId: selectedEmployeeId,
+          employeeName: emp?.personal.fullName || selectedEmployeeId,
+          documentType,
+          title: title.trim() || file.name,
+          fileUrl: stored.fileUrl,
+          expiryDate: expiryDate || undefined,
+          notes,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "Could not save the document.");
 
-    setDocuments([newDoc, ...documents]);
-    setIsUploading(false);
-    setIsModalOpen(false);
-    setTitle("");
-    setExpiryDate("");
-    setNotes("");
+      setIsModalOpen(false);
+      setTitle("");
+      setExpiryDate("");
+      setNotes("");
+      setFile(null);
+      await loadData();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const filteredDocs = documents.filter((d) => {
@@ -103,7 +123,7 @@ export default function DocumentsPage() {
   const expiringDocs = documents.filter((d) => {
     if (!d.expiryDate) return false;
     const diffDays = Math.ceil(
-      (new Date(d.expiryDate).getTime() - new Date("2026-10-17").getTime()) / (1000 * 60 * 60 * 24)
+      (new Date(d.expiryDate).getTime() - nowMs) / (1000 * 60 * 60 * 24)
     );
     return diffDays > 0 && diffDays <= 45;
   });
@@ -230,9 +250,10 @@ export default function DocumentsPage() {
               variant="outline"
               className="w-full text-xs"
               icon={<Download className="w-3.5 h-3.5" />}
-              onClick={() => alert(`Downloading document: ${d.title}`)}
+              disabled={!d.fileUrl || d.fileUrl === "#"}
+              onClick={() => window.open(d.fileUrl, "_blank", "noopener,noreferrer")}
             >
-              Download Secure Copy
+              {d.fileUrl && d.fileUrl !== "#" ? "Open Document" : "No file on record"}
             </Button>
           </div>
         ))}
@@ -281,6 +302,21 @@ export default function DocumentsPage() {
           </div>
 
           <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">File * (PDF, JPG, PNG or WEBP, max 2 MB)</label>
+            <input
+              type="file"
+              required
+              accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setFile(f);
+                if (f && !title) setTitle(f.name);
+              }}
+              className="w-full text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+            />
+          </div>
+
+          <div>
             <label className="block text-xs font-medium text-slate-300 mb-1">Document Title *</label>
             <input
               type="text"
@@ -317,6 +353,10 @@ export default function DocumentsPage() {
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
             />
           </div>
+
+          {uploadError && (
+            <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{uploadError}</p>
+          )}
 
           <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2 pt-4 border-t border-slate-800">
             <Button

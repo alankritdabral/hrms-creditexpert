@@ -7,10 +7,12 @@ import {
   createOnboardingRecord,
   recordAuditLog,
   deleteRegistrationDraft,
+  ConflictError,
 } from "@/lib/db/db-adapter";
 import { isEmailOtpVerified } from "@/lib/email";
-import { MAX_KYC_FILE_SIZE_BYTES } from "@/lib/upload-validation";
+import { MAX_KYC_FILE_SIZE_BYTES, isTrustedUploadUrl } from "@/lib/upload-validation";
 import { STANDARD_ONBOARDING_CHECKLIST, UserAccount, Branch } from "@/lib/types";
+import { addDaysIST, getISTDateString } from "@/lib/attendance/ist-time";
 
 const REQUIRED_DOC_TYPES = [
   { type: "pan_card", label: "PAN Card" },
@@ -64,6 +66,11 @@ export async function POST(req: NextRequest) {
           { status: 409 }
         );
       }
+      // Suspended or deactivated: a new application must not create a second account
+      return NextResponse.json(
+        { success: false, error: "An account with this email already exists. Please contact HR." },
+        { status: 409 }
+      );
     }
 
     // 3. Verify OTP was confirmed
@@ -99,8 +106,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Enforce 2 MB limit and allowed format on each submitted file metadata
+    // 5. Enforce 2 MB limit and allowed format on each submitted file metadata,
+    //    and accept only file URLs that our own upload endpoint issued.
     for (const doc of docList) {
+      if (!isTrustedUploadUrl(doc.fileUrl, process.env.CLOUDINARY_CLOUD_NAME)) {
+        return NextResponse.json(
+          { success: false, error: `Document "${doc.title || doc.type}" has an invalid file link. Please upload it again.` },
+          { status: 400 }
+        );
+      }
       if (doc.fileSize && doc.fileSize > MAX_KYC_FILE_SIZE_BYTES) {
         return NextResponse.json(
           {
@@ -189,8 +203,7 @@ export async function POST(req: NextRequest) {
         branch: branch as Branch,
         department: department || "Operations",
         designation: designation || "Associate",
-        joiningDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-        annualCtc: 480000,
+        joiningDate: addDaysIST(getISTDateString(), 7),
         assignedHrName: "HR Team",
         notes: "Self-registered online. KYC documents uploaded and awaiting HR verification.",
         selfRegistered: true,
@@ -239,7 +252,7 @@ export async function POST(req: NextRequest) {
     console.error("register/submit error:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Failed to submit registration application." },
-      { status: 500 }
+      { status: error instanceof ConflictError ? 409 : 500 }
     );
   }
 }

@@ -1,3 +1,4 @@
+import "server-only";
 import type { App } from "firebase-admin/app";
 import type { Firestore } from "firebase-admin/firestore";
 

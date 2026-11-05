@@ -12,8 +12,11 @@ import {
   authFailureResponse,
   requirePermission,
   requireBranchScope,
+  callerOf,
 } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/permissions";
+import { resolveTargetEmployeeId } from "@/lib/access";
+import { isLocalEnvironment } from "@/lib/env";
 import { getISTDateString } from "@/lib/attendance/ist-time";
 import { validateCoordinates } from "@/lib/attendance/geolocation";
 
@@ -31,7 +34,7 @@ export async function GET(req: NextRequest) {
     const month = searchParams.get("month");
     const from = searchParams.get("from") || (month ? `${month}-01` : undefined);
     const to = searchParams.get("to") || (month ? `${month}-31` : undefined);
-    const own = auth.role === "employee" || !hasPermission(auth.role, "attendance:view_all");
+    const own = !hasPermission(auth.role, "attendance:view_all");
     const targetEmp = own ? auth.employeeId : requestedEmpId;
 
     // Always scope the database read; with no filter at all, default to the current month
@@ -44,7 +47,7 @@ export async function GET(req: NextRequest) {
     );
 
     // Own records only, unless the role may view everyone — and then only within its branch scope.
-    if (auth.role === "employee" || !hasPermission(auth.role, "attendance:view_all")) {
+    if (own) {
       records = records.filter((r) => r.employeeId === auth.employeeId);
     } else {
       const allowed = new Set(
@@ -95,8 +98,8 @@ export async function POST(req: NextRequest) {
         longitude: Number(longitude),
         accuracy: Number(accuracy ?? 0),
       };
-    } else if (auth.role === "employee") {
-      // Employees are required to provide GPS location
+    } else if (!hasPermission(auth.role, "attendance:manage")) {
+      // Everyone except attendance managers (admin/HR) must provide GPS location
       return NextResponse.json(
         {
           success: false,
@@ -107,8 +110,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Security check: An employee can ONLY punch attendance for their own employeeId
-    const targetEmployeeId = auth.role === "employee" ? auth.employeeId : employeeId || auth.employeeId;
+    // Only attendance:manage (admin/HR) may clock someone else in; everyone else clocks in as themselves
+    const targetEmployeeId = resolveTargetEmployeeId(callerOf(auth), employeeId, "attendance:manage");
 
     const record = await punchAttendance(
       targetEmployeeId,
@@ -219,6 +222,14 @@ export async function DELETE(req: NextRequest) {
 
   const permError = requirePermission(auth, "attendance:manage");
   if (permError) return permError;
+
+  // Wiping the whole collection is a development-only reset.
+  if (!isLocalEnvironment(req)) {
+    return NextResponse.json(
+      { success: false, error: "Forbidden: resetting attendance data is disabled in production." },
+      { status: 403 }
+    );
+  }
 
   try {
     const deletedCount = await clearAttendanceRecords({

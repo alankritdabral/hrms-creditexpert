@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Target, TrendingUp } from "lucide-react";
 import { EmployeeLoginRecord } from "@/lib/types";
+import { getISTMonthString } from "@/lib/attendance/ist-time";
 
 type Health = "ahead" | "on-track" | "behind" | "no-target";
 
@@ -43,7 +44,7 @@ export function TeamProgress() {
   const [filter, setFilter] = useState<Health | "all">("all");
 
   useEffect(() => {
-    const month = new Date().toISOString().slice(0, 7);
+    const month = getISTMonthString();
     fetch(`/api/logins?month=${month}`)
       .then((r) => r.json())
       .then((j) => j.success && setRows(j.data))

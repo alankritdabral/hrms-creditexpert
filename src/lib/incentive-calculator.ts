@@ -1,5 +1,24 @@
 import { IncentiveCalculationBreakdown } from "./types";
 
+/** Used only when a login row cannot be matched to an employee record at all. */
+export const FALLBACK_MONTHLY_SALARY = 15000;
+
+/**
+ * Monthly salary that sets the incentive hurdle (hurdle = salary x multiplier).
+ * An employee on incentive-only pay (salary 0) has a zero hurdle; the fallback applies only
+ * when there is no employee record (or no salary data) for the login row.
+ */
+export function resolveIncentiveSalary(
+  emp?: {
+    currentSalary?: { grossSalary?: number; basic?: number; monthlyCtc?: number; isIncentiveOnly?: boolean };
+  } | null
+): number {
+  const s = emp?.currentSalary;
+  if (!s) return FALLBACK_MONTHLY_SALARY;
+  if (s.isIncentiveOnly) return 0;
+  return [s.grossSalary, s.basic, s.monthlyCtc].find((v): v is number => typeof v === "number" && v > 0) ?? 0;
+}
+
 export interface DisbursalSlabConfig {
   min: number;
   max: number;

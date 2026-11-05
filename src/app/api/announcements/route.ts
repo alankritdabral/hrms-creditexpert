@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAnnouncements, createAnnouncement } from "@/lib/db/db-adapter";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
+import { getISTDateString } from "@/lib/attendance/ist-time";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if (!auth.authenticated) {
+    return authFailureResponse(auth);
+  }
+
   try {
     const list = await getAnnouncements();
     return NextResponse.json({ success: true, data: list });
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
         description,
         targetAudience: targetAudience || "All",
         priority: priority || "Normal",
-        publishDate: new Date().toISOString().split("T")[0],
+        publishDate: getISTDateString(),
         expiryDate,
         publishedBy: auth.actor.name,
       },

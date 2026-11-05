@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
 import { Award } from "lucide-react";
+import { getISTDateString } from "@/lib/attendance/ist-time";
 
 interface AddEmployeeModalProps {
   isOpen: boolean;
@@ -22,7 +23,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     firstName: "",
     lastName: "",
     gender: "Female",
-    dob: "1998-05-20",
+    dob: "",
     mobileNumber: "",
     personalEmail: "",
     workEmail: "",
@@ -34,8 +35,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     workLocation: "Delhi Branch",
     employmentStatus: "Active",
     probationMonths: 0,
-    dateOfJoining: "2026-10-17",
-    annualCtc: 480000,
+    dateOfJoining: getISTDateString(),
+    annualCtc: 0,
     includePf: true,
     pfType: "percentage" as "percentage" | "fixed",
     pfValue: 12,
@@ -43,8 +44,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     pan: "",
     aadhaar: "",
     bankAccountNumber: "",
-    ifscCode: "HDFC0000123",
-    bankName: "HDFC Bank Ltd",
+    ifscCode: "",
+    bankName: "",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -69,14 +70,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
             personalEmail: formData.personalEmail,
             workEmail: formData.workEmail,
             address: formData.address,
-            avatarUrl: `https://images.unsplash.com/photo-${
-              formData.gender === "Male" ? "1507003211169-0a1dd7228f2d" : "1494790108377-be9c29b29330"
-            }?w=150&auto=format&fit=crop&q=80`,
-            emergencyContact: {
-              name: "Emergency Contact",
-              relationship: "Family",
-              phone: formData.mobileNumber,
-            },
+            // No stock photo or invented emergency contact: left empty until the employee provides them
+            emergencyContact: { name: "", relationship: "", phone: "" },
           },
           employment: {
             department: formData.department,
@@ -92,8 +87,9 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
           statutory: {
             pan: formData.pan.toUpperCase(),
             aadhaar: formData.aadhaar,
-            uan: `100${Math.floor(100000000 + Math.random() * 900000000)}`,
-            pfAccountNumber: `KN/BNG/0012345/000/${Math.floor(10000 + Math.random() * 90000)}`,
+            // UAN and PF account numbers are issued by the PF office; leave empty until known
+            uan: "",
+            pfAccountNumber: "",
             bankAccountNumber: formData.bankAccountNumber,
             ifscCode: formData.ifscCode.toUpperCase(),
             bankName: formData.bankName,
@@ -359,7 +355,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                     setFormData((prev) => ({
                       ...prev,
                       isIncentiveOnly: false,
-                      annualCtc: prev.annualCtc || 480000,
+                      annualCtc: prev.annualCtc,
                       includePf: true,
                     }))
                   }

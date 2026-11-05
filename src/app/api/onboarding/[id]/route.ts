@@ -4,6 +4,9 @@ import {
   updateOnboardingChecklist,
   advanceEmployeeLifecycle,
   activateOnboardedEmployee,
+  setOnboardingCtc,
+  ConflictError,
+  ValidationError,
 } from "@/lib/db/db-adapter";
 import {
   authenticateRequest,
@@ -11,6 +14,7 @@ import {
   requirePermission,
 } from "@/lib/api-auth";
 import { EmploymentStatus } from "@/lib/types";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(
   req: NextRequest,
@@ -28,8 +32,12 @@ export async function GET(
     return NextResponse.json({ success: false, error: "Record not found" }, { status: 404 });
   }
 
-  // Employee self-service check
-  if (auth.role === "employee" && record.employeeId !== auth.employeeId && record.email !== auth.actor.email) {
+  // Self-service check: callers without onboarding:view_all may only read their own record
+  if (
+    !hasPermission(auth.role, "onboarding:view_all") &&
+    record.employeeId !== auth.employeeId &&
+    record.email !== auth.actor.email
+  ) {
     return NextResponse.json({ success: false, error: "Forbidden: Not your record" }, { status: 403 });
   }
 
@@ -82,6 +90,17 @@ export async function PATCH(
       return NextResponse.json({ success: true, data: updated });
     }
 
+    if (action === "set_ctc") {
+      const updated = await setOnboardingCtc(id, Number(body.annualCtc), {
+        name: auth.actor.name,
+        role: auth.role,
+      });
+      if (!updated) {
+        return NextResponse.json({ success: false, error: "Record not found" }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, data: updated });
+    }
+
     if (action === "activate_employee") {
       const result = await activateOnboardedEmployee(id, {
         name: auth.actor.name,
@@ -92,6 +111,7 @@ export async function PATCH(
 
     return NextResponse.json({ success: false, error: "Unknown action" }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const status = error instanceof ConflictError ? 409 : error instanceof ValidationError ? 400 : 500;
+    return NextResponse.json({ success: false, error: error.message }, { status });
   }
 }

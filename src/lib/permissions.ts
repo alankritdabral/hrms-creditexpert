@@ -110,17 +110,25 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "onboarding:manage",
     "sensitive_data:unmask",
   ],
-  employee: [
-    "holidays:view",
-    "logins:view_all",
-    "logins:manage",
-    "incentives:view_all",
-  ],
+  // Self-service only. "logins:manage" lets a person maintain their OWN login records;
+  // the API forces the employee ID to the caller's, so it never grants access to others.
+  employee: ["holidays:view", "logins:manage"],
 };
+
+/**
+ * Permissions for any role. Admin and HR use their lists; every other role, including the
+ * "employee" role and any custom role created in Settings, gets self-service access only.
+ * (Custom roles control which sidebar sections are visible, not which people's data the API returns.)
+ */
+export function getRolePermissions(role: UserRole): Permission[] {
+  if (role === "admin") return ROLE_PERMISSIONS.admin;
+  if (role === "hr") return ROLE_PERMISSIONS.hr;
+  return ROLE_PERMISSIONS.employee;
+}
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
   if (role === "admin") return true;
-  const permissions = (ROLE_PERMISSIONS as Record<string, Permission[]>)[role] || [];
+  const permissions = getRolePermissions(role);
   return permissions.includes("all:manage") || permissions.includes(permission);
 }
 

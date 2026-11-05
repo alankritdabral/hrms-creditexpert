@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest, authFailureResponse } from "@/lib/api-auth";
-import { ROLE_PERMISSIONS } from "@/lib/permissions";
+import { authenticateRequest, authFailureResponse, toPublicSession } from "@/lib/api-auth";
+import { getRolePermissions } from "@/lib/permissions";
 import { getUserAccountById, getCustomRoles } from "@/lib/db/db-adapter";
 import { APP_SECTIONS, DEFAULT_ROLES } from "@/lib/types";
 
@@ -57,13 +57,13 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    session: auth.session,
+    session: toPublicSession(auth.session),
     user: userPayload,
     role: userPayload.role,
     branch: auth.branch,
     branchScope: auth.branchScope,
     employeeId: auth.employeeId,
     allowedSections,
-    permissions: ROLE_PERMISSIONS[auth.role as keyof typeof ROLE_PERMISSIONS] || [],
+    permissions: getRolePermissions(auth.role),
   });
 }

@@ -29,10 +29,12 @@ import {
 } from "@/lib/attendance/client-geolocation";
 import { AttendanceDashboard } from "@/components/attendance/AttendanceDashboard";
 import { LocationHelpModal } from "@/components/attendance/LocationHelpModal";
-import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
+import { formatISTTime12, getISTDateString, lateCutoffLabel } from "@/lib/attendance/ist-time";
+import { useIsLocalhost } from "@/lib/use-is-localhost";
 
 export default function AttendancePage() {
   const { currentUser } = useAuth();
+  const isLocalhost = useIsLocalhost();
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => getISTDateString());
@@ -265,16 +267,18 @@ export default function AttendancePage() {
               >
                 Configure Policy
               </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                isLoading={isClearing}
-                icon={<Trash2 className="w-4 h-4" />}
-                onClick={handleClearAttendance}
-                title="Purge all attendance records for a fresh start"
-              >
-                Reset Attendance Data
-              </Button>
+              {isLocalhost && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  isLoading={isClearing}
+                  icon={<Trash2 className="w-4 h-4" />}
+                  onClick={handleClearAttendance}
+                  title="Development only: purge all attendance records"
+                >
+                  Reset Attendance Data
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -408,7 +412,7 @@ export default function AttendancePage() {
             <div className="flex justify-between py-1 border-b border-slate-800">
               <span className="text-slate-400">Grace Period</span>
               <span className="font-semibold text-amber-400">
-                {policy?.gracePeriodMinutes || 15} minutes (Late after 10:15 AM)
+                {policy?.gracePeriodMinutes ?? 15} minutes (Late after {lateCutoffLabel(policy?.officeStartTime, policy?.gracePeriodMinutes)})
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-slate-800">

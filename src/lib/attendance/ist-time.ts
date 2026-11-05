@@ -17,6 +17,41 @@ export function getISTDateString(date: Date = new Date()): string {
   }).format(date);
 }
 
+/** Current (or given) month as "YYYY-MM" in IST. */
+export function getISTMonthString(date: Date = new Date()): string {
+  return getISTDateString(date).slice(0, 7);
+}
+
+/** Calendar arithmetic on a "YYYY-MM-DD" string (no time zone involved). */
+export function addDaysIST(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** Whether a "YYYY-MM-DD" calendar date is a Sunday. */
+export function isSundayDate(dateStr: string): boolean {
+  return new Date(`${dateStr}T00:00:00Z`).getUTCDay() === 0;
+}
+
+/** The working days of a leave: every date from start to end except Sundays and the given holidays. */
+export function leaveWorkingDates(startDate: string, endDate: string, holidayDates: Set<string>, maxDays = 62): string[] {
+  const out: string[] = [];
+  let d = startDate;
+  for (let i = 0; i < maxDays && d <= endDate; i++, d = addDaysIST(d, 1)) {
+    if (!isSundayDate(d) && !holidayDates.has(d)) out.push(d);
+  }
+  return out;
+}
+
+/** "10:15 AM": arrivals after this time are marked late for the given policy. */
+export function lateCutoffLabel(startTime = "10:00", graceMinutes = 15): string {
+  const [h, m] = startTime.split(":").map(Number);
+  const total = (h || 10) * 60 + (m || 0) + (graceMinutes ?? 15);
+  const hh = Math.floor(total / 60) % 24;
+  const mm = total % 60;
+  return `${String(hh % 12 || 12).padStart(2, "0")}:${String(mm).padStart(2, "0")} ${hh >= 12 ? "PM" : "AM"}`;
+}
+
 /**
  * Returns 24-hour time "HH:mm" strictly in Indian Standard Time (IST).
  * Used for server-side policy cutoff comparison.

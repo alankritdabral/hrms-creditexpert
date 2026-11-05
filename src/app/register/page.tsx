@@ -83,7 +83,7 @@ export default function RegisterPage() {
   const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
 
   // Form State: Step 2 (Personal Details)
-  const [dob, setDob] = useState("1996-05-15");
+  const [dob, setDob] = useState("");
   const [gender, setGender] = useState<"Male" | "Female" | "Other">("Male");
   const [parentsName, setParentsName] = useState("");
   const [currentAddress, setCurrentAddress] = useState("");
@@ -159,8 +159,6 @@ export default function RegisterPage() {
   }, [
     candidateName,
     email,
-    password,
-    confirmPassword,
     phone,
     branch,
     currentStep,
@@ -192,11 +190,10 @@ export default function RegisterPage() {
     const newHighest = Math.max(highestStep, currentStep);
     setHighestStep(newHighest);
 
+    // Passwords are never saved in drafts (locally or on the server); they are re-entered on resume.
     const draftData: RegistrationDraft = {
       candidateName,
       email,
-      password,
-      confirmPassword,
       phone,
       branch,
       currentStep,
@@ -225,7 +222,8 @@ export default function RegisterPage() {
 
     saveLocalDraft(draftData);
 
-    if (email && email.includes("@")) {
+    // The server accepts drafts only once the email address is verified.
+    if (email && email.includes("@") && otpVerified) {
       saveServerDraft(email, draftData).catch(() => {});
     }
 
@@ -243,8 +241,8 @@ export default function RegisterPage() {
 
     setCandidateName(pendingResumeDraft.candidateName || "");
     setEmail(pendingResumeDraft.email || "");
-    setPassword(pendingResumeDraft.password || "");
-    setConfirmPassword(pendingResumeDraft.confirmPassword || pendingResumeDraft.password || "");
+    setPassword("");
+    setConfirmPassword("");
     setPhone(pendingResumeDraft.phone || "");
     setBranch(pendingResumeDraft.branch || "Delhi");
 
@@ -254,7 +252,7 @@ export default function RegisterPage() {
     }
 
     if (pendingResumeDraft.personalDetails) {
-      setDob(pendingResumeDraft.personalDetails.dob || "1996-05-15");
+      setDob(pendingResumeDraft.personalDetails.dob || "");
       setGender(pendingResumeDraft.personalDetails.gender || "Male");
       setParentsName(pendingResumeDraft.personalDetails.parentsName || "");
       setCurrentAddress(pendingResumeDraft.personalDetails.currentAddress || "");
@@ -303,7 +301,7 @@ export default function RegisterPage() {
     setOtpSent(false);
     setOtpVerified(false);
     setDevOtpCode(null);
-    setDob("1996-05-15");
+    setDob("");
     setGender("Male");
     setParentsName("");
     setCurrentAddress("");
@@ -394,6 +392,8 @@ export default function RegisterPage() {
       } else {
         setOtpVerified(true);
         setDevOtpCode(null);
+        // Now that the email is verified, offer any draft saved from another device.
+        handleCheckEmailDraft(email.trim());
       }
     } catch (err: any) {
       setGlobalError(err.message || "Verification request failed.");
@@ -572,6 +572,13 @@ export default function RegisterPage() {
       }
     }
 
+    // A resumed draft has no password; ask for it again on the first step.
+    if (!password || password.length < 6 || password !== confirmPassword) {
+      setGlobalError("Please re-enter and confirm your login password on the first step.");
+      setCurrentStep(1);
+      return;
+    }
+
     setIsSubmittingFinal(true);
 
     try {
@@ -600,7 +607,7 @@ export default function RegisterPage() {
           aadhaar: aadhaarNumber.replace(/\s+/g, ""),
           bankAccountNumber,
           ifscCode: ifscCode.trim().toUpperCase(),
-          bankName: bankName || "Primary Bank Ltd",
+          bankName,
         },
         kycDocuments: Object.values(kycDocs).map((d) => ({
           type: d.type,
@@ -622,6 +629,12 @@ export default function RegisterPage() {
 
       if (!res.ok || !data.success) {
         setGlobalError(data.error || "Failed to submit application.");
+        if (res.status === 403) {
+          // Email verification expired: verify again on the first step.
+          setOtpVerified(false);
+          setOtpSent(false);
+          setCurrentStep(1);
+        }
       } else {
         setSubmissionSuccess(true);
         setCurrentStep(5);
@@ -885,7 +898,6 @@ export default function RegisterPage() {
                         disabled={otpVerified}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        onBlur={(e) => handleCheckEmailDraft(e.target.value)}
                         placeholder="e.g. ramesh.sharma@gmail.com"
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60 transition-colors"
                       />

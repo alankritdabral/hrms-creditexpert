@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAssets, createAsset, updateAsset } from "@/lib/db/db-adapter";
-import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
+import { authenticateRequest, authFailureResponse, requirePermission, callerOf } from "@/lib/api-auth";
+import { ownOrScoped } from "@/lib/access";
+import { getISTDateString } from "@/lib/attendance/ist-time";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -10,9 +12,7 @@ export async function GET(req: NextRequest) {
 
   try {
     let assets = await getAssets();
-    if (auth.role === "employee") {
-      assets = assets.filter((a) => a.assignedToEmployeeId === auth.employeeId);
-    }
+    assets = ownOrScoped(callerOf(auth), "assets:view_all", assets, (a) => a.assignedToEmployeeId);
     return NextResponse.json({ success: true, data: assets });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
         serialNumber,
         assignedToEmployeeId,
         assignedToName,
-        issuedDate: assignedToEmployeeId ? new Date().toISOString().split("T")[0] : undefined,
+        issuedDate: assignedToEmployeeId ? getISTDateString() : undefined,
         status: status || "Assigned",
         notes,
       },
@@ -67,10 +67,10 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, updates } = body;
+    const { id, assetTag, updates } = body;
 
     const updated = await updateAsset(
-      id,
+      assetTag || id,
       updates,
       {
         name: auth.actor.name,

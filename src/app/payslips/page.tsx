@@ -9,11 +9,12 @@ import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/lib/auth-context";
 import { numberToIndianCurrencyWords } from "@/lib/payroll-engine";
 import { FileSpreadsheet, Printer, Eye, Search } from "lucide-react";
+import { getISTMonthString } from "@/lib/attendance/ist-time";
 
 export default function PayslipsPage() {
   const { currentUser } = useAuth();
   const [runs, setRuns] = useState<PayrollRun[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState("2026-10");
+  const [selectedMonth, setSelectedMonth] = useState(getISTMonthString());
   const [activeItem, setActiveItem] = useState<PayrollItemSnapshot | null>(null);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);

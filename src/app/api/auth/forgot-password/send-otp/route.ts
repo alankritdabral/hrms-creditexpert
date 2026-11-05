@@ -21,31 +21,19 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.toLowerCase().trim();
     const user = await getUserAccountByEmail(normalizedEmail);
 
-    if (!user) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "No employee account found with this email address. Please check your spelling or register online.",
-        },
-        { status: 404 }
-      );
-    }
+    // The response is identical whether or not an account exists (or is active), so this form
+    // cannot be used to discover which email addresses are registered.
+    const genericMessage = "If an active account exists for this email, a 6-digit verification code has been sent.";
 
-    if (user.status === "Suspended" || user.status === "Deactivated") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Your account is ${user.status.toLowerCase()}. Please contact HR administrator to regain access.`,
-        },
-        { status: 403 }
-      );
+    if (!user || user.status === "Suspended" || user.status === "Deactivated") {
+      return NextResponse.json({ success: true, message: genericMessage });
     }
 
     const result = await sendPasswordResetOtp(normalizedEmail, user.name);
 
     return NextResponse.json({
       success: true,
-      message: result.message,
+      message: genericMessage,
       devOtp: isLocalEnvironment(req) ? result.devOtp : undefined,
     });
   } catch (error: any) {

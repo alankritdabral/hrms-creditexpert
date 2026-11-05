@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRequests, createRequest, updateRequestStatus } from "@/lib/db/db-adapter";
 import { paginateList } from "@/lib/pagination";
-import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
+import { authenticateRequest, authFailureResponse, requirePermission, callerOf } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
+import { ownOrScoped, resolveTargetEmployeeId } from "@/lib/access";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -15,9 +17,8 @@ export async function GET(req: NextRequest) {
 
     let requests = await getRequests();
 
-    if (auth.role === "employee") {
-      requests = requests.filter((r) => r.employeeId === auth.employeeId);
-    } else if (requestedEmpId) {
+    requests = ownOrScoped(callerOf(auth), "requests:view_all", requests, (r) => r.employeeId);
+    if (requestedEmpId && hasPermission(auth.role, "requests:view_all")) {
       requests = requests.filter((r) => r.employeeId === requestedEmpId);
     }
 
@@ -39,8 +40,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { employeeId, employeeName, department, requestType, subject, details } = body;
 
-    const targetEmployeeId = auth.role === "employee" ? auth.employeeId : employeeId || auth.employeeId;
-    const targetEmployeeName = auth.role === "employee" ? auth.actor.name : employeeName || auth.actor.name;
+    const targetEmployeeId = resolveTargetEmployeeId(callerOf(auth), employeeId, "requests:manage");
+    const targetEmployeeName = targetEmployeeId === auth.employeeId ? auth.actor.name : employeeName || targetEmployeeId;
 
     const newRequest = await createRequest(
       {

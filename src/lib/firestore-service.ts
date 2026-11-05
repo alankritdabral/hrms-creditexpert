@@ -1,18 +1,10 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  setDoc,
-  deleteDoc,
-  writeBatch,
-  query,
-  where,
-  limit as firestoreLimit,
-} from "firebase/firestore";
-import { getFirebaseFirestore } from "./firebase";
+import "server-only";
+import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { getFirebaseAdminFirestore } from "./firebase-admin";
+import { getWebCompatFirestore } from "./firestore-web-compat";
+import { isLocalEnvironment } from "./env";
 import { UserSession } from "./types";
+import { matchesFilters, patchCachedList, docWithId, type CacheFilter } from "./cache-patch";
 import {
   INITIAL_EMPLOYEES,
   INITIAL_ATTENDANCE,
@@ -59,23 +51,23 @@ const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
 // Filtered-query cache (server-side `where` reads) — keeps large, ever-growing
 // collections such as attendance from ever being loaded in full.
-export type QueryFilter = { field: string; op: "==" | ">=" | "<="; value: string | number | boolean };
+export type QueryFilter = CacheFilter;
 interface QueryCacheEntry extends CacheEntry<any[]> { collection: string; filters: QueryFilter[] }
 const queryCache = new Map<string, QueryCacheEntry>();
 const inflightQueries = new Map<string, Promise<unknown[]>>();
 
-function matchesFilters(doc: any, filters: QueryFilter[]): boolean {
-  return filters.every((f) => {
-    const v = doc?.[f.field];
-    if (v === undefined || v === null) return false;
-    if (f.op === "==") return v === f.value;
-    if (f.op === ">=") return v >= f.value;
-    return v <= f.value;
-  });
+/** Cache key for a collection read; limited reads must never be mistaken for the full collection. */
+export interface CollectionReadOptions {
+  forceRefresh?: boolean;
+  limitCount?: number;
+  /** Server-side ordering (single field, so no composite index is needed). */
+  orderBy?: { field: string; direction: "asc" | "desc" };
 }
 
-/** Cache key for a collection read; limited reads must never be mistaken for the full collection. */
-const colKey = (name: string, limitCount?: number) => (limitCount ? `${name}#limit${limitCount}` : name);
+const colKey = (name: string, limitCount?: number, orderBy?: CollectionReadOptions["orderBy"]) =>
+  limitCount || orderBy
+    ? `${name}#limit${limitCount ?? ""}${orderBy ? `#${orderBy.field}-${orderBy.direction}` : ""}`
+    : name;
 
 /**
  * Write-through: after a successful write, patch every cached copy in place
@@ -86,21 +78,10 @@ function applyWriteToCaches(collectionName: string, docId: string, data: any | n
   for (const k of Array.from(collectionCache.keys())) {
     if (k.startsWith(`${collectionName}#`)) collectionCache.delete(k);
   }
-  const patchList = (list: any[], filters?: QueryFilter[]): any[] => {
-    const idx = list.findIndex((d) => d.id === docId);
-    if (data === null) return idx === -1 ? list : list.filter((_, i) => i !== idx);
-    const merged = { ...(idx === -1 ? {} : list[idx]), ...data, id: docId };
-    const belongs = !filters || matchesFilters(merged, filters);
-    if (idx === -1) return belongs ? [...list, merged] : list;
-    if (!belongs) return list.filter((_, i) => i !== idx);
-    const next = list.slice();
-    next[idx] = merged;
-    return next;
-  };
   const col = collectionCache.get(collectionName);
-  if (col) col.data = patchList(col.data);
+  if (col) col.data = patchCachedList(col.data, docId, data);
   for (const q of queryCache.values()) {
-    if (q.collection === collectionName) q.data = patchList(q.data, q.filters);
+    if (q.collection === collectionName) q.data = patchCachedList(q.data, docId, data, q.filters);
   }
   if (data === null) singleDocCache.delete(`${collectionName}/${docId}`);
   else if (collectionName !== "sessions") {
@@ -150,15 +131,33 @@ function handleQuotaExhausted(operation: string, err: any) {
 }
 
 /**
- * Wraps a promise with an automatic timeout to prevent hanging on slow/offline connections
+ * The Firestore handle: the Admin SDK when a service-account key is configured (bypasses rules),
+ * otherwise the web SDK through the NEXT_PUBLIC_FIREBASE_* config (subject to firestore.rules).
  */
-function withTimeout<T>(promise: Promise<T>, timeoutMs = 3500): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Firestore operation timed out after ${timeoutMs}ms`)), timeoutMs)
-    ),
-  ]);
+function resolveDb(): Firestore | null {
+  return getFirebaseAdminFirestore() ?? getWebCompatFirestore();
+}
+
+/**
+ * True when the server can reach Firestore (Admin credentials or the web config).
+ * When false (local development with neither) callers fall back to the in-memory store.
+ */
+export function isFirestoreConfigured(): boolean {
+  return resolveDb() !== null;
+}
+
+/**
+ * Returns the Firestore handle. In production a missing configuration is a hard error.
+ * In local development it returns null so the in-memory fallback keeps working.
+ */
+function getAdminDb() {
+  const db = resolveDb();
+  if (!db && !isLocalEnvironment()) {
+    throw new Error(
+      "Firestore is not configured: set NEXT_PUBLIC_FIREBASE_API_KEY and NEXT_PUBLIC_FIREBASE_PROJECT_ID, or the FIREBASE_ADMIN_* credentials."
+    );
+  }
+  return db;
 }
 
 /**
@@ -193,9 +192,9 @@ const inflightReads = new Map<string, Promise<unknown[]>>();
  */
 export function getCollectionFromFirestore<T>(
   collectionName: string,
-  options?: { forceRefresh?: boolean; limitCount?: number }
+  options?: CollectionReadOptions
 ): Promise<T[]> {
-  const key = `${collectionName}|${options?.limitCount ?? ""}`;
+  const key = `${collectionName}|${options?.limitCount ?? ""}|${options?.orderBy ? `${options.orderBy.field}-${options.orderBy.direction}` : ""}`;
   if (options?.forceRefresh) return fetchCollection<T>(collectionName, options);
   const existing = inflightReads.get(key);
   if (existing) return existing as Promise<T[]>;
@@ -206,21 +205,21 @@ export function getCollectionFromFirestore<T>(
 
 async function fetchCollection<T>(
   collectionName: string,
-  options?: { forceRefresh?: boolean; limitCount?: number }
+  options?: CollectionReadOptions
 ): Promise<T[]> {
   totalReadsAttempted++;
 
   // 1. Check Circuit Breaker (If quota is exhausted, fail-fast to memory fallback tier)
   if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
     // Return cached data if present, otherwise empty array to let memory store take over
-    const cached = collectionCache.get(colKey(collectionName, options?.limitCount));
+    const cached = collectionCache.get(colKey(collectionName, options?.limitCount, options?.orderBy));
     if (cached) return cached.data as T[];
     return [];
   }
 
   // 2. Check In-Memory TTL Cache (Conserves reads against 50k daily limit)
   if (!options?.forceRefresh) {
-    const cached = collectionCache.get(colKey(collectionName, options?.limitCount));
+    const cached = collectionCache.get(colKey(collectionName, options?.limitCount, options?.orderBy));
     if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
       cacheHits++;
       return cached.data as T[];
@@ -229,45 +228,26 @@ async function fetchCollection<T>(
 
   cacheMisses++;
 
-  // 3. Try Firebase Admin SDK first (zero security-rules evaluation read overhead)
-  const adminDb = getFirebaseAdminFirestore();
-  if (adminDb) {
-    try {
-      let queryRef: any = adminDb.collection(collectionName);
-      if (options?.limitCount) {
-        queryRef = queryRef.limit(options.limitCount);
-      }
-      const snapshot = await queryRef.get();
-      const docs = snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() } as T));
-      collectionCache.set(colKey(collectionName, options?.limitCount), { data: docs, cachedAt: Date.now() });
-      return docs;
-    } catch (err: any) {
-      if (isQuotaExhaustedError(err)) {
-        handleQuotaExhausted(`adminDb.collection("${collectionName}")`, err);
-      } else {
-        console.warn(`Firestore Admin read failed for collection "${collectionName}":`, err.message);
-      }
-    }
-  }
-
-  // 4. Try Firebase Client SDK
-  const clientDb = getFirebaseFirestore();
-  if (!clientDb) return [];
-
+  // 3. Read through the Admin SDK (the only server path to Firestore)
+  const adminDb = getAdminDb();
+  if (!adminDb) return [];
   try {
-    let q: any = collection(clientDb, collectionName);
-    if (options?.limitCount) {
-      q = query(q, firestoreLimit(options.limitCount));
+    let queryRef: any = adminDb.collection(collectionName);
+    if (options?.orderBy) {
+      queryRef = queryRef.orderBy(options.orderBy.field, options.orderBy.direction);
     }
-    const snapshot = await withTimeout(getDocs(q), 4000);
-    const docs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as any) } as T));
-    collectionCache.set(colKey(collectionName, options?.limitCount), { data: docs, cachedAt: Date.now() });
+    if (options?.limitCount) {
+      queryRef = queryRef.limit(options.limitCount);
+    }
+    const snapshot = await queryRef.get();
+    const docs = snapshot.docs.map((d: any) => docWithId<T>(d.id, d.data()));
+    collectionCache.set(colKey(collectionName, options?.limitCount, options?.orderBy), { data: docs, cachedAt: Date.now() });
     return docs;
   } catch (err: any) {
     if (isQuotaExhaustedError(err)) {
-      handleQuotaExhausted(`clientDb.collection("${collectionName}")`, err);
+      handleQuotaExhausted(`adminDb.collection("${collectionName}")`, err);
     } else {
-      console.warn(`Firestore Client read failed for collection "${collectionName}":`, err.message);
+      console.warn(`Firestore Admin read failed for collection "${collectionName}":`, err.message);
     }
     return [];
   }
@@ -311,28 +291,16 @@ async function runQuery<T>(collectionName: string, filters: QueryFilter[], key: 
     return docs;
   };
 
-  const adminDb = getFirebaseAdminFirestore();
-  if (adminDb) {
-    try {
-      let ref: any = adminDb.collection(collectionName);
-      for (const f of filters) ref = ref.where(f.field, f.op, f.value);
-      const snap = await ref.get();
-      return store(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as T)));
-    } catch (err: any) {
-      if (isQuotaExhaustedError(err)) handleQuotaExhausted(`adminDb.query("${collectionName}")`, err);
-      else console.warn(`Firestore Admin query failed for "${collectionName}":`, err.message);
-    }
-  }
-
-  const clientDb = getFirebaseFirestore();
-  if (!clientDb) return [];
+  const adminDb = getAdminDb();
+  if (!adminDb) return [];
   try {
-    const q = query(collection(clientDb, collectionName), ...filters.map((f) => where(f.field, f.op, f.value)));
-    const snap = await withTimeout(getDocs(q), 4000);
-    return store(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) } as T)));
+    let ref: any = adminDb.collection(collectionName);
+    for (const f of filters) ref = ref.where(f.field, f.op, f.value);
+    const snap = await ref.get();
+    return store(snap.docs.map((d: any) => docWithId<T>(d.id, d.data())));
   } catch (err: any) {
-    if (isQuotaExhaustedError(err)) handleQuotaExhausted(`clientDb.query("${collectionName}")`, err);
-    else console.warn(`Firestore Client query failed for "${collectionName}":`, err.message);
+    if (isQuotaExhaustedError(err)) handleQuotaExhausted(`adminDb.query("${collectionName}")`, err);
+    else console.warn(`Firestore Admin query failed for "${collectionName}":`, err.message);
     return [];
   }
 }
@@ -348,7 +316,7 @@ export async function getDocumentFromFirestore<T>(
 
   // 1. Check if the parent collection is already cached in memory (0 Firestore reads!)
   // Note: "sessions" collection must never use stale collection cache to ensure instant revocation/authentication
-  if (collectionName !== "sessions") {
+  if (collectionName !== "sessions" && collectionName !== "otps") {
     const cachedCol = collectionCache.get(collectionName);
     if (cachedCol && Date.now() - cachedCol.cachedAt < CACHE_TTL_MS) {
       const list = cachedCol.data as any[];
@@ -367,8 +335,8 @@ export async function getDocumentFromFirestore<T>(
     }
   }
 
-  // 2. Check single document cache
-  const cachedDoc = singleDocCache.get(cacheKey);
+  // 2. Check single document cache (one-time codes are never cached: a resent code must win immediately)
+  const cachedDoc = collectionName === "otps" ? undefined : singleDocCache.get(cacheKey);
   if (cachedDoc && Date.now() - cachedDoc.cachedAt < CACHE_TTL_MS) {
     cacheHits++;
     return cachedDoc.data as T;
@@ -381,38 +349,20 @@ export async function getDocumentFromFirestore<T>(
 
   cacheMisses++;
 
-  // 4. Try Admin SDK
-  const adminDb = getFirebaseAdminFirestore();
-  if (adminDb) {
-    try {
-      const docSnap = await adminDb.collection(collectionName).doc(docId).get();
-      if (!docSnap.exists) return null;
-      const data = { id: docSnap.id, ...docSnap.data() } as T;
-      singleDocCache.set(cacheKey, { data, cachedAt: Date.now() });
-      return data;
-    } catch (err: any) {
-      if (isQuotaExhaustedError(err)) {
-        handleQuotaExhausted(`adminDb.doc("${cacheKey}")`, err);
-      }
-    }
-  }
-
-  // 5. Try Client SDK
-  const clientDb = getFirebaseFirestore();
-  if (!clientDb) return null;
-
+  // 4. Read through the Admin SDK
+  const adminDb = getAdminDb();
+  if (!adminDb) return null;
   try {
-    const docRef = doc(clientDb, collectionName, docId);
-    const docSnap = await withTimeout(getDoc(docRef), 3000);
-    if (!docSnap.exists()) return null;
-    const data = { id: docSnap.id, ...(docSnap.data() as any) } as T;
+    const docSnap = await adminDb.collection(collectionName).doc(docId).get();
+    if (!docSnap.exists) return null;
+    const data = docWithId<T>(docSnap.id, docSnap.data());
     singleDocCache.set(cacheKey, { data, cachedAt: Date.now() });
     return data;
   } catch (err: any) {
     if (isQuotaExhaustedError(err)) {
-      handleQuotaExhausted(`clientDb.doc("${cacheKey}")`, err);
+      handleQuotaExhausted(`adminDb.doc("${cacheKey}")`, err);
     } else {
-      console.warn(`Firestore read failed for "${cacheKey}":`, err.message);
+      console.warn(`Firestore Admin read failed for "${cacheKey}":`, err.message);
     }
     return null;
   }
@@ -436,101 +386,103 @@ export async function saveDocumentToFirestore(
 
   const cleanData = JSON.parse(JSON.stringify(data));
 
-  // 1. Try Firebase Admin SDK
-  const adminDb = getFirebaseAdminFirestore();
-  if (adminDb) {
-    try {
-      await adminDb.collection(collectionName).doc(docId).set(cleanData, { merge: true });
-      applyWriteToCaches(collectionName, docId, cleanData);
-      return true;
-    } catch (err: any) {
-      if (isQuotaExhaustedError(err)) {
-        handleQuotaExhausted(`adminDb.save("${collectionName}/${docId}")`, err);
-      } else {
-        console.warn(`Firestore Admin write failed for "${collectionName}/${docId}":`, err.message);
-      }
-    }
+  // Write through the Admin SDK. A full-document overwrite (no merge): a field a caller removed must really disappear.
+  let adminDb;
+  try {
+    adminDb = getAdminDb();
+  } catch (err: any) {
+    console.error(err.message);
+    return false;
   }
-
-  // 2. Try Firebase Client SDK
-  const clientDb = getFirebaseFirestore();
-  if (!clientDb) {
+  if (!adminDb) {
     invalidateFirestoreCache(collectionName, docId);
     return false;
   }
 
   try {
-    const docRef = doc(clientDb, collectionName, docId);
-    await withTimeout(setDoc(docRef, cleanData, { merge: true }), 3500);
-    if (collectionName === "sessions") {
-      singleDocCache.set(`${collectionName}/${docId}`, { data: cleanData, cachedAt: Date.now() });
-    }
+    await adminDb.collection(collectionName).doc(docId).set(cleanData);
     applyWriteToCaches(collectionName, docId, cleanData);
     return true;
   } catch (err: any) {
     if (isQuotaExhaustedError(err)) {
-      handleQuotaExhausted(`clientDb.save("${collectionName}/${docId}")`, err);
+      handleQuotaExhausted(`adminDb.save("${collectionName}/${docId}")`, err);
     } else {
-      console.warn(`Firestore Client write failed for "${collectionName}/${docId}":`, err.message);
+      console.warn(`Firestore Admin write failed for "${collectionName}/${docId}":`, err.message);
     }
     invalidateFirestoreCache(collectionName, docId);
     return false;
   }
 }
 
+/** Firestore rejects undefined values; JSON round-tripping drops them. */
+export function toFirestoreData<T>(data: T): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(data));
+}
+
 /**
- * Query active sessions for a specific user ID directly from Firestore (Admin or Client SDK)
+ * Runs an Admin SDK transaction (all reads before any write; the callback may run more than once on
+ * contention, so it must be free of side effects). Caches for the touched collections are dropped
+ * after the commit. Requires Firestore to be configured.
+ */
+export async function withTransaction<T>(
+  fn: (tx: Transaction, db: Firestore) => Promise<T>,
+  touchedCollections: string[]
+): Promise<T> {
+  const db = getAdminDb();
+  if (!db) throw new Error("Firestore is not configured: transactions need the Admin SDK.");
+  const result = await db.runTransaction((tx) => fn(tx, db));
+  for (const c of touchedCollections) invalidateFirestoreCache(c);
+  return result;
+}
+
+/** Uncached equality query (used for uniqueness and login checks that must see the latest data). */
+export async function queryFreshFromFirestore<T>(
+  collectionName: string,
+  field: string,
+  value: string | number | boolean
+): Promise<T[]> {
+  const db = getAdminDb();
+  if (!db) return [];
+  const snap = await db.collection(collectionName).where(field, "==", value).limit(5).get();
+  return snap.docs.map((d) => docWithId<T>(d.id, d.data()));
+}
+
+/**
+ * Like saveDocumentToFirestore, but a failed write throws instead of returning false, so the API
+ * route reports an error instead of telling the user their change was saved.
+ */
+export async function saveOrThrow(collectionName: string, docId: string, data: any): Promise<void> {
+  const ok = await saveDocumentToFirestore(collectionName, docId, data);
+  if (!ok) {
+    throw new Error(`Could not save ${collectionName}/${docId}. Please try again.`);
+  }
+}
+
+/** Delete counterpart of saveOrThrow. */
+export async function deleteOrThrow(collectionName: string, docId: string): Promise<void> {
+  const ok = await deleteDocumentFromFirestore(collectionName, docId);
+  if (!ok) {
+    throw new Error(`Could not delete ${collectionName}/${docId}. Please try again.`);
+  }
+}
+
+/**
+ * Query active sessions for a specific user ID directly from Firestore (Admin SDK)
  */
 export async function getUserSessionsFromFirestore(userId: string): Promise<UserSession[]> {
-  // 1. Try Admin SDK
-  const adminDb = getFirebaseAdminFirestore();
-  if (adminDb) {
-    try {
-      const snapshot = await adminDb
-        .collection("sessions")
-        .where("userId", "==", userId)
-        .where("isActive", "==", true)
-        .get();
-      if (!snapshot.empty) {
-        return snapshot.docs.map((d: any) => ({ sessionId: d.id, ...d.data() } as UserSession));
-      }
-      return [];
-    } catch (err: any) {
-      console.warn("Admin SDK getUserSessionsFromFirestore fallback:", err?.message);
-    }
+  const adminDb = getAdminDb();
+  if (!adminDb) return [];
+  try {
+    const snapshot = await adminDb
+      .collection("sessions")
+      .where("userId", "==", userId)
+      .where("isActive", "==", true)
+      .get();
+    return snapshot.docs.map((d: any) => ({ sessionId: d.id, ...d.data() } as UserSession));
+  } catch (err: any) {
+    console.warn("Admin SDK getUserSessionsFromFirestore failed:", err?.message);
+    return [];
   }
-
-  // 2. Try Client SDK
-  const clientDb = getFirebaseFirestore();
-  if (clientDb) {
-    try {
-      const q = query(
-        collection(clientDb, "sessions"),
-        where("userId", "==", userId),
-        where("isActive", "==", true)
-      );
-      const snapshot = await withTimeout(getDocs(q), 3000);
-      if (snapshot && !snapshot.empty) {
-        return snapshot.docs.map((docSnap) => ({ sessionId: docSnap.id, ...(docSnap.data() as any) } as UserSession));
-      }
-      return [];
-    } catch (err: any) {
-      // In case composite indexing is needed, fallback to simple query by userId
-      try {
-        const qSimple = query(collection(clientDb, "sessions"), where("userId", "==", userId));
-        const snapshot = await withTimeout(getDocs(qSimple), 3000);
-        if (snapshot && !snapshot.empty) {
-          return snapshot.docs
-            .map((docSnap) => ({ sessionId: docSnap.id, ...(docSnap.data() as any) } as UserSession))
-            .filter((s) => s.isActive);
-        }
-      } catch (innerErr: any) {
-        console.warn("Client SDK getUserSessionsFromFirestore fallback:", innerErr?.message);
-      }
-    }
-  }
-
-  return [];
 }
 
 /**
@@ -545,33 +497,20 @@ export async function deleteDocumentFromFirestore(
     return false;
   }
 
-  const adminDb = getFirebaseAdminFirestore();
-  if (adminDb) {
-    try {
-      await adminDb.collection(collectionName).doc(docId).delete();
-      applyWriteToCaches(collectionName, docId, null);
-      return true;
-    } catch (err: any) {
-      if (isQuotaExhaustedError(err)) {
-        handleQuotaExhausted(`adminDb.delete("${collectionName}/${docId}")`, err);
-      }
-    }
-  }
-
-  const clientDb = getFirebaseFirestore();
-  if (!clientDb) {
+  const adminDb = getAdminDb();
+  if (!adminDb) {
     invalidateFirestoreCache(collectionName, docId);
     return false;
   }
-
   try {
-    const docRef = doc(clientDb, collectionName, docId);
-    await deleteDoc(docRef);
+    await adminDb.collection(collectionName).doc(docId).delete();
     applyWriteToCaches(collectionName, docId, null);
     return true;
   } catch (err: any) {
     if (isQuotaExhaustedError(err)) {
-      handleQuotaExhausted(`clientDb.delete("${collectionName}/${docId}")`, err);
+      handleQuotaExhausted(`adminDb.delete("${collectionName}/${docId}")`, err);
+    } else {
+      console.warn(`Firestore Admin delete failed for "${collectionName}/${docId}":`, err.message);
     }
     invalidateFirestoreCache(collectionName, docId);
     return false;
@@ -585,53 +524,27 @@ export async function clearCollectionInFirestore(collectionName: string): Promis
   invalidateFirestoreCache(collectionName);
   let deletedCount = 0;
 
-  // 1. Try Admin SDK
-  const adminDb = getFirebaseAdminFirestore();
-  if (adminDb) {
-    try {
-      const snapshot = await adminDb.collection(collectionName).get();
-      if (!snapshot.empty) {
-        // Firestore batches are limited to 500 operations — commit in chunks.
-        for (let i = 0; i < snapshot.docs.length; i += 400) {
-          const batch = adminDb.batch();
-          snapshot.docs.slice(i, i + 400).forEach((d: any) => {
-            batch.delete(d.ref);
-            deletedCount++;
-          });
-          await batch.commit();
-        }
+  const adminDb = getAdminDb();
+  if (!adminDb) return deletedCount;
+  try {
+    const snapshot = await adminDb.collection(collectionName).get();
+    if (!snapshot.empty) {
+      // Keep each batch well under Firestore's per-batch write limit.
+      for (let i = 0; i < snapshot.docs.length; i += 400) {
+        const batch = adminDb.batch();
+        snapshot.docs.slice(i, i + 400).forEach((d: any) => {
+          batch.delete(d.ref);
+          deletedCount++;
+        });
+        await batch.commit();
       }
-      invalidateFirestoreCache(collectionName);
-      return deletedCount;
-    } catch (err: any) {
-      console.warn(`Admin clear collection "${collectionName}" error:`, err.message);
     }
+    invalidateFirestoreCache(collectionName);
+    return deletedCount;
+  } catch (err: any) {
+    console.warn(`Admin clear collection "${collectionName}" error:`, err.message);
+    return deletedCount;
   }
-
-  // 2. Try Client SDK
-  const clientDb = getFirebaseFirestore();
-  if (clientDb) {
-    try {
-      const q = collection(clientDb, collectionName);
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        for (let i = 0; i < snapshot.docs.length; i += 400) {
-          const batch = writeBatch(clientDb);
-          snapshot.docs.slice(i, i + 400).forEach((docSnap) => {
-            batch.delete(docSnap.ref);
-            deletedCount++;
-          });
-          await batch.commit();
-        }
-      }
-      invalidateFirestoreCache(collectionName);
-      return deletedCount;
-    } catch (err: any) {
-      console.warn(`Client clear collection "${collectionName}" error:`, err.message);
-    }
-  }
-
-  return deletedCount;
 }
 
 /**
@@ -659,15 +572,14 @@ export async function seedAllToFirestore(): Promise<{
     users: 0,
   };
 
-  const adminDb = getFirebaseAdminFirestore();
-  const clientDb = getFirebaseFirestore();
+  const adminDb = resolveDb();
 
-  if (!adminDb && !clientDb) {
+  if (!adminDb) {
     return {
       success: false,
       counts,
       batchMode: false,
-      error: "Neither Firebase Admin SDK nor Client Firestore is initialized.",
+      error: "Firestore is not configured (set NEXT_PUBLIC_FIREBASE_* or FIREBASE_ADMIN_* credentials).",
     };
   }
 
@@ -733,21 +645,12 @@ export async function seedAllToFirestore(): Promise<{
     counts.policy = 1;
 
     // Use Batch Writes (under 500 operations per batch)
-    if (adminDb) {
-      const batch = adminDb.batch();
-      for (const item of itemsToSeed) {
-        const ref = adminDb.collection(item.collection).doc(item.docId);
-        batch.set(ref, JSON.parse(JSON.stringify(item.data)), { merge: true });
-      }
-      await batch.commit();
-    } else if (clientDb) {
-      const batch = writeBatch(clientDb);
-      for (const item of itemsToSeed) {
-        const ref = doc(clientDb, item.collection, item.docId);
-        batch.set(ref, JSON.parse(JSON.stringify(item.data)), { merge: true });
-      }
-      await batch.commit();
+    const batch = adminDb.batch();
+    for (const item of itemsToSeed) {
+      const ref = adminDb.collection(item.collection).doc(item.docId);
+      batch.set(ref, JSON.parse(JSON.stringify(item.data)), { merge: true });
     }
+    await batch.commit();
 
     // Invalidate all caches after complete seed
     invalidateFirestoreCache();
@@ -832,8 +735,8 @@ export function getFirestoreFreePlanMetrics() {
     },
     activeSdk: getFirebaseAdminFirestore()
       ? "Firebase Admin SDK (Bypasses rules, zero rule evaluation cost)"
-      : getFirebaseFirestore()
-      ? "Firebase Client SDK"
-      : "Offline Fallback Tier",
+      : getWebCompatFirestore()
+        ? "Firebase web SDK (NEXT_PUBLIC_FIREBASE_* config, subject to firestore.rules)"
+        : "Offline Fallback Tier (in-memory, local development only)",
   };
 }

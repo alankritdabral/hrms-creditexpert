@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.toLowerCase().trim();
 
     // 1. Verify OTP validation status
-    if (!isPasswordResetOtpVerified(normalizedEmail)) {
+    if (!(await isPasswordResetOtpVerified(normalizedEmail))) {
       return NextResponse.json(
         {
           success: false,
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 5. Consume OTP
-    clearPasswordResetOtp(normalizedEmail);
+    await clearPasswordResetOtp(normalizedEmail);
 
     // 6. Security notice email
     sendPasswordChangedEmail(normalizedEmail, user.name).catch((err) =>

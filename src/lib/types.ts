@@ -223,6 +223,9 @@ export interface UserSession {
   environment?: "development" | "production";
 }
 
+/** What the browser is told about a session: never the session ID (an httpOnly cookie), IP or user agent. */
+export type PublicSession = Omit<UserSession, "sessionId" | "deviceId" | "userAgent" | "ipHash">;
+
 export interface PersonalInfo {
   employeeId: string;
   firstName: string;
@@ -412,6 +415,10 @@ export interface IncentiveScheme {
   fixedRate?: number;
   percentageRate?: number;
   slabs?: { min: number; max: number; amount: number }[];
+  /** Disbursal-slab scheme: hurdle = monthly salary x this (default 100). */
+  hurdleMultiplier?: number;
+  /** Disbursal-slab scheme: Axis Bank incentive in rupees per lakh (default 200). */
+  axisRatePerLakh?: number;
   active: boolean;
 }
 
@@ -704,8 +711,6 @@ export const LIFECYCLE_STAGES: { status: EmploymentStatus; label: string; step: 
 export interface RegistrationDraft {
   candidateName: string;
   email: string;
-  password?: string;
-  confirmPassword?: string;
   phone: string;
   branch: Branch;
   currentStep: number;

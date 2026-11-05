@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/lib/auth-context";
-import { numberToIndianCurrencyWords } from "@/lib/payroll-engine";
+import { numberToIndianCurrencyWords, nextPayrollStatus } from "@/lib/payroll-engine";
 import {
   CircleDollarSign,
   Play,
@@ -22,6 +22,10 @@ import {
   Eye,
   AlertCircle,
 } from "lucide-react";
+import { getISTMonthString } from "@/lib/attendance/ist-time";
+
+const monthLabelOf = (month: string) =>
+  new Date(`${month}-01T00:00:00`).toLocaleString("en-US", { month: "long", year: "numeric" });
 
 export default function PayrollPage() {
   const { currentUser } = useAuth();
@@ -31,8 +35,8 @@ export default function PayrollPage() {
 
   // New Payroll Modal State
   const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
-  const [newRunMonth, setNewRunMonth] = useState("2026-10");
-  const [newRunLabel, setNewRunLabel] = useState("October 2026");
+  const [newRunMonth, setNewRunMonth] = useState(getISTMonthString());
+  const [newRunLabel, setNewRunLabel] = useState(monthLabelOf(getISTMonthString()));
   const [isCalculating, setIsCalculating] = useState(false);
 
   // Payslip Modal State
@@ -136,22 +140,7 @@ export default function PayrollPage() {
     ? lifecycleStages.findIndex((s) => s.key === selectedRun.status)
     : 0;
 
-  const getNextStage = (status: PayrollStatus): PayrollStatus | null => {
-    const sequence: PayrollStatus[] = [
-      "DRAFT",
-      "ATTENDANCE_LOCKED",
-      "CALCULATED",
-      "HR_REVIEW",
-      "APPROVED",
-      "FINALIZED",
-      "PAYSLIP_GENERATED",
-      "PAID",
-    ];
-    const idx = sequence.indexOf(status);
-    return idx >= 0 && idx < sequence.length - 1 ? sequence[idx + 1] : null;
-  };
-
-  const nextStage = selectedRun ? getNextStage(selectedRun.status) : null;
+  const nextStage = selectedRun ? nextPayrollStatus(selectedRun.status) : null;
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -348,7 +337,7 @@ export default function PayrollPage() {
                     <th className="pb-3 font-medium">HRA</th>
                     <th className="pb-3 font-medium">Incentive</th>
                     <th className="pb-3 font-medium">OT / Bonus</th>
-                    <th className="pb-3 font-medium">PF (12%)</th>
+                    <th className="pb-3 font-medium">PF</th>
                     <th className="pb-3 font-medium">PT</th>
                     <th className="pb-3 font-medium">LOP</th>
                     <th className="pb-3 font-medium font-bold text-white">Net Pay</th>
@@ -445,7 +434,7 @@ export default function PayrollPage() {
             <p>• Pulls all active employees and active salary structures.</p>
             <p>• Calculates LOP from unexcused absence records.</p>
             <p>• Integrates approved incentives for {newRunMonth}.</p>
-            <p>• Computes statutory PF (12%) and PT (₹200).</p>
+            <p>• Computes employee PF from each salary structure (no professional tax is deducted).</p>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
@@ -581,7 +570,7 @@ export default function PayrollPage() {
                   Deductions
                 </span>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Employee PF (12%)</span>
+                  <span className="text-slate-400">Employee PF</span>
                   <span className="font-mono text-rose-400">-₹{activePayslipItem.employeePf}</span>
                 </div>
                 <div className="flex justify-between">

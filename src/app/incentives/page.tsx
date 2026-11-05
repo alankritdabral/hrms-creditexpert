@@ -29,13 +29,14 @@ import {
   Sliders,
 } from "lucide-react";
 import Link from "next/link";
+import { getISTMonthString } from "@/lib/attendance/ist-time";
 
 export default function IncentivesPage() {
   const { currentUser } = useAuth();
   const [schemes, setSchemes] = useState<IncentiveScheme[]>([]);
   const [incentives, setIncentives] = useState<EmployeeIncentiveRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState("2026-10");
+  const [selectedMonth, setSelectedMonth] = useState(getISTMonthString());
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
 
@@ -80,6 +81,11 @@ export default function IncentivesPage() {
       if (incRes.success && incRes.data) {
         setSchemes(incRes.data.schemes || []);
         setIncentives(incRes.data.incentives || []);
+        const slab = (incRes.data.schemes || []).find((s: IncentiveScheme) => s.id === "scheme-disbursal-slab");
+        if (slab) {
+          setPolicyHurdleMultiplier(slab.hurdleMultiplier ?? 100);
+          setPolicyAxisRate(slab.axisRatePerLakh ?? 200);
+        }
         if (incRes.data.schemes?.length > 0 && !addSchemeId) {
           setAddSchemeId(incRes.data.schemes[0].id);
         }
@@ -242,6 +248,8 @@ export default function IncentivesPage() {
           name: "Disbursal Slab Incentive (CreditExpert)",
           type: "slab",
           description: `Hurdle = Salary × ${policyHurdleMultiplier}. Axis Bank: ₹${policyAxisRate}/L. Flat slabs: 15L-26L: ₹200/L, 26L-36L: ₹300/L, 36L-56L: ₹400/L, >56L: ₹500/L.`,
+          hurdleMultiplier: policyHurdleMultiplier,
+          axisRatePerLakh: policyAxisRate,
         }),
       });
       const data = await res.json();
@@ -367,7 +375,7 @@ export default function IncentivesPage() {
 
           <div className="flex items-center gap-2">
             <Badge variant="indigo" className="text-[10px] uppercase font-mono tracking-wider">
-              Active Policy (100x Hurdle)
+              Active Policy ({policyHurdleMultiplier}x Hurdle)
             </Badge>
             {canManage && (
               <Button
@@ -754,7 +762,7 @@ export default function IncentivesPage() {
                     <div className="text-xs font-bold text-amber-900 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-amber-700 text-white flex items-center justify-center text-[10px]">2</span>
-                        Other Banks Disbursals & Salary Hurdle (100x)
+                        Other Banks Disbursals & Salary Hurdle ({b.monthlySalary > 0 ? Math.round(b.salaryHurdle / b.monthlySalary) : 0}x)
                       </span>
                       <span className="font-mono text-slate-700">Salary: ₹{b.monthlySalary.toLocaleString("en-IN")}</span>
                     </div>
@@ -763,7 +771,7 @@ export default function IncentivesPage() {
                       <span className="font-bold text-slate-900 font-mono">₹{b.otherBanksDisbursal.toLocaleString("en-IN")}</span>
                     </div>
                     <div className="text-xs text-slate-600 flex justify-between">
-                      <span>Salary Hurdle (₹{b.monthlySalary.toLocaleString("en-IN")} × 100):</span>
+                      <span>Salary Hurdle (₹{b.monthlySalary.toLocaleString("en-IN")} × {b.monthlySalary > 0 ? Math.round(b.salaryHurdle / b.monthlySalary) : 0}):</span>
                       <span className="font-bold text-rose-600 font-mono">- ₹{b.salaryHurdle.toLocaleString("en-IN")}</span>
                     </div>
                     <div className="text-xs font-semibold text-slate-900 flex justify-between pt-1 border-t border-amber-200">

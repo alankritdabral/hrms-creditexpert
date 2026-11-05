@@ -39,6 +39,7 @@ import {
   EmploymentStatus,
   LIFECYCLE_STAGES,
 } from "@/lib/types";
+import { addDaysIST, getISTDateString } from "@/lib/attendance/ist-time";
 
 export default function OnboardingPage() {
   const { currentUser } = useAuth();
@@ -55,6 +56,8 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [activating, setActivating] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+  const [ctcInput, setCtcInput] = useState("");
+  const [savingCtc, setSavingCtc] = useState(false);
 
   // New onboarding form state
   const [formData, setFormData] = useState(() => ({
@@ -64,7 +67,7 @@ export default function OnboardingPage() {
     branch: "Delhi" as Branch,
     department: "Risk & Underwriting",
     designation: "",
-    joiningDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+    joiningDate: addDaysIST(getISTDateString(), 14),
     annualCtc: 500000,
     notes: "",
   }));
@@ -88,6 +91,13 @@ export default function OnboardingPage() {
   useEffect(() => {
     fetchRecords();
   }, [selectedBranch]);
+
+  // Show the saved CTC (if any) whenever a different candidate's checklist is opened
+  const openRecordId = activeChecklistRecord?.id;
+  const openRecordCtc = activeChecklistRecord?.annualCtc;
+  useEffect(() => {
+    setCtcInput(openRecordCtc === undefined || openRecordCtc === null ? "" : String(openRecordCtc));
+  }, [openRecordId, openRecordCtc]);
 
   // Filter records
   const filteredRecords = useMemo(() => {
@@ -224,11 +234,42 @@ export default function OnboardingPage() {
           `Success! Employee profile activated as ${data.data.employee.employeeId} as Full-time Active.`
         );
         setTimeout(() => setActionSuccessMessage(null), 6000);
+      } else {
+        alert(data.error || "Could not activate this employee.");
       }
     } catch (e) {
       console.error("Failed to activate employee:", e);
     } finally {
       setActivating(false);
+    }
+  };
+
+  // Save the offered CTC (required before activation; 0 = incentive-only)
+  const handleSaveCtc = async (recordId: string) => {
+    if (ctcInput.trim() === "" || !Number.isFinite(Number(ctcInput)) || Number(ctcInput) < 0) {
+      alert("Enter the offered annual CTC as a number (0 for incentive-only).");
+      return;
+    }
+    try {
+      setSavingCtc(true);
+      const res = await fetch(`/api/onboarding/${recordId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_ctc", annualCtc: Number(ctcInput) }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRecords((prev) => prev.map((r) => (r.id === recordId ? { ...r, annualCtc: data.data.annualCtc } : r)));
+        setActiveChecklistRecord((prev) => (prev && prev.id === recordId ? { ...prev, annualCtc: data.data.annualCtc } : prev));
+        setActionSuccessMessage("Offered CTC saved.");
+        setTimeout(() => setActionSuccessMessage(null), 3000);
+      } else {
+        alert(data.error || "Could not save the CTC.");
+      }
+    } catch (e) {
+      console.error("Failed to save CTC:", e);
+    } finally {
+      setSavingCtc(false);
     }
   };
 
@@ -257,7 +298,7 @@ export default function OnboardingPage() {
           branch: "Delhi",
           department: "Risk & Underwriting",
           designation: "",
-          joiningDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          joiningDate: addDaysIST(getISTDateString(), 14),
           annualCtc: 500000,
           notes: "",
         });
@@ -858,6 +899,37 @@ export default function OnboardingPage() {
                 </span>
               </div>
             </div>
+
+            {/* Offered CTC: required before activation */}
+            {!activeChecklistRecord.employeeId && (currentUser.role === "admin" || currentUser.role === "hr") && (
+              <div className="mx-4 sm:mx-6 mt-4 p-3.5 rounded-xl bg-amber-50/60 border border-amber-200 flex flex-wrap items-end gap-3 text-xs">
+                <label className="flex-1 min-w-[220px]">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                    Offered annual CTC (₹) — required before activation
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={ctcInput}
+                    onChange={(e) => setCtcInput(e.target.value)}
+                    placeholder="e.g. 480000 (enter 0 for incentive-only)"
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handleSaveCtc(activeChecklistRecord.id)}
+                  disabled={savingCtc}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  {savingCtc ? "Saving..." : "Save CTC"}
+                </button>
+                <span className="text-[11px] text-slate-500">
+                  Saved: {activeChecklistRecord.annualCtc === undefined ? "not set" : `₹${activeChecklistRecord.annualCtc.toLocaleString("en-IN")}`}
+                </span>
+              </div>
+            )}
 
             {/* Candidate Submitted KYC Documents & Details Review */}
             {activeChecklistRecord.kycDocuments && activeChecklistRecord.kycDocuments.length > 0 && (

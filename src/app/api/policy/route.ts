@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPolicy, updatePolicy } from "@/lib/db/db-adapter";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if (!auth.authenticated) {
+    return authFailureResponse(auth);
+  }
+
   try {
     const policy = await getPolicy();
     return NextResponse.json({ success: true, data: policy });

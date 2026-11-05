@@ -17,9 +17,9 @@ import {
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Employee, AttendanceRecord, LeaveRequest, PayrollRun, EmployeeRequestItem, Holiday, EmployeeDocument } from "@/lib/types";
+import { Employee, AttendanceRecord, LeaveRequest, PayrollRun, EmployeeRequestItem, Holiday, EmployeeDocument, AttendancePolicy } from "@/lib/types";
 import { TeamProgress } from "@/components/dashboard/TeamProgress";
-import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
+import { formatISTTime12, getISTDateString, lateCutoffLabel } from "@/lib/attendance/ist-time";
 
 export function AdminDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -29,12 +29,13 @@ export function AdminDashboard() {
   const [requests, setRequests] = useState<EmployeeRequestItem[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
+  const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [empRes, attRes, levRes, payRes, reqRes, holRes, docRes] = await Promise.all([
+        const [empRes, attRes, levRes, payRes, reqRes, holRes, docRes, polRes] = await Promise.all([
           fetch("/api/employees").then((r) => r.json()),
           fetch(`/api/attendance?date=${getISTDateString()}`).then((r) => r.json()),
           fetch("/api/leaves").then((r) => r.json()),
@@ -42,6 +43,7 @@ export function AdminDashboard() {
           fetch("/api/requests").then((r) => r.json()),
           fetch("/api/holidays").then((r) => r.json()),
           fetch("/api/documents").then((r) => r.json()),
+          fetch("/api/policy").then((r) => r.json()),
         ]);
 
         if (empRes.success) setEmployees(empRes.data);
@@ -51,6 +53,7 @@ export function AdminDashboard() {
         if (reqRes.success) setRequests(reqRes.data);
         if (holRes.success) setHolidays(holRes.data);
         if (docRes.success) setDocuments(docRes.data);
+        if (polRes.success) setPolicy(polRes.data);
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       } finally {
@@ -145,8 +148,6 @@ export function AdminDashboard() {
           title="Total Workforce"
           value={totalEmployees}
           subtitle={`${activeEmployees} Active employees`}
-          change="+1 this month"
-          trend="up"
           color="indigo"
           icon={<Users className="w-5 h-5" />}
         />
@@ -248,7 +249,7 @@ export function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-900 text-base">Today&apos;s Attendance Logs</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Grace period: 15 mins (Late after 10:15 AM)</p>
+              <p className="text-xs text-slate-500 mt-0.5">Grace period: {policy?.gracePeriodMinutes ?? 15} mins (Late after {lateCutoffLabel(policy?.officeStartTime, policy?.gracePeriodMinutes)})</p>
             </div>
             <Link href="/attendance" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
               Full Logs <ArrowRight className="w-3.5 h-3.5" />

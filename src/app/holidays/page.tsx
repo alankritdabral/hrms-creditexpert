@@ -19,6 +19,7 @@ import {
   Search,
   Filter,
 } from "lucide-react";
+import { getISTDateString } from "@/lib/attendance/ist-time";
 
 export default function HolidaysPage() {
   const { currentUser } = useAuth();
@@ -66,7 +67,7 @@ export default function HolidaysPage() {
   const handleOpenAddModal = () => {
     setEditingHoliday(null);
     setFormName("");
-    setFormDate(new Date().toISOString().split("T")[0]);
+    setFormDate(getISTDateString());
     setFormBranch(currentUser.branch || "All");
     setFormType("National");
     setFormDescription("");

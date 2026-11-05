@@ -111,7 +111,7 @@ export default function AssetsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: editingAsset.id,
+          assetTag: editingAsset.assetTag,
           updates: {
             status: editStatus,
             assignedToEmployeeId: editStatus === "Assigned" ? editAssignedTo : undefined,

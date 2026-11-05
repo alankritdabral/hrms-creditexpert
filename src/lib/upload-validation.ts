@@ -198,3 +198,15 @@ export function validateFileBufferSignature(
     formattedSize,
   };
 }
+
+/**
+ * A file URL is trusted only if this server issued it: a Cloudinary URL for our own cloud,
+ * or a path under the local /uploads/kyc fallback folder. Used wherever a client sends back a fileUrl.
+ */
+export function isTrustedUploadUrl(url: unknown, cloudinaryCloudName?: string): boolean {
+  if (typeof url !== "string" || url.length === 0 || url.length > 2048) return false;
+  if (url.includes("..") || url.includes("\\")) return false;
+  if (url.startsWith("/uploads/kyc/")) return true;
+  if (!cloudinaryCloudName) return false;
+  return url.startsWith(`https://res.cloudinary.com/${cloudinaryCloudName}/`);
+}

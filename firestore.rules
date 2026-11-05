@@ -2,82 +2,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // =========================================================================
-    // CREDIT EXPERT INDIA HRMS & PLATFORM COLLECTIONS
-    // Full Read & Write Permissions Granted
-    // =========================================================================
-
-    // Universal Match: Allow read and write on all collections and subcollections
+    // DO NOT DEPLOY unless the server has FIREBASE_ADMIN_* credentials. Without them the server uses
+    // the browser SDK, which these rules would block, and the app would lose all data access.
+    //
+    // HRMS data is reached only through the Next.js server. The Admin SDK bypasses
+    // these rules, so denying every browser read and write protects employee, payroll,
+    // KYC and session data. This app does not use Firebase Auth, so rules cannot
+    // identify users; never write request.auth conditions here.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
 
-    // Explicit Collection Rules
-    match /employees/{employeeId} {
+    // Used from the browser by the separate Credit Expert dashboard app.
+    // Rules are OR-ed, so these stay open even though the wildcard above denies the rest.
+    match /credit_reports/{reportId} {
       allow read, write: if true;
     }
-
-    match /attendance/{attendanceId} {
-      allow read, write: if true;
-    }
-
-    match /leaves/{leaveId} {
-      allow read, write: if true;
-    }
-
-    match /payroll_runs/{runId} {
-      allow read, write: if true;
-    }
-
-    match /assets/{assetId} {
-      allow read, write: if true;
-    }
-
-    match /requests/{requestId} {
-      allow read, write: if true;
-    }
-
-    match /announcements/{announcementId} {
-      allow read, write: if true;
-    }
-
-    match /audit_logs/{logId} {
-      allow read, write: if true;
-    }
-
-    match /holidays/{holidayId} {
-      allow read, write: if true;
-    }
-
-    match /onboarding/{recordId} {
-      allow read, write: if true;
-    }
-
-    match /users/{userId} {
-      allow read, write: if true;
-    }
-
-    match /sessions/{sessionId} {
-      allow read, write: if true;
-    }
-
-    match /settings/{settingId} {
-      allow read, write: if true;
-    }
-
-    match /incentives/{incentiveId} {
-      allow read, write: if true;
-    }
-
     match /access_codes/{codeId} {
       allow read, write: if true;
     }
-
     match /access_code_creditexpert/{codeId} {
-      allow read, write: if true;
-    }
-
-    match /credit_reports/{reportId} {
       allow read, write: if true;
     }
   }

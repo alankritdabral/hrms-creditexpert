@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserAccountByEmail, createSession, recordAuditLog } from "@/lib/db/db-adapter";
-import { ROLE_PERMISSIONS, getBranchScope } from "@/lib/permissions";
+import { getRolePermissions, getBranchScope } from "@/lib/permissions";
 import { isLocalEnvironment } from "@/lib/env";
 import { verifyPassword, hashPassword, isHashedPassword } from "@/lib/password";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { toPublicSession } from "@/lib/api-auth";
 import { updateUserAccount } from "@/lib/db/db-adapter";
 
 export async function POST(req: NextRequest) {
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
     });
 
     const branchScope = getBranchScope(userAccount.role, userAccount.branch);
-    const permissions = ROLE_PERMISSIONS[userAccount.role];
+    const permissions = getRolePermissions(userAccount.role);
 
     const userPayload = {
       id: userAccount.uid,
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       message: "Authenticated successfully. Active session established.",
-      session,
+      session: toPublicSession(session),
       user: userPayload,
       permissions,
       branchScope,

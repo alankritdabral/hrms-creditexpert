@@ -1,4 +1,25 @@
-import { SalaryComponent, PayrollItemSnapshot, Employee, AttendanceRecord, EmployeeIncentiveRecord } from "./types";
+import { SalaryComponent, PayrollItemSnapshot, Employee, AttendanceRecord, EmployeeIncentiveRecord, PayrollStatus } from "./types";
+
+/** Payroll runs move strictly forward through these stages. */
+export const PAYROLL_SEQUENCE: PayrollStatus[] = [
+  "DRAFT",
+  "ATTENDANCE_LOCKED",
+  "CALCULATED",
+  "HR_REVIEW",
+  "APPROVED",
+  "FINALIZED",
+  "PAYSLIP_GENERATED",
+  "PAID",
+];
+
+/** Statuses after which a run is a locked snapshot and must not be recalculated. */
+export const LOCKED_PAYROLL_STATUSES: PayrollStatus[] = ["FINALIZED", "PAYSLIP_GENERATED", "PAID"];
+
+/** The only status a run may move to next, or null at the end. */
+export function nextPayrollStatus(current: PayrollStatus): PayrollStatus | null {
+  const i = PAYROLL_SEQUENCE.indexOf(current);
+  return i >= 0 && i < PAYROLL_SEQUENCE.length - 1 ? PAYROLL_SEQUENCE[i + 1] : null;
+}
 
 export function calculateSalaryBreakdown(
   annualCtc: number,

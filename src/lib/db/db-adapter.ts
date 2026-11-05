@@ -1,3 +1,4 @@
+import "server-only";
 import {
   INITIAL_EMPLOYEES,
   INITIAL_ATTENDANCE,
@@ -58,7 +59,7 @@ import {
   AppSection,
   APP_SECTIONS,
 } from "../types";
-import { calculateDisbursalIncentive } from "../incentive-calculator";
+import { calculateDisbursalIncentive, resolveIncentiveSalary } from "../incentive-calculator";
 import { calculateSalaryBreakdown, calculateSalaryFromMonthly } from "../payroll-engine";
 import { sendAccountApprovedEmail } from "../email";
 import {
@@ -70,15 +71,26 @@ import {
   saveDocumentToFirestore,
   deleteDocumentFromFirestore,
   clearCollectionInFirestore,
+  isFirestoreConfigured,
+  saveOrThrow,
+  deleteOrThrow,
+  withTransaction,
+  toFirestoreData,
+  queryFreshFromFirestore,
 } from "../firestore-service";
 import { calculateHaversineDistance } from "../attendance/geolocation";
 import {
   getISTDateString,
   getIST24HourTime,
   evaluateLateArrivalIST,
+  leaveWorkingDates,
 } from "../attendance/ist-time";
 import { isLocalEnvironment } from "../env";
 import { hashPassword, generateTempPassword } from "../password";
+import { randomBytes } from "node:crypto";
+import type { Firestore, Transaction } from "firebase-admin/firestore";
+import { formatEmployeeId, maxEmployeeNumber, nextEmployeeId } from "../employee-id";
+import { after } from "next/server";
 
 // Memory storage for fallback/dev cache
 class MemoryStore {
@@ -118,6 +130,55 @@ if ((!memory.employeeLogins || memory.employeeLogins.length === 0) && isLocalEnv
 memory.customRoles ??= [...DEFAULT_ROLES];
 memory.userAccounts ??= isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : [];
 
+/** A copy of the list sorted newest first by a string key (ISO dates sort correctly as text). */
+function newestFirst<T>(list: T[], keyOf: (item: T) => string | undefined): T[] {
+  return [...list].sort((a, b) => (keyOf(b) || "").localeCompare(keyOf(a) || ""));
+}
+
+// ----------------- PERSISTENCE HELPERS -----------------
+// Firestore is the source of truth. The in-memory store is a development fallback that is only
+// used when no Admin credentials are configured (isFirestoreConfigured() === false).
+
+/** Saves a full document. Throws when the write fails, so callers never report a false success. */
+async function persist(collectionName: string, docId: string, data: unknown): Promise<void> {
+  if (!isFirestoreConfigured()) return; // local development without credentials: memory only
+  await saveOrThrow(collectionName, docId, data);
+}
+
+async function persistDelete(collectionName: string, docId: string): Promise<void> {
+  if (!isFirestoreConfigured()) return;
+  await deleteOrThrow(collectionName, docId);
+}
+
+/** Result of a collection read: Firestore when configured (even if empty), otherwise the memory fallback. */
+function fromStore<T>(firestoreDocs: T[] | null | undefined, memoryList: T[]): T[] {
+  return isFirestoreConfigured() ? firestoreDocs ?? [] : memoryList;
+}
+
+/**
+ * Loads the current copy of a document before changing it. With Firestore configured, only
+ * Firestore is consulted (memory may be empty or stale on another serverless instance).
+ */
+async function loadForUpdate<T extends object>(
+  collectionName: string,
+  docId: string,
+  memoryList: T[],
+  match: (item: T) => boolean
+): Promise<T | null> {
+  if (isFirestoreConfigured()) {
+    return (await getDocumentFromFirestore<T>(collectionName, docId).catch(() => null)) || null;
+  }
+  return memoryList.find(match) || null;
+}
+
+/** Keeps the development memory store in step with a saved document. */
+function upsertMemory<T>(list: T[], match: (item: T) => boolean, item: T, prepend = true): void {
+  const i = list.findIndex(match);
+  if (i >= 0) list[i] = item;
+  else if (prepend) list.unshift(item);
+  else list.push(item);
+}
+
 // Helper to log audit events
 export async function recordAuditLog({
   who,
@@ -147,209 +208,200 @@ export async function recordAuditLog({
 
   memory.auditLogs.unshift(logItem);
 
-  // Sync to Google Cloud Firestore
-  saveDocumentToFirestore("audit_logs", logItem.id, logItem).catch(() => {});
+  // The audit write must not delay or fail the user's request, but on serverless the function can
+  // be frozen once the response is sent. after() keeps it alive until the write settles.
+  const write = async () => {
+    try {
+      await persist("audit_logs", logItem.id, logItem);
+    } catch (e) {
+      console.error("Audit log write failed:", e);
+    }
+  };
+  try {
+    after(write);
+  } catch {
+    // Not inside a request (script, cron outside a handler): write inline.
+    await write();
+  }
 }
 
 // ----------------- EMPLOYEES -----------------
 
+/**
+ * Normalises legacy employee records: Probation becomes Active, basic pay equals gross (only PF is
+ * deducted), and the avatar follows the employee's chosen preference.
+ */
+function normalizeEmployee(emp: Employee): Employee {
+  let norm = { ...emp };
+  if ((norm.employment.employmentStatus as string) === "Probation") {
+    norm = {
+      ...norm,
+      employment: {
+        ...norm.employment,
+        employmentStatus: "Active",
+        employmentType: "Full-time",
+        probationMonths: 0,
+      },
+    };
+  }
+  if (norm.currentSalary) {
+    const basic = norm.currentSalary.grossSalary || norm.currentSalary.basic;
+    const employeePf = norm.currentSalary.employeePf || 0;
+    norm = {
+      ...norm,
+      currentSalary: {
+        ...norm.currentSalary,
+        basic,
+        grossSalary: basic,
+        hra: 0,
+        specialAllowance: 0,
+        otherAllowance: 0,
+        employerEsic: 0,
+        professionalTax: 0,
+        employeePf,
+        netSalary: Math.max(0, basic - employeePf),
+      },
+    };
+  }
+
+  const docPassport = memory.documents.find(
+    (d) =>
+      d.employeeId === norm.employeeId &&
+      (d.documentType === "photograph" || d.title?.toLowerCase().includes("passport"))
+  )?.fileUrl;
+
+  const passportPhoto =
+    norm.personal.passportPhotoUrl ||
+    docPassport ||
+    (norm.personal.avatarPreference !== "custom" ? norm.personal.avatarUrl : undefined);
+  const pref = norm.personal.avatarPreference || "passport";
+
+  let activeAvatar = norm.personal.avatarUrl;
+  if (pref === "passport" && passportPhoto) {
+    activeAvatar = passportPhoto;
+  } else if (pref === "custom" && norm.personal.customAvatarUrl) {
+    activeAvatar = norm.personal.customAvatarUrl;
+  } else if (passportPhoto) {
+    activeAvatar = passportPhoto;
+  }
+
+  return {
+    ...norm,
+    personal: {
+      ...norm.personal,
+      passportPhotoUrl: passportPhoto || norm.personal.passportPhotoUrl,
+      avatarPreference: pref,
+      avatarUrl:
+        activeAvatar ||
+        norm.personal.avatarUrl ||
+        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+    },
+  };
+}
+
 export async function getEmployees(): Promise<Employee[]> {
   let list = memory.employees;
   try {
-    const firestoreDocs = await getCollectionFromFirestore<Employee>("employees");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      list = firestoreDocs;
-    }
+    list = fromStore(await getCollectionFromFirestore<Employee>("employees"), memory.employees);
   } catch (e) {
     console.warn("Firestore getEmployees fallback:", e);
   }
 
-  if ((!list || list.length === 0) && isLocalEnvironment()) {
+  if (!isFirestoreConfigured() && (!list || list.length === 0) && isLocalEnvironment()) {
     list = INITIAL_EMPLOYEES;
     memory.employees = [...INITIAL_EMPLOYEES];
   }
-
-  // Helper to normalize legacy records (Probation -> Active, and Basic Pay = Net Pay apart from PF)
-  const normalizeEmployee = (emp: Employee): Employee => {
-    let norm = { ...emp };
-    if ((norm.employment.employmentStatus as string) === "Probation") {
-      norm = {
-        ...norm,
-        employment: {
-          ...norm.employment,
-          employmentStatus: "Active",
-          employmentType: "Full-time",
-          probationMonths: 0,
-        },
-      };
-    }
-    if (norm.currentSalary) {
-      const basic = norm.currentSalary.grossSalary || norm.currentSalary.basic;
-      const employeePf = norm.currentSalary.employeePf || 0;
-      norm = {
-        ...norm,
-        currentSalary: {
-          ...norm.currentSalary,
-          basic,
-          grossSalary: basic,
-          hra: 0,
-          specialAllowance: 0,
-          otherAllowance: 0,
-          employerEsic: 0,
-          professionalTax: 0,
-          employeePf,
-          netSalary: Math.max(0, basic - employeePf),
-        },
-      };
-    }
-
-    // Normalize avatar preference and passport photo URL
-    const docPassport = memory.documents.find(
-      (d) =>
-        d.employeeId === norm.employeeId &&
-        (d.documentType === "photograph" || d.title?.toLowerCase().includes("passport"))
-    )?.fileUrl;
-
-    const passportPhoto = norm.personal.passportPhotoUrl || docPassport || (norm.personal.avatarPreference !== "custom" ? norm.personal.avatarUrl : undefined);
-    const pref = norm.personal.avatarPreference || "passport";
-
-    let activeAvatar = norm.personal.avatarUrl;
-    if (pref === "passport" && passportPhoto) {
-      activeAvatar = passportPhoto;
-    } else if (pref === "custom" && norm.personal.customAvatarUrl) {
-      activeAvatar = norm.personal.customAvatarUrl;
-    } else if (passportPhoto) {
-      activeAvatar = passportPhoto;
-    }
-
-    norm = {
-      ...norm,
-      personal: {
-        ...norm.personal,
-        passportPhotoUrl: passportPhoto || norm.personal.passportPhotoUrl,
-        avatarPreference: pref,
-        avatarUrl: activeAvatar || norm.personal.avatarUrl || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
-      },
-    };
-
-    return norm;
-  };
 
   return list.map(normalizeEmployee);
 }
 
 export async function getEmployeeById(idOrEmpId: string): Promise<Employee | null> {
-  let emp: Employee | null = null;
-  // 1. Try single-document read / memory cache (0 or 1 Firestore read)
-  try {
-    const single = await getDocumentFromFirestore<Employee>("employees", idOrEmpId);
-    if (single) emp = single;
-  } catch (e) {
-    // Graceful fallback to collection search
+  const raw = await loadEmployeeForUpdate(idOrEmpId);
+  return raw ? normalizeEmployee(raw) : null;
+}
+
+/**
+ * The stored (un-normalised) employee document, by employee ID or document ID.
+ * With Firestore configured only Firestore is consulted.
+ */
+async function loadEmployeeForUpdate(idOrEmpId: string): Promise<Employee | null> {
+  const wanted = idOrEmpId.toLowerCase();
+  if (isFirestoreConfigured()) {
+    // Documents are keyed by employeeId ("EMP-0049").
+    for (const key of Array.from(new Set([idOrEmpId, idOrEmpId.toUpperCase()]))) {
+      const direct = await getDocumentFromFirestore<Employee>("employees", key).catch(() => null);
+      if (direct) return direct;
+    }
+    const all = await getCollectionFromFirestore<Employee>("employees").catch(() => [] as Employee[]);
+    return all.find((e) => e.id === idOrEmpId || e.employeeId.toLowerCase() === wanted) || null;
+  }
+  return memory.employees.find((e) => e.employeeId.toLowerCase() === wanted || e.id === idOrEmpId) || null;
+}
+
+/** Raised when a request conflicts with existing data (the API maps it to HTTP 409). */
+export class ConflictError extends Error {}
+
+/** Raised when a request is missing something required (the API maps it to HTTP 400). */
+export class ValidationError extends Error {}
+
+/**
+ * Issues the next employee ID inside a transaction, from a counter document. If the counter is
+ * missing it starts after the highest existing ID, and it skips any ID that already has a document.
+ * Must be called before any write in the same transaction.
+ */
+async function allocateEmployeeId(tx: Transaction, db: Firestore): Promise<string> {
+  const counterRef = db.collection("counters").doc("employees");
+  const counter = await tx.get(counterRef);
+  const stored = counter.exists ? counter.data()?.last : undefined;
+  let last: number;
+  if (typeof stored === "number") {
+    last = stored;
+  } else {
+    const all = await tx.get(db.collection("employees"));
+    last = maxEmployeeNumber(all.docs.map((d) => d.id));
   }
 
-  if (!emp) {
-    const employees = await getEmployees();
-    emp =
-      employees.find(
-        (e) => e.id === idOrEmpId || e.employeeId.toLowerCase() === idOrEmpId.toLowerCase()
-      ) || null;
+  let next = last + 1;
+  for (let i = 0; i < 50; i++, next++) {
+    const taken = await tx.get(db.collection("employees").doc(formatEmployeeId(next)));
+    if (!taken.exists) break;
   }
+  tx.set(counterRef, { last: next });
+  return formatEmployeeId(next);
+}
 
-  if (emp) {
-    const normalizeEmployee = (raw: Employee): Employee => {
-      let norm = { ...raw };
-      if ((norm.employment.employmentStatus as string) === "Probation") {
-        norm = {
-          ...norm,
-          employment: {
-            ...norm.employment,
-            employmentStatus: "Active",
-            employmentType: "Full-time",
-            probationMonths: 0,
-          },
-        };
-      }
-      if (norm.currentSalary) {
-        const basic = norm.currentSalary.grossSalary || norm.currentSalary.basic;
-        const employeePf = norm.currentSalary.employeePf || 0;
-        norm = {
-          ...norm,
-          currentSalary: {
-            ...norm.currentSalary,
-            basic,
-            grossSalary: basic,
-            hra: 0,
-            specialAllowance: 0,
-            otherAllowance: 0,
-            employerEsic: 0,
-            professionalTax: 0,
-            employeePf,
-            netSalary: Math.max(0, basic - employeePf),
-          },
-        };
-      }
-
-      const docPassport = memory.documents.find(
-        (d) =>
-          d.employeeId === norm.employeeId &&
-          (d.documentType === "photograph" || d.title?.toLowerCase().includes("passport"))
-      )?.fileUrl;
-
-      const passportPhoto = norm.personal.passportPhotoUrl || docPassport || (norm.personal.avatarPreference !== "custom" ? norm.personal.avatarUrl : undefined);
-      const pref = norm.personal.avatarPreference || "passport";
-
-      let activeAvatar = norm.personal.avatarUrl;
-      if (pref === "passport" && passportPhoto) {
-        activeAvatar = passportPhoto;
-      } else if (pref === "custom" && norm.personal.customAvatarUrl) {
-        activeAvatar = norm.personal.customAvatarUrl;
-      } else if (passportPhoto) {
-        activeAvatar = passportPhoto;
-      }
-
-      norm = {
-        ...norm,
-        personal: {
-          ...norm.personal,
-          passportPhotoUrl: passportPhoto || norm.personal.passportPhotoUrl,
-          avatarPreference: pref,
-          avatarUrl: activeAvatar || norm.personal.avatarUrl || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
-        },
-      };
-
-      return norm;
-    };
-
-    return normalizeEmployee(emp);
+/** Creates an employee under a freshly allocated ID. A collision fails instead of overwriting anyone. */
+async function insertEmployeeWithNewId(build: (employeeId: string) => Employee): Promise<Employee> {
+  if (!isFirestoreConfigured()) {
+    const employeeId = nextEmployeeId(memory.employees.map((e) => e.employeeId));
+    const emp = build(employeeId);
+    memory.employees.unshift(emp);
+    return emp;
   }
-
-  return null;
+  return withTransaction(
+    async (tx, db) => {
+      const employeeId = await allocateEmployeeId(tx, db);
+      const emp = build(employeeId);
+      tx.create(db.collection("employees").doc(employeeId), toFirestoreData(emp));
+      return emp;
+    },
+    ["employees", "counters"]
+  );
 }
 
 export async function createEmployee(
-  data: Omit<Employee, "id" | "createdAt" | "updatedAt">,
+  data: Omit<Employee, "id" | "employeeId" | "createdAt" | "updatedAt">,
   actor: { name: string; role: string }
 ): Promise<Employee> {
-  // Never overwrite an existing employee document (docs are keyed by employeeId)
-  const clash =
-    memory.employees.some((e) => e.employeeId === data.employeeId) ||
-    (await getDocumentFromFirestore<Employee>("employees", data.employeeId).catch(() => null));
-  if (clash) {
-    throw new Error(`Employee ID ${data.employeeId} already exists. Please retry.`);
-  }
-
-  const newEmp: Employee = {
+  const now = new Date().toISOString();
+  const newEmp = await insertEmployeeWithNewId((employeeId) => ({
     ...data,
-    id: `emp-${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  memory.employees.unshift(newEmp);
-
-  // Sync to Firestore
-  saveDocumentToFirestore("employees", newEmp.employeeId, newEmp).catch(() => {});
+    id: employeeId,
+    employeeId,
+    personal: { ...data.personal, employeeId },
+    createdAt: now,
+    updatedAt: now,
+  }));
 
   await recordAuditLog({
     who: actor.name,
@@ -361,38 +413,6 @@ export async function createEmployee(
   });
 
   return newEmp;
-}
-
-export async function updateEmployee(
-  employeeId: string,
-  updates: Partial<Employee>,
-  actor: { name: string; role: string }
-): Promise<Employee | null> {
-  const index = memory.employees.findIndex(
-    (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
-  );
-  if (index === -1) return null;
-
-  const emp = {
-    ...memory.employees[index],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  };
-  memory.employees[index] = emp;
-
-  // Sync to Firestore
-  saveDocumentToFirestore("employees", emp.employeeId, emp).catch(() => {});
-
-  await recordAuditLog({
-    who: actor.name,
-    role: actor.role,
-    action: "EMPLOYEE_UPDATED",
-    employeeId: emp.employeeId,
-    employeeName: emp.personal.fullName,
-    details: `Updated details for ${emp.personal.fullName}`,
-  });
-
-  return emp;
 }
 
 export interface UpdateEmployeeAvatarInput {
@@ -407,40 +427,22 @@ export async function updateEmployeeBranch(
   branch: Branch,
   actor: { name: string; role: string }
 ): Promise<Employee | null> {
-  let index = memory.employees.findIndex(
-    (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
-  );
-  if (index === -1) {
-    try {
-      const docEmp = await getDocumentFromFirestore<Employee>("employees", employeeId);
-      if (docEmp) {
-        memory.employees.push(docEmp);
-        index = memory.employees.length - 1;
-      }
-    } catch (e) {}
-  }
-  if (index === -1) return null;
+  const current = await loadEmployeeForUpdate(employeeId);
+  if (!current) return null;
 
-  const current = memory.employees[index];
   const oldBranch = current.employment.branch || "Delhi";
   const emp: Employee = {
     ...current,
     employment: { ...current.employment, branch, workLocation: `${branch} Branch` },
     updatedAt: new Date().toISOString(),
   };
-  memory.employees[index] = emp;
-  await saveDocumentToFirestore("employees", emp.employeeId, emp).catch((e) =>
-    console.warn("Firestore employee branch sync error:", e)
-  );
+  upsertMemory(memory.employees, (e) => e.employeeId === emp.employeeId, emp);
+  await persist("employees", emp.employeeId, emp);
 
-  // Keep the login account in sync, since session branch scope is read from it
-  try {
-    const users = await getAllUserAccounts();
-    const acc = users.find((u) => u.employeeId?.toLowerCase() === emp.employeeId.toLowerCase());
-    if (acc) await updateUserAccount(acc.uid, { branch });
-  } catch (e) {
-    console.warn("User account branch sync error:", e);
-  }
+  // Keep the login account in sync: branch scope is read from the account on every request
+  const users = await getAllUserAccounts();
+  const acc = users.find((u) => u.employeeId?.toLowerCase() === emp.employeeId.toLowerCase());
+  if (acc) await updateUserAccount(acc.uid, { branch });
 
   await recordAuditLog({
     who: actor.name,
@@ -459,21 +461,9 @@ export async function updateEmployeeStatutory(
   input: Partial<Pick<StatutoryInfo, "pan" | "aadhaar" | "uan" | "pfAccountNumber" | "bankAccountNumber" | "ifscCode" | "bankName">>,
   actor: { name: string; role: string }
 ): Promise<Employee | null> {
-  let index = memory.employees.findIndex(
-    (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
-  );
-  if (index === -1) {
-    try {
-      const docEmp = await getDocumentFromFirestore<Employee>("employees", employeeId);
-      if (docEmp) {
-        memory.employees.push(docEmp);
-        index = memory.employees.length - 1;
-      }
-    } catch (e) {}
-  }
-  if (index === -1) return null;
+  const current = await loadEmployeeForUpdate(employeeId);
+  if (!current) return null;
 
-  const current = memory.employees[index];
   const statutory = { ...current.statutory };
   const changed: string[] = [];
   for (const key of ["pan", "aadhaar", "uan", "pfAccountNumber", "bankAccountNumber", "ifscCode", "bankName"] as const) {
@@ -485,8 +475,8 @@ export async function updateEmployeeStatutory(
   }
 
   const updated: Employee = { ...current, statutory, updatedAt: new Date().toISOString() };
-  memory.employees[index] = updated;
-  saveDocumentToFirestore("employees", updated.employeeId, updated).catch(() => {});
+  upsertMemory(memory.employees, (e) => e.employeeId === updated.employeeId, updated);
+  await persist("employees", updated.employeeId, updated);
 
   if (changed.length > 0) {
     await recordAuditLog({
@@ -506,35 +496,21 @@ export async function updateEmployeeAvatar(
   input: UpdateEmployeeAvatarInput,
   actor: { name: string; role: string }
 ): Promise<Employee | null> {
-  let index = memory.employees.findIndex(
-    (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
-  );
+  const currentEmp = await loadEmployeeForUpdate(employeeId);
+  if (!currentEmp) return null;
 
-  if (index === -1) {
-    try {
-      const docEmp = await getDocumentFromFirestore<Employee>("employees", employeeId);
-      if (docEmp) {
-        memory.employees.push(docEmp);
-        index = memory.employees.length - 1;
-      }
-    } catch (e) {
-      console.warn("Firestore fetch error in updateEmployeeAvatar:", e);
-    }
-  }
+  const employeeDocs = await getDocuments(currentEmp.employeeId);
+  const isPassportDoc = (d: EmployeeDocument) =>
+    d.documentType === "photograph" || Boolean(d.title?.toLowerCase().includes("passport"));
+  const existingPassportDoc = employeeDocs.find(isPassportDoc);
 
-  if (index === -1) return null;
-
-  const currentEmp = memory.employees[index];
-
-  const docPassport = memory.documents.find(
-    (d) =>
-      d.employeeId === currentEmp.employeeId &&
-      (d.documentType === "photograph" || d.title?.toLowerCase().includes("passport"))
-  )?.fileUrl;
-
-  const newPassportUrl = input.passportPhotoUrl !== undefined ? input.passportPhotoUrl : (currentEmp.personal.passportPhotoUrl || docPassport);
+  const newPassportUrl =
+    input.passportPhotoUrl !== undefined
+      ? input.passportPhotoUrl
+      : currentEmp.personal.passportPhotoUrl || existingPassportDoc?.fileUrl;
   const newCustomUrl = input.customAvatarUrl !== undefined ? input.customAvatarUrl : currentEmp.personal.customAvatarUrl;
-  const newPreference = input.avatarPreference !== undefined ? input.avatarPreference : (currentEmp.personal.avatarPreference || "passport");
+  const newPreference =
+    input.avatarPreference !== undefined ? input.avatarPreference : currentEmp.personal.avatarPreference || "passport";
 
   let effectiveAvatarUrl = input.avatarUrl;
   if (!effectiveAvatarUrl) {
@@ -546,9 +522,7 @@ export async function updateEmployeeAvatar(
           ? currentEmp.personal.avatarUrl
           : undefined;
       effectiveAvatarUrl =
-        newPassportUrl ||
-        nonCustomAvatar ||
-        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150";
+        newPassportUrl || nonCustomAvatar || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150";
     }
   }
 
@@ -566,38 +540,28 @@ export async function updateEmployeeAvatar(
     updatedAt: new Date().toISOString(),
   };
 
-  memory.employees[index] = updatedEmp;
-  saveDocumentToFirestore("employees", updatedEmp.employeeId, updatedEmp).catch(() => {});
+  upsertMemory(memory.employees, (e) => e.employeeId === updatedEmp.employeeId, updatedEmp);
+  await persist("employees", updatedEmp.employeeId, updatedEmp);
 
-  // Sync with matching UserAccount
-  try {
-    const userAcc = memory.userAccounts.find(
-      (u) =>
-        u.employeeId.toLowerCase() === updatedEmp.employeeId.toLowerCase() ||
-        u.email.toLowerCase() === updatedEmp.personal.workEmail.toLowerCase() ||
-        u.email.toLowerCase() === updatedEmp.personal.personalEmail.toLowerCase()
-    );
-    if (userAcc) {
-      userAcc.avatar = effectiveAvatarUrl;
-      saveDocumentToFirestore("users", userAcc.uid, userAcc).catch(() => {});
-    }
-  } catch (e) {
-    console.warn("User account avatar sync error:", e);
-  }
+  // Sync the avatar onto the matching login account
+  const accounts = await getAllUserAccounts();
+  const userAcc = accounts.find(
+    (u) =>
+      u.employeeId.toLowerCase() === updatedEmp.employeeId.toLowerCase() ||
+      u.email.toLowerCase() === updatedEmp.personal.workEmail.toLowerCase() ||
+      u.email.toLowerCase() === updatedEmp.personal.personalEmail.toLowerCase()
+  );
+  if (userAcc) await updateUserAccount(userAcc.uid, { avatar: effectiveAvatarUrl });
 
   // If a passport photo was newly provided or changed, ensure a verified EmployeeDocument exists
   if (input.passportPhotoUrl) {
-    const existingDoc = memory.documents.find(
-      (d) =>
-        d.employeeId === updatedEmp.employeeId &&
-        (d.documentType === "photograph" || d.title?.toLowerCase().includes("passport"))
-    );
-    if (existingDoc) {
-      existingDoc.fileUrl = input.passportPhotoUrl;
-      saveDocumentToFirestore("documents", existingDoc.id, existingDoc).catch(() => {});
+    if (existingPassportDoc) {
+      const updatedDoc = { ...existingPassportDoc, fileUrl: input.passportPhotoUrl };
+      upsertMemory(memory.documents, (d) => d.id === updatedDoc.id, updatedDoc);
+      await persist("documents", updatedDoc.id, updatedDoc);
     } else {
       const newDoc: EmployeeDocument = {
-        id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        id: `doc-${Date.now()}-${randomBytes(3).toString("hex")}`,
         employeeId: updatedEmp.employeeId,
         employeeName: updatedEmp.personal.fullName,
         documentType: "photograph",
@@ -609,7 +573,7 @@ export async function updateEmployeeAvatar(
         notes: "Official KYC passport photo registered",
       };
       memory.documents.unshift(newDoc);
-      saveDocumentToFirestore("documents", newDoc.id, newDoc).catch(() => {});
+      await persist("documents", newDoc.id, newDoc);
     }
   }
 
@@ -650,19 +614,8 @@ export async function reviseSalary(
     isIncentiveOnly?: boolean;
   }
 ): Promise<Employee | null> {
-  let index = memory.employees.findIndex(
-    (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
-  );
-  if (index === -1) {
-    const docEmp = await getDocumentFromFirestore<Employee>("employees", employeeId);
-    if (docEmp) {
-      memory.employees.push(docEmp);
-      index = memory.employees.length - 1;
-    }
-  }
-  if (index === -1) return null;
-
-  const currentEmp = memory.employees[index];
+  const currentEmp = await loadEmployeeForUpdate(employeeId);
+  if (!currentEmp) return null;
 
   let newAnnualCtc = 0;
   let monthlySalary: number | undefined;
@@ -717,7 +670,7 @@ export async function reviseSalary(
 
   const revisionRecord: SalaryRevisionRecord = {
     id: `rev-${Date.now()}`,
-    effectiveFrom: new Date().toISOString().split("T")[0],
+    effectiveFrom: getISTDateString(),
     annualCtc: newComponents.annualCtc,
     monthlySalary: newComponents.grossSalary,
     netSalary: newComponents.netSalary,
@@ -739,8 +692,8 @@ export async function reviseSalary(
     updatedAt: new Date().toISOString(),
   };
 
-  memory.employees[index] = updatedEmp;
-  saveDocumentToFirestore("employees", updatedEmp.employeeId, updatedEmp).catch(() => {});
+  upsertMemory(memory.employees, (e) => e.employeeId === updatedEmp.employeeId, updatedEmp);
+  await persist("employees", updatedEmp.employeeId, updatedEmp);
 
   const pfDescription = includePf
     ? (pfType === "fixed" ? `₹${newComponents.employeePf} Fixed` : `${pfValue}% of Basic (₹${newComponents.employeePf})`)
@@ -797,7 +750,7 @@ export async function getAttendanceRecords(dateOrQuery?: string | AttendanceQuer
     }
     // Remaining conditions (single-field queries only → no composite indexes required)
     docs = docs.filter(inMemory);
-    if (docs.length > 0) return docs;
+    if (isFirestoreConfigured() || docs.length > 0) return docs;
   } catch (e) {
     console.warn("Firestore getAttendanceRecords fallback:", e);
   }
@@ -817,7 +770,7 @@ export async function createAttendanceRecord(
   memory.attendance.unshift(record);
 
   // Sync to Firestore
-  saveDocumentToFirestore("attendance", record.id, record).catch(() => {});
+  await persist("attendance", record.id, record);
 
   await recordAuditLog({
     who: actor.name,
@@ -836,26 +789,17 @@ export async function updateAttendanceRecord(
   updates: Partial<AttendanceRecord>,
   actor: { name: string; role: string }
 ): Promise<AttendanceRecord | null> {
-  let index = memory.attendance.findIndex((a) => a.id === recordId);
-  if (index === -1) {
-    // Record may only exist in Firestore (e.g. after a server restart) — hydrate it.
-    const remote = await getDocumentFromFirestore<AttendanceRecord>("attendance", recordId).catch(() => null);
-    if (!remote) return null;
-    memory.attendance.unshift(remote);
-    index = 0;
-  }
+  const current = await loadForUpdate<AttendanceRecord>("attendance", recordId, memory.attendance, (a) => a.id === recordId);
+  if (!current) return null;
 
-  const updated = {
-    ...memory.attendance[index],
-    ...updates,
-  };
+  const updated: AttendanceRecord = { ...current, ...updates };
   if (updates.status !== undefined) {
     updated.lateArrival = updates.status === "Late";
   }
-  memory.attendance[index] = updated;
+  upsertMemory(memory.attendance, (a) => a.id === recordId, updated);
 
   // Sync to Firestore
-  saveDocumentToFirestore("attendance", recordId, updated).catch(() => {});
+  await persist("attendance", recordId, updated);
 
   await recordAuditLog({
     who: actor.name,
@@ -924,7 +868,7 @@ export async function saveOffice(
     memory.offices.push(updatedOffice);
   }
 
-  saveDocumentToFirestore("offices", updatedOffice.id, updatedOffice).catch(() => {});
+  await persist("offices", updatedOffice.id, updatedOffice);
 
   await recordAuditLog({
     who: actor.name,
@@ -943,12 +887,13 @@ export async function deleteOffice(
   if (!memory.offices) {
     memory.offices = isLocalEnvironment() ? [...INITIAL_OFFICES] : [];
   }
-  const index = memory.offices.findIndex((o) => o.id === id);
-  if (index === -1) return false;
+  const office =
+    (await loadForUpdate<OfficeLocation>("offices", id, memory.offices, (o) => o.id === id)) ||
+    memory.offices.find((o) => o.id === id);
+  if (!office) return false;
 
-  const office = memory.offices[index];
-  memory.offices.splice(index, 1);
-  deleteDocumentFromFirestore("offices", id).catch(() => {});
+  memory.offices = memory.offices.filter((o) => o.id !== id);
+  await persistDelete("offices", id);
 
   await recordAuditLog({
     who: actor.name,
@@ -979,13 +924,9 @@ export async function punchAttendance(
   const today = getISTDateString();
   const nowTime = getIST24HourTime();
 
-  let emp = memory.employees.find(
-    (e) => e.employeeId.toLowerCase() === employeeId.toLowerCase() || e.id === employeeId
-  );
-  if (!emp) {
-    emp = (await getEmployeeById(employeeId)) || undefined;
-  }
+  const emp = (await getEmployeeById(employeeId)) || undefined;
   const employeeName = emp?.personal?.fullName || actor.name;
+  const policy = await getPolicy();
 
   // Single-punch-per-day enforcement with cloud store verification
   const todayRecords = await getAttendanceRecords(today);
@@ -1040,8 +981,8 @@ export async function punchAttendance(
   }
 
   // Calculate Late vs Present status per policy in IST
-  const startTime = memory.policy.officeStartTime || "10:00";
-  const grace = memory.policy.gracePeriodMinutes ?? 15;
+  const startTime = policy.officeStartTime || "10:00";
+  const grace = policy.gracePeriodMinutes ?? 15;
   const isLate = evaluateLateArrivalIST(nowTime, startTime, grace);
 
   const newRec: AttendanceRecord = {
@@ -1050,8 +991,8 @@ export async function punchAttendance(
     employeeName,
     date: today,
     checkIn: nowTime,
-    totalWorkingHours: memory.policy.fullDayMinHours || 8,
-    breakDurationMinutes: (memory.policy.standardBreakHours || 1) * 60,
+    totalWorkingHours: policy.fullDayMinHours || 8,
+    breakDurationMinutes: (policy.standardBreakHours || 1) * 60,
     status: isLate ? "Late" : "Present",
     lateArrival: isLate,
     earlyDeparture: false,
@@ -1069,7 +1010,7 @@ export async function punchAttendance(
   };
 
   memory.attendance.unshift(newRec);
-  saveDocumentToFirestore("attendance", newRec.id, newRec).catch(() => {});
+  await persist("attendance", newRec.id, newRec);
 
   await recordAuditLog({
     who: actor.name,
@@ -1121,22 +1062,13 @@ export async function upsertAttendanceRecord(
 // ----------------- LEAVES -----------------
 
 export async function getLeaveRequests(employeeId?: string): Promise<LeaveRequest[]> {
+  let list: LeaveRequest[] = memory.leaves;
   try {
-    const firestoreDocs = await getCollectionFromFirestore<LeaveRequest>("leaves");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      if (employeeId) {
-        return firestoreDocs.filter((l) => l.employeeId === employeeId);
-      }
-      return firestoreDocs;
-    }
+    list = fromStore(await getCollectionFromFirestore<LeaveRequest>("leaves"), memory.leaves);
   } catch (e) {
     console.warn("Firestore getLeaveRequests fallback:", e);
   }
-
-  if (employeeId) {
-    return memory.leaves.filter((l) => l.employeeId === employeeId);
-  }
-  return memory.leaves;
+  return newestFirst(employeeId ? list.filter((l) => l.employeeId === employeeId) : list, (l) => l.appliedOn);
 }
 
 export async function createLeaveRequest(
@@ -1153,7 +1085,7 @@ export async function createLeaveRequest(
   memory.leaves.unshift(newLeave);
 
   // Sync to Firestore
-  saveDocumentToFirestore("leaves", newLeave.id, newLeave).catch(() => {});
+  await persist("leaves", newLeave.id, newLeave);
 
   await recordAuditLog({
     who: actor.name,
@@ -1173,50 +1105,58 @@ export async function updateLeaveRequest(
   reviewNotes: string,
   actor: { name: string; role: string }
 ): Promise<LeaveRequest | null> {
-  let index = memory.leaves.findIndex((l) => l.id === leaveId);
-  if (index === -1) {
-    // Memory may be cold; hydrate the record from Firestore
-    try {
-      const stored = await getDocumentFromFirestore<LeaveRequest>("leaves", leaveId);
-      if (stored) {
-        memory.leaves.unshift(stored);
-        index = 0;
-      }
-    } catch (e) {}
+  const current = await loadForUpdate<LeaveRequest>("leaves", leaveId, memory.leaves, (l) => l.id === leaveId);
+  if (!current) return null;
+  if (current.status !== "Pending") {
+    throw new ConflictError(`This leave request was already ${current.status.toLowerCase()}.`);
   }
-  if (index === -1) return null;
 
-  const leave = {
-    ...memory.leaves[index],
+  const leave: LeaveRequest = {
+    ...current,
     status,
     reviewedBy: actor.name,
     reviewedAt: new Date().toISOString(),
     reviewNotes,
   };
-  memory.leaves[index] = leave;
+  upsertMemory(memory.leaves, (l) => l.id === leaveId, leave);
 
   // Sync to Firestore
-  saveDocumentToFirestore("leaves", leaveId, leave).catch(() => {});
+  await persist("leaves", leaveId, leave);
 
-  // If approved, create attendance record
+  // If approved, mark every working day of the leave in attendance (not just the first day).
+  // Sundays, the employee's branch holidays and days that already have a record are skipped.
   if (status === "Approved") {
-    const attRecord: AttendanceRecord = {
-      id: `att-lev-${Date.now()}`,
+    const emp = await getEmployeeById(leave.employeeId).catch(() => null);
+    const holidayDates = new Set(
+      (await getHolidays(emp?.employment.branch)).map((h) => h.date).filter((d) => d >= leave.startDate && d <= leave.endDate)
+    );
+    const existing = await getAttendanceRecords({
+      from: leave.startDate,
+      to: leave.endDate,
       employeeId: leave.employeeId,
-      employeeName: leave.employeeName,
-      date: leave.startDate,
-      checkIn: "--",
-      checkOut: "--",
-      totalWorkingHours: 0,
-      breakDurationMinutes: 0,
-      status: "Leave",
-      lateArrival: false,
-      earlyDeparture: false,
-      overtimeHours: 0,
-      remarks: `Leave: ${leave.leaveType}`,
-    };
-    memory.attendance.unshift(attRecord);
-    saveDocumentToFirestore("attendance", attRecord.id, attRecord).catch(() => {});
+    });
+    const taken = new Set(existing.map((r) => r.date));
+
+    for (const date of leaveWorkingDates(leave.startDate, leave.endDate, holidayDates)) {
+      if (taken.has(date)) continue;
+      const attRecord: AttendanceRecord = {
+        id: `att-lev-${leaveId}-${date}`,
+        employeeId: leave.employeeId,
+        employeeName: leave.employeeName,
+        date,
+        checkIn: "--",
+        checkOut: "--",
+        totalWorkingHours: 0,
+        breakDurationMinutes: 0,
+        status: "Leave",
+        lateArrival: false,
+        earlyDeparture: false,
+        overtimeHours: 0,
+        remarks: `Leave: ${leave.leaveType}`,
+      };
+      upsertMemory(memory.attendance, (a) => a.id === attRecord.id, attRecord);
+      await persist("attendance", attRecord.id, attRecord);
+    }
   }
 
   await recordAuditLog({
@@ -1267,16 +1207,16 @@ export const reviewLeave = updateLeaveRequest;
 // ----------------- PAYROLL -----------------
 
 export async function getPayrollRuns(): Promise<PayrollRun[]> {
+  let runs: PayrollRun[] = memory.payrollRuns;
   try {
-    const firestoreDocs = await getCollectionFromFirestore<PayrollRun>("payroll_runs");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      return firestoreDocs;
-    }
+    runs = fromStore(await getCollectionFromFirestore<PayrollRun>("payroll_runs"), memory.payrollRuns);
   } catch (e) {
     console.warn("Firestore getPayrollRuns fallback:", e);
   }
-
-  return memory.payrollRuns;
+  // Newest first: Firestore returns documents in ID order, and callers treat runs[0] as the latest run.
+  return [...runs].sort(
+    (a, b) => (b.month || "").localeCompare(a.month || "") || (b.createdAt || "").localeCompare(a.createdAt || "")
+  );
 }
 
 export async function getPayrollRunById(runIdOrCode: string): Promise<PayrollRun | null> {
@@ -1293,18 +1233,9 @@ export async function savePayrollRun(
   run: PayrollRun,
   actor: { name: string; role: string }
 ): Promise<PayrollRun> {
-  const existingIndex = memory.payrollRuns.findIndex(
-    (r) => r.id === run.id || r.runCode === run.runCode
-  );
+  upsertMemory(memory.payrollRuns, (r) => r.id === run.id || r.runCode === run.runCode, run);
 
-  if (existingIndex >= 0) {
-    memory.payrollRuns[existingIndex] = run;
-  } else {
-    memory.payrollRuns.unshift(run);
-  }
-
-  // Sync to Firestore
-  saveDocumentToFirestore("payroll_runs", run.runCode, run).catch(() => {});
+  await persist("payroll_runs", run.runCode, run);
 
   await recordAuditLog({
     who: actor.name,
@@ -1319,14 +1250,34 @@ export async function savePayrollRun(
 // ----------------- INCENTIVES -----------------
 
 export async function getIncentiveSchemes(): Promise<IncentiveScheme[]> {
-  return memory.incentiveSchemes;
+  if (!isFirestoreConfigured()) {
+    if (memory.incentiveSchemes.length === 0) memory.incentiveSchemes = [...INITIAL_INCENTIVE_SCHEMES];
+    return memory.incentiveSchemes;
+  }
+  const stored = await getCollectionFromFirestore<IncentiveScheme>("incentive_schemes").catch(() => []);
+  if (stored.length > 0) return stored;
+
+  // First use: store the standard schemes so edits made later are kept.
+  try {
+    for (const scheme of INITIAL_INCENTIVE_SCHEMES) await persist("incentive_schemes", scheme.id, scheme);
+  } catch (e) {
+    console.warn("Could not seed incentive schemes:", e);
+  }
+  return [...INITIAL_INCENTIVE_SCHEMES];
 }
 
 export async function getEmployeeIncentives(month?: string): Promise<EmployeeIncentiveRecord[]> {
-  if (month) {
-    return memory.employeeIncentives.filter((i) => i.month === month);
+  try {
+    const stored = month
+      ? await queryCollectionFromFirestore<EmployeeIncentiveRecord>("incentives", [
+          { field: "month", op: "==", value: month },
+        ])
+      : await getCollectionFromFirestore<EmployeeIncentiveRecord>("incentives");
+    if (isFirestoreConfigured()) return stored;
+  } catch (e) {
+    console.warn("Firestore getEmployeeIncentives fallback:", e);
   }
-  return memory.employeeIncentives;
+  return month ? memory.employeeIncentives.filter((i) => i.month === month) : memory.employeeIncentives;
 }
 
 export async function recordEmployeeIncentive(
@@ -1340,7 +1291,7 @@ export async function recordEmployeeIncentive(
 
   memory.employeeIncentives.unshift(record);
 
-  saveDocumentToFirestore("incentives", record.id, record).catch(() => {});
+  await persist("incentives", record.id, record);
 
   await recordAuditLog({
     who: actor.name,
@@ -1361,18 +1312,17 @@ export async function updateEmployeeIncentive(
   updates: Partial<EmployeeIncentiveRecord>,
   actor: { name: string; role: string }
 ): Promise<EmployeeIncentiveRecord | null> {
-  const idx = memory.employeeIncentives.findIndex((i) => i.id === id);
-  if (idx === -1) return null;
+  const current = await loadForUpdate<EmployeeIncentiveRecord>("incentives", id, memory.employeeIncentives, (i) => i.id === id);
+  if (!current) return null;
 
-  const current = memory.employeeIncentives[idx];
   const updated: EmployeeIncentiveRecord = {
     ...current,
     ...updates,
     id: current.id,
   };
 
-  memory.employeeIncentives[idx] = updated;
-  saveDocumentToFirestore("incentives", updated.id, updated).catch(() => {});
+  upsertMemory(memory.employeeIncentives, (i) => i.id === id, updated);
+  await persist("incentives", updated.id, updated);
 
   await recordAuditLog({
     who: actor.name,
@@ -1390,11 +1340,11 @@ export async function deleteEmployeeIncentive(
   id: string,
   actor: { name: string; role: string }
 ): Promise<boolean> {
-  const idx = memory.employeeIncentives.findIndex((i) => i.id === id);
-  if (idx === -1) return false;
+  const removed = await loadForUpdate<EmployeeIncentiveRecord>("incentives", id, memory.employeeIncentives, (i) => i.id === id);
+  if (!removed) return false;
 
-  const removed = memory.employeeIncentives.splice(idx, 1)[0];
-  deleteDocumentFromFirestore("incentives", id).catch(() => {});
+  memory.employeeIncentives = memory.employeeIncentives.filter((i) => i.id !== id);
+  await persistDelete("incentives", id);
 
   await recordAuditLog({
     who: actor.name,
@@ -1413,24 +1363,20 @@ export async function updateIncentiveScheme(
   updates: Partial<IncentiveScheme>,
   actor: { name: string; role: string }
 ): Promise<IncentiveScheme | null> {
-  const idx = memory.incentiveSchemes.findIndex((s) => s.id === id);
-  if (idx === -1) {
-    const newScheme: IncentiveScheme = {
-      id,
-      name: updates.name || "Custom Scheme",
-      type: updates.type || "slab",
-      description: updates.description || "",
-      active: true,
-      ...updates,
-    };
-    memory.incentiveSchemes.push(newScheme);
-    return newScheme;
-  }
+  const existing = (await getIncentiveSchemes()).find((sch) => sch.id === id);
+  const scheme: IncentiveScheme = existing
+    ? { ...existing, ...updates, id }
+    : {
+        name: "Custom Scheme",
+        type: "slab",
+        description: "",
+        active: true,
+        ...updates,
+        id,
+      };
 
-  memory.incentiveSchemes[idx] = {
-    ...memory.incentiveSchemes[idx],
-    ...updates,
-  };
+  upsertMemory(memory.incentiveSchemes, (sch) => sch.id === id, scheme, false);
+  await persist("incentive_schemes", id, scheme);
 
   await recordAuditLog({
     who: actor.name,
@@ -1439,18 +1385,28 @@ export async function updateIncentiveScheme(
     details: `Updated incentive scheme ${id}`,
   });
 
-  return memory.incentiveSchemes[idx];
+  return scheme;
+}
+
+export async function getEmployeeLoginById(id: string): Promise<EmployeeLoginRecord | null> {
+  try {
+    const stored = await getDocumentFromFirestore<EmployeeLoginRecord>("employee_logins", id);
+    if (stored) return stored;
+  } catch (e) {
+    console.warn("Firestore getEmployeeLoginById fallback:", e);
+  }
+  return memory.employeeLogins.find((l) => l.id === id) || null;
 }
 
 export async function deleteEmployeeLogin(
   id: string,
   actor: { name: string; role: string }
 ): Promise<boolean> {
-  const idx = memory.employeeLogins.findIndex((l) => l.id === id);
-  if (idx === -1) return false;
+  const removed = await getEmployeeLoginById(id);
+  if (!removed) return false;
 
-  const removed = memory.employeeLogins.splice(idx, 1)[0];
-  deleteDocumentFromFirestore("employee_logins", id).catch(() => {});
+  memory.employeeLogins = memory.employeeLogins.filter((l) => l.id !== id);
+  await persistDelete("employee_logins", id);
 
   await recordAuditLog({
     who: actor.name,
@@ -1555,11 +1511,8 @@ export async function saveEmployeeLogin(
 
   const totalDisbursal = axisBankDisbursal + otherBanksDisbursal;
 
-  const existingIdx = data.id
-    ? memory.employeeLogins.findIndex((l) => l.id === data.id)
-    : -1;
-
-  const existing = existingIdx >= 0 ? memory.employeeLogins[existingIdx] : null;
+  // Merge with the stored record (Firestore-first) so fields the caller did not send are kept.
+  const existing = await getEmployeeLoginById(id);
 
   const record: EmployeeLoginRecord = {
     id: existing?.id || id,
@@ -1571,8 +1524,8 @@ export async function saveEmployeeLogin(
     commitment: Number(data.commitment ?? existing?.commitment ?? 0),
     loginCommitment: Number(data.loginCommitment ?? existing?.loginCommitment ?? 0),
     loginsCount: Number(data.loginsCount ?? existing?.loginsCount ?? 0),
-    submissionDate: data.submissionDate ?? existing?.submissionDate ?? new Date().toISOString().split("T")[0],
-    lastLoginDate: data.lastLoginDate ?? existing?.lastLoginDate ?? new Date().toISOString().split("T")[0],
+    submissionDate: data.submissionDate ?? existing?.submissionDate ?? getISTDateString(),
+    lastLoginDate: data.lastLoginDate ?? existing?.lastLoginDate ?? getISTDateString(),
     totalDisbursal: banks.length > 0 ? totalDisbursal : Number(data.totalDisbursal ?? existing?.totalDisbursal ?? 0),
     axisBankDisbursal: banks.length > 0 ? axisBankDisbursal : Number(data.axisBankDisbursal ?? existing?.axisBankDisbursal ?? 0),
     otherBanksDisbursal: banks.length > 0 ? otherBanksDisbursal : Number(data.otherBanksDisbursal ?? existing?.otherBanksDisbursal ?? 0),
@@ -1582,13 +1535,8 @@ export async function saveEmployeeLogin(
     updatedBy: actor.name,
   };
 
-  if (existingIdx >= 0) {
-    memory.employeeLogins[existingIdx] = record;
-  } else {
-    memory.employeeLogins.unshift(record);
-  }
-
-  saveDocumentToFirestore("employee_logins", record.id, record).catch(() => {});
+  upsertMemory(memory.employeeLogins, (l) => l.id === record.id, record);
+  await persist("employee_logins", record.id, record);
 
   await recordAuditLog({
     who: actor.name,
@@ -1608,6 +1556,8 @@ export async function calculateAndSyncIncentivesFromLogins(
 ): Promise<EmployeeIncentiveRecord[]> {
   const employees = await getEmployees();
   const logins = await getEmployeeLogins(month);
+  const existingForMonth = await getEmployeeIncentives(month);
+  const slabScheme = (await getIncentiveSchemes()).find((sch) => sch.id === "scheme-disbursal-slab");
   const updatedRecords: EmployeeIncentiveRecord[] = [];
 
   for (const login of logins) {
@@ -1617,24 +1567,21 @@ export async function calculateAndSyncIncentivesFromLogins(
         e.personal?.fullName?.toLowerCase() === login.employeeName?.toLowerCase()
     );
 
-    const monthlySalary =
-      emp?.currentSalary?.grossSalary ||
-      emp?.currentSalary?.basic ||
-      emp?.currentSalary?.monthlyCtc ||
-      15000;
     const breakdown = calculateDisbursalIncentive({
-      monthlySalary,
+      monthlySalary: resolveIncentiveSalary(emp),
+      hurdleMultiplier: slabScheme?.hurdleMultiplier,
+      axisRatePerLakh: slabScheme?.axisRatePerLakh,
       totalDisbursal: login.totalDisbursal,
       axisBankDisbursal: login.axisBankDisbursal,
       otherBanksDisbursal: login.otherBanksDisbursal,
     });
 
-    const existingIdx = memory.employeeIncentives.findIndex(
-      (i) => i.employeeId === login.employeeId && i.month === month && i.schemeId === "scheme-disbursal-slab"
+    const existing = existingForMonth.find(
+      (i) => i.employeeId === login.employeeId && i.schemeId === "scheme-disbursal-slab"
     );
 
     const record: EmployeeIncentiveRecord = {
-      id: existingIdx >= 0 ? memory.employeeIncentives[existingIdx].id : `inc-disbursal-${login.employeeId}-${month}`,
+      id: existing?.id ?? `inc-disbursal-${login.employeeId}-${month}`,
       employeeId: login.employeeId,
       employeeName: login.employeeName,
       month,
@@ -1646,18 +1593,13 @@ export async function calculateAndSyncIncentivesFromLogins(
       incentiveAmount: breakdown.totalIncentive,
       status: "Approved",
       approvedBy: actor.name,
-      approvedDate: new Date().toISOString().split("T")[0],
+      approvedDate: getISTDateString(),
       calculationBreakdown: breakdown,
       sourceLoginRecordId: login.id,
     };
 
-    if (existingIdx >= 0) {
-      memory.employeeIncentives[existingIdx] = record;
-    } else {
-      memory.employeeIncentives.unshift(record);
-    }
-
-    saveDocumentToFirestore("incentives", record.id, record).catch(() => {});
+    upsertMemory(memory.employeeIncentives, (i) => i.id === record.id, record);
+    await persist("incentives", record.id, record);
     updatedRecords.push(record);
   }
 
@@ -1674,29 +1616,32 @@ export async function calculateAndSyncIncentivesFromLogins(
 // ----------------- ASSETS -----------------
 
 export async function getAssets(): Promise<AssetRecord[]> {
+  let list: AssetRecord[] = memory.assets;
   try {
-    const firestoreDocs = await getCollectionFromFirestore<AssetRecord>("assets");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      return firestoreDocs;
-    }
+    list = fromStore(await getCollectionFromFirestore<AssetRecord>("assets"), memory.assets);
   } catch (e) {
     console.warn("Firestore getAssets fallback:", e);
   }
-
-  return memory.assets;
+  return list;
 }
 
 export async function createAsset(
   data: Omit<AssetRecord, "id"> & { id?: string },
   actor: { name: string; role: string }
 ): Promise<AssetRecord> {
+  // Assets are stored under their tag: never overwrite an existing asset
+  const clash = await loadForUpdate<AssetRecord>("assets", data.assetTag, memory.assets, (a) => a.assetTag === data.assetTag);
+  if (clash) {
+    throw new Error(`Asset tag ${data.assetTag} already exists.`);
+  }
+
   const item: AssetRecord = {
     ...data,
     id: data.id || `ast-${Date.now()}`,
   };
   memory.assets.unshift(item);
 
-  saveDocumentToFirestore("assets", item.assetTag, item).catch(() => {});
+  await persist("assets", item.assetTag, item);
 
   await recordAuditLog({
     who: actor.name,
@@ -1713,13 +1658,14 @@ export async function updateAsset(
   updates: Partial<AssetRecord>,
   actor: { name: string; role: string }
 ): Promise<AssetRecord | null> {
-  const index = memory.assets.findIndex((a) => a.assetTag === assetTag);
-  if (index === -1) return null;
+  // Assets are stored under their asset tag
+  const current = await loadForUpdate<AssetRecord>("assets", assetTag, memory.assets, (a) => a.assetTag === assetTag);
+  if (!current) return null;
 
-  const item = { ...memory.assets[index], ...updates };
-  memory.assets[index] = item;
+  const item: AssetRecord = { ...current, ...updates, assetTag: current.assetTag };
+  upsertMemory(memory.assets, (a) => a.assetTag === assetTag, item);
 
-  saveDocumentToFirestore("assets", item.assetTag, item).catch(() => {});
+  await persist("assets", item.assetTag, item);
 
   await recordAuditLog({
     who: actor.name,
@@ -1734,22 +1680,13 @@ export async function updateAsset(
 // ----------------- REQUESTS -----------------
 
 export async function getRequests(employeeId?: string): Promise<EmployeeRequestItem[]> {
+  let list: EmployeeRequestItem[] = memory.requests;
   try {
-    const firestoreDocs = await getCollectionFromFirestore<EmployeeRequestItem>("requests");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      if (employeeId) {
-        return firestoreDocs.filter((r) => r.employeeId === employeeId);
-      }
-      return firestoreDocs;
-    }
+    list = fromStore(await getCollectionFromFirestore<EmployeeRequestItem>("requests"), memory.requests);
   } catch (e) {
     console.warn("Firestore getRequests fallback:", e);
   }
-
-  if (employeeId) {
-    return memory.requests.filter((r) => r.employeeId === employeeId);
-  }
-  return memory.requests;
+  return newestFirst(employeeId ? list.filter((x) => x.employeeId === employeeId) : list, (r) => r.createdAt);
 }
 
 export async function createRequest(
@@ -1778,7 +1715,7 @@ export async function createRequest(
   };
   memory.requests.unshift(newReq);
 
-  saveDocumentToFirestore("requests", newReq.id, newReq).catch(() => {});
+  await persist("requests", newReq.id, newReq);
 
   await recordAuditLog({
     who: actor.name,
@@ -1797,23 +1734,13 @@ export async function updateRequest(
   updates: Partial<EmployeeRequestItem>,
   actor: { name: string; role: string }
 ): Promise<EmployeeRequestItem | null> {
-  let index = memory.requests.findIndex((r) => r.id === requestId);
-  if (index === -1) {
-    // Memory may be cold; hydrate the record from Firestore
-    try {
-      const stored = await getDocumentFromFirestore<EmployeeRequestItem>("requests", requestId);
-      if (stored) {
-        memory.requests.unshift(stored);
-        index = 0;
-      }
-    } catch (e) {}
-  }
-  if (index === -1) return null;
+  const current = await loadForUpdate<EmployeeRequestItem>("requests", requestId, memory.requests, (r) => r.id === requestId);
+  if (!current) return null;
 
-  const item = { ...memory.requests[index], ...updates, updatedAt: new Date().toISOString() };
-  memory.requests[index] = item;
+  const item: EmployeeRequestItem & { updatedAt: string } = { ...current, ...updates, updatedAt: new Date().toISOString() };
+  upsertMemory(memory.requests, (r) => r.id === requestId, item);
 
-  saveDocumentToFirestore("requests", item.id, item).catch(() => {});
+  await persist("requests", item.id, item);
 
   await recordAuditLog({
     who: actor.name,
@@ -1843,16 +1770,13 @@ export async function updateRequestStatus(
 // ----------------- ANNOUNCEMENTS -----------------
 
 export async function getAnnouncements(): Promise<AnnouncementItem[]> {
+  let list: AnnouncementItem[] = memory.announcements;
   try {
-    const firestoreDocs = await getCollectionFromFirestore<AnnouncementItem>("announcements");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      return firestoreDocs;
-    }
+    list = fromStore(await getCollectionFromFirestore<AnnouncementItem>("announcements"), memory.announcements);
   } catch (e) {
     console.warn("Firestore getAnnouncements fallback:", e);
   }
-
-  return memory.announcements;
+  return newestFirst(list, (a) => `${a.publishDate}|${a.id}`);
 }
 
 export async function createAnnouncement(
@@ -1865,7 +1789,7 @@ export async function createAnnouncement(
   };
   memory.announcements.unshift(item);
 
-  saveDocumentToFirestore("announcements", item.id, item).catch(() => {});
+  await persist("announcements", item.id, item);
 
   await recordAuditLog({
     who: actor.name,
@@ -1880,22 +1804,13 @@ export async function createAnnouncement(
 // ----------------- DOCUMENTS -----------------
 
 export async function getDocuments(employeeId?: string): Promise<EmployeeDocument[]> {
+  let list: EmployeeDocument[] = memory.documents;
   try {
-    const firestoreDocs = await getCollectionFromFirestore<EmployeeDocument>("documents");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      if (employeeId) {
-        return firestoreDocs.filter((d) => d.employeeId === employeeId);
-      }
-      return firestoreDocs;
-    }
+    list = fromStore(await getCollectionFromFirestore<EmployeeDocument>("documents"), memory.documents);
   } catch (e) {
     console.warn("Firestore getDocuments fallback:", e);
   }
-
-  if (employeeId) {
-    return memory.documents.filter((d) => d.employeeId === employeeId);
-  }
-  return memory.documents;
+  return newestFirst(employeeId ? list.filter((x) => x.employeeId === employeeId) : list, (d) => d.uploadDate);
 }
 
 export async function createDocument(
@@ -1908,7 +1823,7 @@ export async function createDocument(
   };
 
   memory.documents.unshift(newDoc);
-  saveDocumentToFirestore("documents", newDoc.id, newDoc).catch(() => {});
+  await persist("documents", newDoc.id, newDoc);
 
   if (actor) {
     recordAuditLog({
@@ -1927,20 +1842,29 @@ export async function createDocument(
 // ----------------- AUDIT LOGS -----------------
 
 export async function getAuditLogs(): Promise<AuditLogItem[]> {
+  let list: AuditLogItem[] = memory.auditLogs;
   try {
-    const firestoreDocs = await getCollectionFromFirestore<AuditLogItem>("audit_logs", { limitCount: 100 });
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      return firestoreDocs;
-    }
+    // The latest 100 events, newest first (without ordering, "limit 100" returns an arbitrary 100)
+    list = fromStore(
+      await getCollectionFromFirestore<AuditLogItem>("audit_logs", {
+        limitCount: 100,
+        orderBy: { field: "timestamp", direction: "desc" },
+      }),
+      memory.auditLogs
+    );
   } catch (e) {
     console.warn("Firestore getAuditLogs fallback:", e);
   }
-  return memory.auditLogs;
+  return newestFirst(list, (l) => l.timestamp);
 }
 
 // ----------------- ATTENDANCE POLICY -----------------
 
 export async function getPolicy(): Promise<AttendancePolicy> {
+  if (isFirestoreConfigured()) {
+    const stored = await getDocumentFromFirestore<AttendancePolicy>("settings", "attendance_policy").catch(() => null);
+    memory.policy = { ...INITIAL_POLICY, ...(stored || {}) };
+  }
   return memory.policy;
 }
 
@@ -1948,25 +1872,22 @@ export async function updatePolicy(
   updates: Partial<AttendancePolicy>,
   actor: { name: string; role: string }
 ): Promise<AttendancePolicy> {
-  memory.policy = { ...memory.policy, ...updates };
-
-  saveDocumentToFirestore("settings", "attendance_policy", memory.policy).catch(() => {});
+  const next: AttendancePolicy = { ...(await getPolicy()), ...updates };
+  await persist("settings", "attendance_policy", next);
+  memory.policy = next;
 
   await recordAuditLog({
     who: actor.name,
     role: actor.role,
     action: "POLICY_UPDATED",
-    details: `Updated company attendance policy (Grace period: ${memory.policy.gracePeriodMinutes}m)`,
+    details: `Updated company attendance policy (Grace period: ${next.gracePeriodMinutes}m)`,
   });
 
-  return memory.policy;
+  return next;
 }
 
 // ----------------- USERS -----------------
 
-export async function getUsers(): Promise<User[]> {
-  return memory.users;
-}
 
 // ----------------- HOLIDAYS -----------------
 
@@ -1974,10 +1895,7 @@ export async function getHolidays(branch?: string): Promise<Holiday[]> {
   let holidays = memory.holidays;
 
   try {
-    const firestoreDocs = await getCollectionFromFirestore<Holiday>("holidays");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      holidays = firestoreDocs;
-    }
+    holidays = fromStore(await getCollectionFromFirestore<Holiday>("holidays"), memory.holidays);
   } catch (e) {
     console.warn("Firestore getHolidays fallback:", e);
   }
@@ -1999,7 +1917,7 @@ export async function createHoliday(
 
   memory.holidays.push(newHoliday);
 
-  saveDocumentToFirestore("holidays", newHoliday.id, newHoliday).catch(() => {});
+  await persist("holidays", newHoliday.id, newHoliday);
 
   await recordAuditLog({
     who: actor.name,
@@ -2016,16 +1934,13 @@ export async function updateHoliday(
   updates: Partial<Holiday>,
   actor: { name: string; role: string }
 ): Promise<Holiday | null> {
-  const index = memory.holidays.findIndex((h) => h.id === id);
-  if (index === -1) return null;
+  const current = await loadForUpdate<Holiday>("holidays", id, memory.holidays, (h) => h.id === id);
+  if (!current) return null;
 
-  const updatedHoliday = {
-    ...memory.holidays[index],
-    ...updates,
-  };
-  memory.holidays[index] = updatedHoliday;
+  const updatedHoliday: Holiday = { ...current, ...updates, id };
+  upsertMemory(memory.holidays, (h) => h.id === id, updatedHoliday, false);
 
-  saveDocumentToFirestore("holidays", id, updatedHoliday).catch(() => {});
+  await persist("holidays", id, updatedHoliday);
 
   await recordAuditLog({
     who: actor.name,
@@ -2041,13 +1956,11 @@ export async function deleteHoliday(
   id: string,
   actor: { name: string; role: string }
 ): Promise<boolean> {
-  const index = memory.holidays.findIndex((h) => h.id === id);
-  if (index === -1) return false;
+  const deleted = await loadForUpdate<Holiday>("holidays", id, memory.holidays, (h) => h.id === id);
+  if (!deleted) return false;
 
-  const deleted = memory.holidays[index];
-  memory.holidays.splice(index, 1);
-
-  deleteDocumentFromFirestore("holidays", id).catch(() => {});
+  memory.holidays = memory.holidays.filter((h) => h.id !== id);
+  await persistDelete("holidays", id);
 
   await recordAuditLog({
     who: actor.name,
@@ -2065,6 +1978,16 @@ export async function deleteHoliday(
 
 export async function getUserAccountByEmail(email: string): Promise<UserAccount | null> {
   const normalized = email.toLowerCase().trim();
+
+  // Uncached lookup first: login, registration and activation must see the latest account state.
+  if (isFirestoreConfigured()) {
+    try {
+      const fresh = await queryFreshFromFirestore<UserAccount>("users", "email", normalized);
+      if (fresh.length > 0) return fresh[0];
+    } catch (e) {
+      console.warn("Firestore fresh account lookup failed:", e);
+    }
+  }
 
   try {
     const firestoreUsers = await getCollectionFromFirestore<UserAccount>("users");
@@ -2102,18 +2025,15 @@ export async function getUserAccountById(uid: string): Promise<UserAccount | nul
 
 export async function createUserAccount(user: UserAccount): Promise<UserAccount> {
   const normalized = user.email.toLowerCase().trim();
-  const existingIndex = memory.userAccounts.findIndex((u) => u.email.toLowerCase() === normalized);
 
-  if (existingIndex !== -1) {
-    memory.userAccounts[existingIndex] = { ...memory.userAccounts[existingIndex], ...user };
-  } else {
-    memory.userAccounts.push(user);
+  // One login per email address
+  const existing = await getUserAccountByEmail(normalized);
+  if (existing && existing.uid !== user.uid) {
+    throw new ConflictError("An account with this email address already exists.");
   }
 
-  await saveDocumentToFirestore("users", user.uid, user).catch((e) =>
-    console.warn("Firestore save user fallback:", e)
-  );
-
+  upsertMemory(memory.userAccounts, (u) => u.email.toLowerCase() === normalized, { ...(existing || {}), ...user }, false);
+  await persist("users", user.uid, user);
   return user;
 }
 
@@ -2121,54 +2041,38 @@ export async function updateUserAccount(
   uid: string,
   updates: Partial<UserAccount>
 ): Promise<UserAccount | null> {
-  const index = memory.userAccounts.findIndex((u) => u.uid === uid);
-  let updated: UserAccount | null = null;
+  const current = await loadForUpdate<UserAccount>("users", uid, memory.userAccounts, (u) => u.uid === uid);
+  if (!current) return null;
 
-  if (index !== -1) {
-    memory.userAccounts[index] = { ...memory.userAccounts[index], ...updates };
-    updated = memory.userAccounts[index];
-  } else {
-    const existing = await getUserAccountById(uid);
-    if (existing) {
-      updated = { ...existing, ...updates };
-      memory.userAccounts.push(updated);
-    }
-  }
-
-  if (updated) {
-    await saveDocumentToFirestore("users", uid, updated).catch((e) =>
-      console.warn("Firestore updateUserAccount fallback:", e)
-    );
-  }
-
+  const updated: UserAccount = { ...current, ...updates };
+  upsertMemory(memory.userAccounts, (u) => u.uid === uid, updated, false);
+  await persist("users", uid, updated);
   return updated;
 }
 
-export async function getCustomRoles(): Promise<CustomRole[]> {
-  memory.customRoles = memory.customRoles || [...DEFAULT_ROLES];
-  try {
-    const firestoreRoles = await getCollectionFromFirestore<CustomRole>("custom_roles");
-    if (firestoreRoles && firestoreRoles.length > 0) {
-      for (const fr of firestoreRoles) {
-        if (!fr || !fr.id) continue;
-        const idx = memory.customRoles.findIndex((r) => r.id === fr.id);
-        if (idx !== -1) {
-          memory.customRoles[idx] = fr;
-        } else {
-          memory.customRoles.push(fr);
-        }
-      }
+/**
+ * Brings the in-memory role list in line with Firestore (the source of truth), so roles saved or
+ * deleted on another serverless instance are reflected here. System roles are always present.
+ */
+async function syncCustomRoles(): Promise<CustomRole[]> {
+  const byId = new Map<string, CustomRole>();
+  for (const def of DEFAULT_ROLES) byId.set(def.id, def);
+  if (isFirestoreConfigured()) {
+    try {
+      const stored = await getCollectionFromFirestore<CustomRole>("custom_roles");
+      for (const fr of stored) if (fr?.id) byId.set(fr.id, fr);
+    } catch (e) {
+      console.warn("Firestore custom roles fallback:", e);
     }
-  } catch (e) {
-    console.warn("Firestore getCustomRoles fallback:", e);
+  } else {
+    for (const r of memory.customRoles || []) if (r?.id) byId.set(r.id, r);
   }
+  memory.customRoles = Array.from(byId.values());
+  return memory.customRoles;
+}
 
-  // Ensure default roles exist
-  for (const def of DEFAULT_ROLES) {
-    if (!memory.customRoles.some((r) => r.id === def.id)) {
-      memory.customRoles.unshift(def);
-    }
-  }
+export async function getCustomRoles(): Promise<CustomRole[]> {
+  await syncCustomRoles();
 
   // Calculate user counts for each role safely
   try {
@@ -2199,7 +2103,7 @@ export async function saveCustomRole(
   role: Partial<CustomRole> & { name: string; sections: string[] },
   actor?: { name: string; role: string }
 ): Promise<CustomRole> {
-  memory.customRoles = memory.customRoles || [...DEFAULT_ROLES];
+  await syncCustomRoles();
   const id =
     role.id ||
     `role-${role.name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-")}-${Date.now().toString().slice(-4)}`;
@@ -2222,9 +2126,7 @@ export async function saveCustomRole(
     memory.customRoles.push(fullRole);
   }
 
-  await saveDocumentToFirestore("custom_roles", fullRole.id, fullRole).catch((e) =>
-    console.warn("Firestore save custom role error:", e)
-  );
+  await persist("custom_roles", fullRole.id, fullRole);
 
   if (actor) {
     await recordAuditLog({
@@ -2242,8 +2144,7 @@ export async function deleteCustomRole(
   roleId: string,
   actor?: { name: string; role: string }
 ): Promise<boolean> {
-  memory.customRoles = memory.customRoles || [...DEFAULT_ROLES];
-  memory.userAccounts = memory.userAccounts || (isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : []);
+  await syncCustomRoles();
   const target = memory.customRoles.find((r) => r.id === roleId);
   if (!target) return false;
   if (target.isSystem || ["admin", "hr", "employee"].includes(target.id)) {
@@ -2251,15 +2152,12 @@ export async function deleteCustomRole(
   }
 
   memory.customRoles = memory.customRoles.filter((r) => r.id !== roleId);
-  await deleteDocumentFromFirestore("custom_roles", roleId).catch((e) =>
-    console.warn("Firestore delete custom role error:", e)
-  );
+  await persistDelete("custom_roles", roleId);
 
   // Reassign any users who had this role to employee
-  for (const u of memory.userAccounts) {
+  for (const u of await getAllUserAccounts()) {
     if (u.role === roleId) {
-      u.role = "employee";
-      saveDocumentToFirestore("users", u.uid, u).catch(() => {});
+      await updateUserAccount(u.uid, { role: "employee" });
     }
   }
 
@@ -2344,6 +2242,17 @@ export async function getAllUserAccounts(): Promise<UserAccount[]> {
   return memory.userAccounts;
 }
 
+/**
+ * Only the login accounts that are really stored. getAllUserAccounts() also builds placeholder
+ * accounts (with made-up email addresses) for employees who have none, which must never be emailed.
+ */
+export async function getPersistedUserAccounts(): Promise<UserAccount[]> {
+  if (isFirestoreConfigured()) {
+    return getCollectionFromFirestore<UserAccount>("users");
+  }
+  return memory.userAccounts;
+}
+
 export async function assignUserRole(
   identifier: string,
   newRole: string,
@@ -2402,17 +2311,9 @@ export async function assignUserRole(
   const oldRole = account.role || "employee";
   account.role = newRole;
 
-  await saveDocumentToFirestore("users", account.uid, account).catch((e) =>
-    console.warn("Firestore assignUserRole fallback:", e)
-  );
+  await persist("users", account.uid, account);
 
-  // Update active sessions in memory and firestore if this user has active sessions
-  for (const s of memory.sessions) {
-    if (s.userId === account.uid || (account.employeeId && s.employeeId === account.employeeId)) {
-      s.role = newRole;
-      saveDocumentToFirestore("sessions", s.sessionId, s).catch(() => {});
-    }
-  }
+  // Sessions no longer carry the role: authenticateRequest reads it from the user account.
 
   await recordAuditLog({
     who: actor?.name || "System",
@@ -2463,7 +2364,7 @@ export async function createSession(data: {
     oldSess.isActive = false;
     oldSess.revokedAt = now;
     oldSess.revocationReason = "signed_in_from_another_device";
-    await saveDocumentToFirestore("sessions", oldSess.sessionId, oldSess).catch(() => {});
+    await persist("sessions", oldSess.sessionId, oldSess);
   }
 
   // Also verify across Firestore sessions for this user & environment
@@ -2480,7 +2381,7 @@ export async function createSession(data: {
         s.revokedAt = now;
         s.revocationReason = "signed_in_from_another_device";
         revokedAnyFirestore = true;
-        await saveDocumentToFirestore("sessions", s.sessionId, s).catch(() => {});
+        await persist("sessions", s.sessionId, s);
       }
     }
   } catch (e) {
@@ -2497,7 +2398,7 @@ export async function createSession(data: {
   }
 
   // 2. Initialize new active session (valid for 24 hours)
-  const sessionId = "sess_" + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+  const sessionId = "sess_" + randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   const newSession: UserSession = {
@@ -2520,9 +2421,7 @@ export async function createSession(data: {
 
   memory.sessions.push(newSession);
   // CRITICAL FOR SERVERLESS: Must await write to Firestore so subsequent API calls immediately find it
-  await saveDocumentToFirestore("sessions", newSession.sessionId, newSession).catch((err) => {
-    console.warn("Failed to commit session to Firestore:", err);
-  });
+  await persist("sessions", newSession.sessionId, newSession);
 
   await recordAuditLog({
     who: data.name,
@@ -2535,17 +2434,20 @@ export async function createSession(data: {
 }
 
 export async function getSession(sessionId: string): Promise<UserSession | null> {
-  const inMem = memory.sessions.find((s) => s.sessionId === sessionId);
-  if (inMem) return inMem;
-
-  try {
-    const doc = await getDocumentFromFirestore<UserSession>("sessions", sessionId);
-    if (doc) return doc;
-  } catch (e) {
-    console.warn("Firestore getSession fallback:", e);
+  // Firestore is the source of truth: a session revoked on another instance must not stay
+  // valid here. (Reads are cached for up to 60 s, so revocation can take up to a minute to show.)
+  if (isFirestoreConfigured()) {
+    try {
+      const doc = await getDocumentFromFirestore<UserSession>("sessions", sessionId);
+      return doc || null;
+    } catch (e) {
+      console.warn("Firestore getSession failed:", e);
+      return null;
+    }
   }
 
-  return null;
+  // Local development without Firebase credentials: in-memory sessions only.
+  return memory.sessions.find((s) => s.sessionId === sessionId) || null;
 }
 
 export async function touchSession(sessionId: string): Promise<void> {
@@ -2559,10 +2461,7 @@ export async function revokeSession(
   sessionId: string,
   reason: "signed_in_from_another_device" | "user_logged_out" | "expired" | "admin_revoked" = "user_logged_out"
 ): Promise<boolean> {
-  let session = memory.sessions.find((s) => s.sessionId === sessionId);
-  if (!session) {
-    session = (await getDocumentFromFirestore<UserSession>("sessions", sessionId)) || undefined;
-  }
+  const session = await getSession(sessionId);
   if (!session) return false;
 
   const now = new Date().toISOString();
@@ -2570,7 +2469,7 @@ export async function revokeSession(
   session.revokedAt = now;
   session.revocationReason = reason;
 
-  await saveDocumentToFirestore("sessions", session.sessionId, session).catch(() => {});
+  await persist("sessions", session.sessionId, session);
 
   await recordAuditLog({
     who: session.name,
@@ -2585,25 +2484,18 @@ export async function revokeSession(
 // ----------------- ONBOARDING -----------------
 
 export async function getOnboardingRecords(branch?: Branch | "All"): Promise<OnboardingRecord[]> {
-  let records: OnboardingRecord[] = [];
+  let records: OnboardingRecord[] = memory.onboardingRecords;
 
   try {
-    const firestoreDocs = await getCollectionFromFirestore<OnboardingRecord>("onboarding");
-    if (firestoreDocs && firestoreDocs.length > 0) {
-      records = firestoreDocs;
-    }
+    records = fromStore(await getCollectionFromFirestore<OnboardingRecord>("onboarding"), memory.onboardingRecords);
   } catch (e) {
     console.warn("Firestore getOnboardingRecords fallback:", e);
-  }
-
-  if (records.length === 0) {
-    records = memory.onboardingRecords;
   }
 
   const ALLOWED_CHECKLIST_KEYS = new Set(["pan_card", "aadhaar_card", "bank_details", "photograph"]);
 
   // Ensure progressPercentage and status accurately reflect checklist truth & normalize legacy items
-  records = records.map((record) => {
+  records = newestFirst(records, (r) => r.createdAt).map((record) => {
     let normRecord = record;
     if ((record.lifecycleStatus as string) === "Probation") {
       normRecord = { ...record, lifecycleStatus: "Active" };
@@ -2732,7 +2624,7 @@ export async function createOnboardingRecord(
     department: data.department,
     designation: data.designation,
     joiningDate: data.joiningDate,
-    annualCtc: data.annualCtc || 480000,
+    annualCtc: data.annualCtc,
     lifecycleStatus: data.lifecycleStatus || "Offer Sent",
     status: "Pending",
     progressPercentage: data.progressPercentage !== undefined ? data.progressPercentage : 0,
@@ -2750,7 +2642,7 @@ export async function createOnboardingRecord(
   memory.onboardingRecords.unshift(record);
 
   // Sync to Firestore
-  saveDocumentToFirestore("onboarding", id, record).catch(() => {});
+  await persist("onboarding", id, record);
 
   await recordAuditLog({
     who: actor.name,
@@ -2821,7 +2713,7 @@ export async function updateOnboardingChecklist(
   }
 
   // 2. Firestore update
-  saveDocumentToFirestore("onboarding", id, record).catch(() => {});
+  await persist("onboarding", id, record);
 
   await recordAuditLog({
     who: actor.name,
@@ -2831,6 +2723,34 @@ export async function updateOnboardingChecklist(
   });
 
   return record;
+}
+
+/** Records the offered annual CTC (0 = incentive-only) on an onboarding record, before activation. */
+export async function setOnboardingCtc(
+  id: string,
+  annualCtc: number,
+  actor: { name: string; role: string }
+): Promise<OnboardingRecord | null> {
+  if (!Number.isFinite(annualCtc) || annualCtc < 0) {
+    throw new ValidationError("CTC must be a number of zero or more.");
+  }
+  const current = await loadForUpdate<OnboardingRecord>("onboarding", id, memory.onboardingRecords, (r) => r.id === id);
+  if (!current) return null;
+  if (current.employeeId) {
+    throw new ConflictError("This candidate is already activated; change the salary from the employee profile instead.");
+  }
+
+  const updated: OnboardingRecord = { ...current, annualCtc, updatedAt: new Date().toISOString() };
+  upsertMemory(memory.onboardingRecords, (r) => r.id === id, updated);
+  await persist("onboarding", id, updated);
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "ONBOARDING_CTC_SET",
+    details: `Set offered annual CTC for ${updated.candidateName} to ₹${annualCtc.toLocaleString("en-IN")}`,
+  });
+  return updated;
 }
 
 export async function advanceEmployeeLifecycle(
@@ -2851,7 +2771,7 @@ export async function advanceEmployeeLifecycle(
       memory.onboardingRecords[memIndex] = record;
     }
 
-    saveDocumentToFirestore("onboarding", record.id, record).catch(() => {});
+    await persist("onboarding", record.id, record);
   }
 
   // Also update employee record if exists
@@ -2866,7 +2786,7 @@ export async function advanceEmployeeLifecycle(
     if (empIndex !== -1) {
       memory.employees[empIndex] = employee;
     }
-    saveDocumentToFirestore("employees", employee.employeeId, employee).catch(() => {});
+    await persist("employees", employee.employeeId, employee);
   }
 
   await recordAuditLog({
@@ -2889,51 +2809,42 @@ export async function activateOnboardedEmployee(
   const record = records.find((r) => r.id === onboardingId);
   if (!record) return null;
 
-  // Generate next sequential employee ID
-  const employees = await getEmployees();
-  const highestEmpNum = employees.reduce((max, e) => {
-    const match = e.employeeId.match(/EMP-(\d+)/);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      return num > max ? num : max;
-    }
-    return max;
-  }, 10);
-
-  const nextNum = highestEmpNum + 1;
-  const newEmpId = `EMP-${String(nextNum).padStart(4, "0")}`;
-
-  const salaryBreakdown = calculateSalaryBreakdown(record.annualCtc || 480000);
-
   const photoDoc = record.kycDocuments?.find(
     (d) => d.type === "photograph" || d.title?.toLowerCase().includes("passport") || d.title?.toLowerCase().includes("photo")
   );
   const passportPhoto = photoDoc?.fileUrl;
+  // The offered CTC must be entered by HR (0 means incentive-only). No silent default salary.
+  if (typeof record.annualCtc !== "number" || !Number.isFinite(record.annualCtc) || record.annualCtc < 0) {
+    throw new ValidationError("Enter the offered annual CTC (0 for incentive-only) before activating this employee.");
+  }
+  const annualCtc = record.annualCtc;
+  const incentiveOnly = annualCtc === 0;
+  const salaryBreakdown = incentiveOnly
+    ? calculateSalaryFromMonthly({ monthlyAmount: 0, salaryBasis: "incentive_only", includePf: false })
+    : calculateSalaryBreakdown(annualCtc);
+  const now = new Date().toISOString();
 
-  const newEmployee: Employee = {
-    id: `emp-${Date.now()}`,
-    employeeId: newEmpId,
+  const buildEmployee = (employeeId: string): Employee => ({
+    id: employeeId,
+    employeeId,
     personal: {
-      employeeId: newEmpId,
+      employeeId,
       firstName: record.candidateName.split(" ")[0] || record.candidateName,
       lastName: record.candidateName.split(" ").slice(1).join(" ") || "",
       fullName: record.candidateName,
       avatarUrl: passportPhoto || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
       passportPhotoUrl: passportPhoto,
       avatarPreference: "passport",
-      dob: record.personalDetails?.dob || "1995-01-01",
-      gender: record.personalDetails?.gender || "Male",
+      dob: record.personalDetails?.dob || "",
+      gender: record.personalDetails?.gender || "Other",
       mobileNumber: record.phone,
       personalEmail: record.email,
       workEmail: record.email,
-      address:
-        record.personalDetails?.currentAddress ||
-        record.personalDetails?.permanentAddress ||
-        `Main Branch Commercial Rd, ${record.branch}, 248001`,
+      address: record.personalDetails?.currentAddress || record.personalDetails?.permanentAddress || "",
       emergencyContact: record.personalDetails?.emergencyContact || {
-        name: "Family Contact",
-        relationship: "Family",
-        phone: record.phone,
+        name: "",
+        relationship: "",
+        phone: "",
       },
     },
     employment: {
@@ -2960,78 +2871,113 @@ export async function activateOnboardedEmployee(
     currentSalary: salaryBreakdown,
     salaryHistory: [
       {
-        id: `rev-${Date.now()}`,
+        id: `rev-${employeeId}-initial`,
         effectiveFrom: record.joiningDate,
-        annualCtc: record.annualCtc || 480000,
+        annualCtc,
+        isIncentiveOnly: incentiveOnly,
         components: salaryBreakdown,
-        revisionReason: "Initial Offer Onboarding",
+        revisionReason: incentiveOnly ? "Incentive-Only (Commission Based) Contract" : "Initial Offer Onboarding",
         updatedBy: actor.name,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
       },
     ],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const finalise = (employeeId: string): OnboardingRecord => {
+    const done = record.checklist?.filter((i) => i.completed).length || 0;
+    const total = record.checklist?.length || 0;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    return {
+      ...record,
+      employeeId,
+      lifecycleStatus: "Active",
+      progressPercentage: pct,
+      status: pct === 100 ? "Completed" : done > 0 ? "In Progress" : "Pending",
+      ...(pct === 100 ? { completedAt: now } : {}),
+      updatedAt: now,
+      approvedBy: actor.name,
+      approvedAt: now,
+    };
   };
 
-  // Add to employee roster
-  memory.employees.unshift(newEmployee);
-  saveDocumentToFirestore("employees", newEmpId, newEmployee).catch(() => {});
+  // 1. Allocate the ID and create the employee + finalise the onboarding record in ONE step.
+  //    If the record already has an employee ID, activation was done before: nothing is created again.
+  type Outcome =
+    | { created: false; employeeId: string }
+    | { created: true; employeeId: string; employee: Employee; onboarding: OnboardingRecord };
+  let outcome: Outcome;
 
-  // Register KYC documents to employee documents collection
-  if (record.kycDocuments && record.kycDocuments.length > 0) {
-    for (const doc of record.kycDocuments) {
-      const docItem: EmployeeDocument = {
-        id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        employeeId: newEmpId,
-        employeeName: record.candidateName,
-        documentType: doc.type,
-        title: doc.title || (doc.type === "photograph" ? "Passport Size Photograph" : doc.type),
-        fileUrl: doc.fileUrl,
-        uploadedBy: record.candidateName,
-        uploadDate: doc.uploadedAt || new Date().toISOString(),
-        status: "Verified",
-        notes: "Uploaded during candidate self-registration onboarding KYC",
-      };
-      memory.documents.unshift(docItem);
-      saveDocumentToFirestore("documents", docItem.id, docItem).catch(() => {});
-    }
+  if (isFirestoreConfigured()) {
+    outcome = await withTransaction(
+      async (tx, db): Promise<Outcome> => {
+        const onbRef = db.collection("onboarding").doc(onboardingId);
+        const snap = await tx.get(onbRef);
+        const already = snap.exists ? (snap.data()?.employeeId as string | undefined) : undefined;
+        if (already) return { created: false, employeeId: already };
+
+        const employeeId = await allocateEmployeeId(tx, db);
+        const employee = buildEmployee(employeeId);
+        const onboarding = finalise(employeeId);
+        tx.create(db.collection("employees").doc(employeeId), toFirestoreData(employee));
+        tx.set(onbRef, toFirestoreData(onboarding));
+        return { created: true, employeeId, employee, onboarding };
+      },
+      ["employees", "onboarding", "counters"]
+    );
+  } else if (record.employeeId) {
+    outcome = { created: false, employeeId: record.employeeId };
+  } else {
+    const employeeId = nextEmployeeId(memory.employees.map((e) => e.employeeId));
+    const employee = buildEmployee(employeeId);
+    const onboarding = finalise(employeeId);
+    memory.employees.unshift(employee);
+    upsertMemory(memory.onboardingRecords, (r) => r.id === onboardingId, onboarding);
+    outcome = { created: true, employeeId, employee, onboarding };
   }
 
-  // Update onboarding record
-  record.employeeId = newEmpId;
-  record.lifecycleStatus = "Active";
-  const done = record.checklist?.filter((i) => i.completed).length || 0;
-  const total = record.checklist?.length || 0;
-  record.progressPercentage = total > 0 ? Math.round((done / total) * 100) : 0;
-  record.status = record.progressPercentage === 100 ? "Completed" : (done > 0 ? "In Progress" : "Pending");
-  if (record.progressPercentage === 100) {
-    record.completedAt = new Date().toISOString();
-  }
-  record.updatedAt = new Date().toISOString();
-  record.approvedBy = actor.name;
-  record.approvedAt = new Date().toISOString();
+  const employeeId = outcome.employeeId;
 
-  const memIndex = memory.onboardingRecords.findIndex((r) => r.id === onboardingId);
-  if (memIndex !== -1) {
-    memory.onboardingRecords[memIndex] = record;
+  // 2. Everything below is safe to repeat: fixed document IDs and upserts.
+  const kycDocs = record.kycDocuments || [];
+  for (let i = 0; i < kycDocs.length; i++) {
+    const doc = kycDocs[i];
+    const docItem: EmployeeDocument = {
+      id: `doc-${onboardingId}-${i}`,
+      employeeId,
+      employeeName: record.candidateName,
+      documentType: doc.type,
+      title: doc.title || (doc.type === "photograph" ? "Passport Size Photograph" : doc.type),
+      fileUrl: doc.fileUrl,
+      uploadedBy: record.candidateName,
+      uploadDate: doc.uploadedAt || now,
+      status: "Verified",
+      notes: "Uploaded during candidate self-registration onboarding KYC",
+    };
+    upsertMemory(memory.documents, (d) => d.id === docItem.id, docItem);
+    await persist("documents", docItem.id, docItem);
   }
-  saveDocumentToFirestore("onboarding", onboardingId, record).catch(() => {});
 
-  // 1. Activate or create official UserAccount
+  // Activate or create the official login account (refuse to take over someone else's ID)
   const userAccount = await getUserAccountByEmail(record.email);
   if (userAccount) {
-    userAccount.status = "Active";
-    userAccount.employeeId = newEmpId;
-    userAccount.branch = record.branch;
-    userAccount.department = record.department;
-    if (passportPhoto) {
-      userAccount.avatar = passportPhoto;
+    if (userAccount.employeeId && userAccount.employeeId !== "PENDING" && userAccount.employeeId !== employeeId) {
+      throw new ConflictError(
+        `The login account for ${record.email} is already linked to ${userAccount.employeeId}. Resolve this before activating.`
+      );
     }
-    await updateUserAccount(userAccount.uid, userAccount);
+    await updateUserAccount(userAccount.uid, {
+      status: "Active",
+      employeeId,
+      branch: record.branch,
+      department: record.department,
+      ...(passportPhoto ? { avatar: passportPhoto } : {}),
+    });
   } else {
-    const newUser: UserAccount = {
-      uid: record.userId || `usr-${Date.now()}`,
-      employeeId: newEmpId,
+    await createUserAccount({
+      uid: record.userId || `usr-${employeeId.toLowerCase()}`,
+      employeeId,
       email: record.email.toLowerCase().trim(),
       password: hashPassword(generateTempPassword()),
       name: record.candidateName,
@@ -3040,13 +2986,21 @@ export async function activateOnboardedEmployee(
       department: record.department,
       avatar: passportPhoto || `https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150`,
       status: "Active",
-      createdAt: new Date().toISOString(),
-    };
-    await createUserAccount(newUser);
+      createdAt: now,
+    });
   }
 
-  // 2. Dispatch approval & activation email
-  sendAccountApprovedEmail(record.email, record.candidateName, newEmpId).catch((e) =>
+  if (!outcome.created) {
+    const employee = await getEmployeeById(employeeId);
+    if (!employee) {
+      throw new ConflictError(`This onboarding record is linked to ${employeeId}, but that employee record is missing.`);
+    }
+    const onboarding = (await getOnboardingRecordById(onboardingId)) || record;
+    return { onboarding, employee };
+  }
+
+  // 3. Only the call that actually created the employee notifies and audits.
+  sendAccountApprovedEmail(record.email, record.candidateName, employeeId).catch((e) =>
     console.warn("Could not dispatch approval email:", e)
   );
 
@@ -3054,12 +3008,12 @@ export async function activateOnboardedEmployee(
     who: actor.name,
     role: actor.role,
     action: "EMPLOYEE_ACTIVATED",
-    employeeId: newEmpId,
+    employeeId,
     employeeName: record.candidateName,
-    details: `Onboarding finalized (100%). Activated employee profile with ID ${newEmpId} as Full-time Active at ${record.branch} branch and granted full HRMS login access.`,
+    details: `Onboarding finalized (${outcome.onboarding.progressPercentage}%). Activated employee profile with ID ${employeeId} as Full-time Active at ${record.branch} branch and granted full HRMS login access.`,
   });
 
-  return { onboarding: record, employee: newEmployee };
+  return { onboarding: outcome.onboarding, employee: outcome.employee };
 }
 
 // ============================================================================
@@ -3074,16 +3028,12 @@ export async function saveRegistrationDraft(
   const safeId = normalized.replace(/[^a-z0-9]/g, "_");
   memory.registrationDrafts.set(normalized, draft);
 
-  try {
-    await saveDocumentToFirestore("registration_drafts", safeId, {
-      ...draft,
-      email: normalized,
-      id: safeId,
-      updatedAt: new Date().toISOString(),
-    });
-  } catch (e) {
-    console.warn("Firestore saveRegistrationDraft fallback:", e);
-  }
+  await persist("registration_drafts", safeId, {
+    ...draft,
+    email: normalized,
+    id: safeId,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export async function getRegistrationDraft(
@@ -3116,11 +3066,6 @@ export async function deleteRegistrationDraft(email: string): Promise<void> {
   const safeId = normalized.replace(/[^a-z0-9]/g, "_");
 
   memory.registrationDrafts.delete(normalized);
-
-  try {
-    await deleteDocumentFromFirestore("registration_drafts", safeId);
-  } catch (e) {
-    console.warn("Firestore deleteRegistrationDraft fallback:", e);
-  }
+  await persistDelete("registration_drafts", safeId);
 }
 

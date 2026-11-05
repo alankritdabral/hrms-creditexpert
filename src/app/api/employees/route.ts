@@ -6,9 +6,13 @@ import {
   authFailureResponse,
   requirePermission,
   requireBranchScope,
+  callerOf,
 } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
+import { redactEmployee } from "@/lib/access";
 import { paginateList } from "@/lib/pagination";
 import { Branch } from "@/lib/types";
+import { getISTDateString } from "@/lib/attendance/ist-time";
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,33 +26,18 @@ export async function GET(req: NextRequest) {
 
     let employees = await getEmployees();
 
-    // If requesting user is an employee, scope response and redact colleagues' sensitive compensation & statutory details
-    if (auth.role === "employee") {
-      employees = employees
-        .filter((e) => e.employeeId === auth.employeeId || e.employment.branch === auth.branch)
-        .map((e) => {
-          if (e.employeeId === auth.employeeId) {
-            return e; // Employee can see their own compensation
-          }
-          // Redact sensitive compensation and statutory details of peers
-          return {
-            ...e,
-            currentSalary: undefined as any,
-            salaryHistory: [],
-            statutory: {
-              pan: "••••••••••",
-              aadhaar: "••••••••••••",
-              uan: "••••••••••••",
-              pfAccountNumber: "••••••••••••",
-              bankAccountNumber: "••••••••••••",
-              ifscCode: "•••••••••••",
-              bankName: e.statutory?.bankName || "Confidential",
-            },
-          };
-        });
-    } else if (branchFilter) {
-      employees = employees.filter((e) => e.employment.branch === branchFilter);
+    // Callers who may view everyone (admin/HR) get the full directory, optionally filtered by branch.
+    // Everyone else (employees and custom roles) gets their own record plus same-branch colleagues.
+    if (hasPermission(auth.role, "employees:view_all")) {
+      if (branchFilter) employees = employees.filter((e) => e.employment.branch === branchFilter);
+    } else {
+      employees = employees.filter(
+        (e) => e.employeeId === auth.employeeId || e.employment.branch === auth.branch
+      );
     }
+    // Statutory/bank details and salary of other people are masked or removed by permission.
+    const caller = callerOf(auth);
+    employees = employees.map((e) => redactEmployee(e, caller));
 
     const allDepartments = Array.from(new Set(employees.map((e) => e.employment.department))).sort();
     const department = searchParams.get("department");
@@ -104,6 +93,12 @@ export async function POST(req: NextRequest) {
     if (branchErr) return branchErr;
 
     const isIncentiveOnly = Boolean(body.isIncentiveOnly || body.salaryBasis === "incentive_only");
+    if (!isIncentiveOnly && !monthlySalary && !annualCtc) {
+      return NextResponse.json(
+        { success: false, error: "Monthly salary or annual CTC is required (or mark the employee incentive-only)" },
+        { status: 400 }
+      );
+    }
 
     const salary = isIncentiveOnly
       ? calculateSalaryFromMonthly({
@@ -119,25 +114,16 @@ export async function POST(req: NextRequest) {
           pfValue: typeof pfValue === "number" ? pfValue : Number(pfValue) || 12,
         })
       : calculateSalaryBreakdown(
-          annualCtc || 480000,
+          Number(annualCtc),
           Boolean(includePf),
           pfType === "fixed" ? "fixed" : "percentage",
           typeof pfValue === "number" ? pfValue : Number(pfValue) || 12
         );
     const ctc = salary.annualCtc;
-    const existing = await getEmployees();
-    const highest = existing.reduce((max, e) => {
-      const m = /EMP-(\d+)/i.exec(e.employeeId);
-      return m ? Math.max(max, parseInt(m[1], 10)) : max;
-    }, 0);
-    const empId = `EMP-${String(highest + 1).padStart(4, "0")}`;
-
     const newEmp = await createEmployee(
       {
-        employeeId: empId,
         personal: {
           ...personal,
-          employeeId: empId,
           fullName: `${personal.firstName} ${personal.lastName || ""}`.trim(),
         },
         employment: {
@@ -151,7 +137,7 @@ export async function POST(req: NextRequest) {
         salaryHistory: [
           {
             id: `rev-${Date.now()}`,
-            effectiveFrom: employment.dateOfJoining || new Date().toISOString().split("T")[0],
+            effectiveFrom: employment.dateOfJoining || getISTDateString(),
             annualCtc: ctc,
             monthlySalary: salary.grossSalary,
             netSalary: salary.netSalary,

@@ -12,6 +12,7 @@ import {
   getEmployeeLogins,
   getHolidays,
 } from "@/lib/db/db-adapter";
+import { getISTDateString } from "@/lib/attendance/ist-time";
 
 export interface NotificationItem {
   id: string;
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getISTDateString();
     const currentMonth = today.slice(0, 7);
 
     // Fetch live data in parallel

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
-import { User, UserRole, Branch, UserSession } from "./types";
+import { User, UserRole, Branch, PublicSession } from "./types";
 import { Permission, hasPermission as checkPerm, getBranchScope, canRoleAccessSection } from "./permissions";
 
 const ANONYMOUS_USER: User = {
@@ -17,7 +17,7 @@ const ANONYMOUS_USER: User = {
 
 interface AuthContextType {
   currentUser: User;
-  session: UserSession | null;
+  session: PublicSession | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   sessionRevokedError: string | null;
@@ -35,7 +35,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User>(ANONYMOUS_USER);
-  const [session, setSession] = useState<UserSession | null>(null);
+  const [session, setSession] = useState<PublicSession | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [sessionRevokedError, setSessionRevokedError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isCheckingRef = useRef(false);
   const isNavigatingRef = useRef(false);
 
-  // Intercept client fetch to automatically attach x-session-id redundancy and handle auth drops
+  // Intercept client fetch to handle auth drops (the session itself travels in an httpOnly cookie)
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -55,28 +55,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           : input instanceof URL
           ? input.toString()
           : (input as Request).url;
-
-      // Attach x-session-id to all internal /api/ requests if present in localStorage
-      if (url.startsWith("/api/") && !url.startsWith("/api/auth/login")) {
-        const storedSessionId = localStorage.getItem("hrms_session_id");
-        if (storedSessionId) {
-          const reqHeaders = new Headers(
-            init?.headers ||
-              (typeof input === "object" && "headers" in input
-                ? (input as Request).headers
-                : undefined) ||
-              {}
-          );
-          if (!reqHeaders.has("x-session-id")) {
-            reqHeaders.set("x-session-id", storedSessionId);
-          }
-          init = {
-            ...init,
-            headers: reqHeaders,
-            credentials: init?.credentials || "same-origin",
-          };
-        }
-      }
 
       const response = await originalFetch(input, init);
 
@@ -92,7 +70,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsAuthenticated(false);
             setSession(null);
             setCurrentUser(ANONYMOUS_USER);
-            localStorage.removeItem("hrms_session_id");
             if (!window.location.pathname.startsWith("/login")) {
               isNavigatingRef.current = true;
               window.location.href = "/login?reason=another_device";
@@ -101,7 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsAuthenticated(false);
             setSession(null);
             setCurrentUser(ANONYMOUS_USER);
-            localStorage.removeItem("hrms_session_id");
             if (!window.location.pathname.startsWith("/login")) {
               isNavigatingRef.current = true;
               window.location.href = "/login?reason=session_expired";
@@ -128,14 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isCheckingRef.current = true;
 
     try {
-      const cachedSessionId =
-        typeof window !== "undefined" ? localStorage.getItem("hrms_session_id") : null;
-      const headers: Record<string, string> = {};
-      if (cachedSessionId) {
-        headers["x-session-id"] = cachedSessionId;
-      }
-
-      const res = await fetch("/api/auth/session", { headers });
+      const res = await fetch("/api/auth/session");
       const data = await res.json();
 
       if (res.ok && data.success && data.user) {
@@ -143,9 +112,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(data.session);
         setIsAuthenticated(true);
         setSessionRevokedError(null);
-        if (typeof window !== "undefined" && data.session?.sessionId) {
-          localStorage.setItem("hrms_session_id", data.session.sessionId);
-        }
       } else {
         // Enforce Single Active Session detection:
         if (data.code === "SESSION_REVOKED") {
@@ -156,7 +122,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(null);
           setCurrentUser(ANONYMOUS_USER);
           if (typeof window !== "undefined") {
-            localStorage.removeItem("hrms_session_id");
           }
 
           // If currently inside the application, redirect to login
@@ -170,7 +135,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(null);
           setCurrentUser(ANONYMOUS_USER);
           if (typeof window !== "undefined") {
-            localStorage.removeItem("hrms_session_id");
           }
         }
       }
@@ -266,9 +230,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(data.session);
       setIsAuthenticated(true);
       setSessionRevokedError(null);
-      if (typeof window !== "undefined" && data.session?.sessionId) {
-        localStorage.setItem("hrms_session_id", data.session.sessionId);
-      }
       return { success: true };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Network error";
@@ -289,7 +250,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setCurrentUser(ANONYMOUS_USER);
       if (typeof window !== "undefined") {
-        localStorage.removeItem("hrms_session_id");
         window.location.href = "/login";
       }
     }

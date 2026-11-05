@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getAllUserAccounts,
+  getPersistedUserAccounts,
   getAttendanceRecords,
   getCustomRoles,
   getHolidays,
+  getLeaveRequests,
 } from "@/lib/db/db-adapter";
 import { sendAttendanceReminderEmail } from "@/lib/email";
 import { getISTDateString } from "@/lib/attendance/ist-time";
@@ -27,12 +28,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: "Sunday" });
     }
 
-    const [accounts, roles, holidays, records] = await Promise.all([
-      getAllUserAccounts(),
+    const [accounts, roles, holidays, records, leaves] = await Promise.all([
+      getPersistedUserAccounts(),
       getCustomRoles(),
       getHolidays(),
       getAttendanceRecords({ date: today }),
+      getLeaveRequests(),
     ]);
+
+    // People on approved leave today are not reminded
+    const onLeave = new Set(
+      leaves
+        .filter((l) => l.status === "Approved" && l.startDate <= today && l.endDate >= today)
+        .map((l) => l.employeeId.toLowerCase())
+    );
 
     const backendRoleIds = new Set(
       roles.filter((r) => (r.name || "").trim().toLowerCase() === "backend team").map((r) => r.id)
@@ -52,6 +61,7 @@ export async function GET(req: NextRequest) {
         u.email &&
         (u.role === "employee" || backendRoleIds.has(u.role)) &&
         !marked.has(u.employeeId.toLowerCase()) &&
+        !onLeave.has(u.employeeId.toLowerCase()) &&
         !allHoliday &&
         !holidayBranches.has(u.branch)
     );

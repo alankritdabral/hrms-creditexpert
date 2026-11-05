@@ -5,7 +5,9 @@ import {
   addIncentiveRecord,
   calculateAndSyncIncentivesFromLogins,
 } from "@/lib/db/db-adapter";
-import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
+import { authenticateRequest, authFailureResponse, requirePermission, callerOf } from "@/lib/api-auth";
+import { ownOrScoped } from "@/lib/access";
+import { getISTMonthString, getISTDateString } from "@/lib/attendance/ist-time";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -19,9 +21,7 @@ export async function GET(req: NextRequest) {
     const schemes = await getIncentiveSchemes();
     let incentives = await getEmployeeIncentives(month);
 
-    if (auth.role === "employee") {
-      incentives = incentives.filter((i) => i.employeeId === auth.employeeId);
-    }
+    incentives = ownOrScoped(callerOf(auth), "incentives:view_all", incentives, (i) => i.employeeId);
 
     return NextResponse.json({ success: true, data: { schemes, incentives } });
   } catch (error: any) {
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     // Auto-sync from Logins
     if (body.action === "sync_from_logins") {
-      const month = body.month || new Date().toISOString().slice(0, 7);
+      const month = body.month || getISTMonthString();
       const synced = await calculateAndSyncIncentivesFromLogins(month, {
         name: auth.actor.name,
         role: auth.actor.role,
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
         incentiveAmount: Number(incentiveAmount) || 0,
         status: body.status || "Approved",
         approvedBy: auth.actor.name,
-        approvedDate: new Date().toISOString().split("T")[0],
+        approvedDate: getISTDateString(),
         calculationBreakdown,
         sourceLoginRecordId,
       },
@@ -107,9 +107,21 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
 
     if (body.action === "update_scheme") {
-      const { id, ...updates } = body;
+      // Only known scheme fields are stored (never the request's action marker or arbitrary keys)
+      const updates: Record<string, unknown> = {};
+      for (const key of ["name", "type", "description", "active", "fixedRate", "percentageRate", "slabs"]) {
+        if (body[key] !== undefined) updates[key] = body[key];
+      }
+      for (const key of ["hurdleMultiplier", "axisRatePerLakh"]) {
+        if (body[key] === undefined) continue;
+        const n = Number(body[key]);
+        if (!Number.isFinite(n) || n < 0) {
+          return NextResponse.json({ success: false, error: `${key} must be a non-negative number` }, { status: 400 });
+        }
+        updates[key] = n;
+      }
       const { updateIncentiveScheme } = await import("@/lib/db/db-adapter");
-      const scheme = await updateIncentiveScheme(id || "scheme-disbursal-slab", updates, {
+      const scheme = await updateIncentiveScheme(body.id || "scheme-disbursal-slab", updates, {
         name: auth.actor.name,
         role: auth.actor.role,
       });

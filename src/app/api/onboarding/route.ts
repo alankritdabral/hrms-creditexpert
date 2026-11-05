@@ -8,6 +8,7 @@ import {
   authFailureResponse,
   requirePermission,
 } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 import { Branch } from "@/lib/types";
 
 export async function GET(req: NextRequest) {
@@ -16,8 +17,8 @@ export async function GET(req: NextRequest) {
     return authFailureResponse(auth);
   }
 
-  // Employees have restricted self-service access
-  if (auth.role === "employee") {
+  // Callers without onboarding:view_all (employees, custom roles) only see their own record
+  if (!hasPermission(auth.role, "onboarding:view_all")) {
     const all = await getOnboardingRecords();
     const self = all.filter((r) => r.employeeId === auth.employeeId || r.email === auth.actor.email);
     return NextResponse.json({ success: true, data: self });
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
         department: department || "General Operations",
         designation,
         joiningDate,
-        annualCtc: annualCtc ? Number(annualCtc) : 480000,
+        annualCtc: annualCtc !== undefined && annualCtc !== "" && annualCtc !== null ? Number(annualCtc) : undefined,
         assignedHrName: assignedHrName || auth.actor.name,
         notes: notes || "",
       },

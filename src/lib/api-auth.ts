@@ -1,7 +1,9 @@
+import "server-only";
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, touchSession } from "./db/db-adapter";
-import { UserRole, Branch, UserSession } from "./types";
+import { getSession, touchSession, getUserAccountById } from "./db/db-adapter";
+import { UserRole, Branch, UserSession, PublicSession } from "./types";
 import { Permission, hasPermission, getBranchScope } from "./permissions";
+import type { Caller } from "./access";
 import { isLocalEnvironment } from "./env";
 
 export interface AuthenticatedActor {
@@ -34,6 +36,13 @@ export type AuthFailure = {
 
 export type AuthResult = AuthSuccess | AuthFailure;
 
+/** Strips the session ID, IP and user agent before a session is returned to the browser. */
+export function toPublicSession(s: UserSession): PublicSession {
+  const { sessionId: _id, deviceId: _d, userAgent: _ua, ipHash: _ip, ...rest } = s;
+  void _id; void _d; void _ua; void _ip;
+  return rest;
+}
+
 /**
  * Extracts session ID from Cookie, Authorization header, or x-session-id header.
  */
@@ -61,6 +70,14 @@ export function extractSessionId(req: Request | NextRequest): string | null {
   }
 
   return null;
+}
+
+/**
+ * The local-development admin fallback applies only on a development build, and can be switched
+ * off with HRMS_DEV_AUTH_BYPASS=0 so 401/403 behaviour can be tested locally.
+ */
+function devAuthBypassEnabled(req: Request | NextRequest): boolean {
+  return isLocalEnvironment(req) && process.env.HRMS_DEV_AUTH_BYPASS !== "0";
 }
 
 /**
@@ -107,7 +124,7 @@ export async function authenticateRequest(req: Request | NextRequest): Promise<A
   const sessionId = extractSessionId(req);
 
   if (!sessionId) {
-    if (isLocalEnvironment(req)) {
+    if (devAuthBypassEnabled(req)) {
       return createLocalDevAuth();
     }
     return {
@@ -121,7 +138,7 @@ export async function authenticateRequest(req: Request | NextRequest): Promise<A
   const session = await getSession(sessionId);
 
   if (!session) {
-    if (isLocalEnvironment(req)) {
+    if (devAuthBypassEnabled(req)) {
       return createLocalDevAuth(sessionId);
     }
     return {
@@ -166,29 +183,49 @@ export async function authenticateRequest(req: Request | NextRequest): Promise<A
     };
   }
 
+  // Role, branch, name and status come from the live user account, not from values copied onto
+  // the session at login. A role/branch change or a suspension therefore applies on the next request.
+  const account = await getUserAccountById(session.userId).catch(() => null);
+  if (!account || account.status !== "Active") {
+    return {
+      authenticated: false,
+      status: 401,
+      error: "Your account is no longer active. Please contact HR.",
+      code: "SESSION_REVOKED",
+      reason: "account_inactive",
+    };
+  }
+
   // Update activity timestamp
   touchSession(sessionId).catch(() => {});
 
   const actor: AuthenticatedActor = {
-    name: session.name,
-    role: session.role,
-    employeeId: session.employeeId,
-    branch: session.branch,
-    email: session.email,
+    name: account.name,
+    role: account.role,
+    employeeId: account.employeeId,
+    branch: account.branch,
+    email: account.email,
     userId: session.userId,
     sessionId: session.sessionId,
   };
 
-  const branchScope = getBranchScope(session.role, session.branch);
+  const branchScope = getBranchScope(account.role, account.branch);
 
   return {
     authenticated: true,
-    session,
+    session: {
+      ...session,
+      role: account.role,
+      branch: account.branch,
+      employeeId: account.employeeId,
+      name: account.name,
+      email: account.email,
+    },
     actor,
-    role: session.role,
-    branch: session.branch,
+    role: account.role,
+    branch: account.branch,
     branchScope,
-    employeeId: session.employeeId,
+    employeeId: account.employeeId,
   };
 }
 
@@ -263,21 +300,35 @@ export function requireBranchScope(auth: AuthSuccess, targetBranch?: Branch): Ne
 }
 
 /**
- * Validates employee isolation:
- * - Admin and HR can access all employee data.
- * - Employees can only access their own employeeId.
+ * Validates employee isolation: callers without "employees:view_all" (employees and every
+ * custom role) may only reach their own employeeId.
  */
 export function requireEmployeeScope(auth: AuthSuccess, targetEmployeeId?: string): NextResponse | null {
+  return requireOwnOrPermission(auth, targetEmployeeId, "employees:view_all");
+}
+
+/**
+ * Allows the request when the target is the caller's own employee ID, or the caller holds `permission`.
+ */
+export function requireOwnOrPermission(
+  auth: AuthSuccess,
+  targetEmployeeId: string | undefined,
+  permission: Permission
+): NextResponse | null {
   if (!targetEmployeeId) return null;
-  if (auth.role === "employee" && auth.employeeId !== targetEmployeeId) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Forbidden: You are only authorized to access your own employee self-service records.",
-        code: "EMPLOYEE_RESTRICTED",
-      },
-      { status: 403 }
-    );
-  }
-  return null;
+  if (targetEmployeeId === auth.employeeId) return null;
+  if (hasPermission(auth.role, permission)) return null;
+  return NextResponse.json(
+    {
+      success: false,
+      error: "Forbidden: You are only authorized to access your own records.",
+      code: "EMPLOYEE_RESTRICTED",
+    },
+    { status: 403 }
+  );
+}
+
+/** The caller shape used by the pure helpers in lib/access.ts. */
+export function callerOf(auth: AuthSuccess): Caller {
+  return { role: auth.role, employeeId: auth.employeeId, branchScope: auth.branchScope };
 }

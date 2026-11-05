@@ -1448,12 +1448,8 @@ export default function SettingsPage() {
                   <span className="text-emerald-400 font-semibold">Google Cloud Firestore</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Firebase Project ID</span>
-                  <span className="font-mono text-white font-medium">irregularhours-5f56e</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Storage Location</span>
-                  <span className="text-slate-300 font-medium">asia-south1 (Mumbai)</span>
+                  <span className="text-slate-400">Access</span>
+                  <span className="text-slate-300 font-medium">Server-side Admin SDK only (browser access denied by rules)</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Collections Managed</span>
@@ -1474,7 +1470,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {canEdit && (
+              {canEdit && isLocalhost && (
                 <div className="pt-2">
                   <Button
                     size="sm"
@@ -1540,8 +1536,8 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
               <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
                 <span className="text-slate-400 block">Employees&apos; Provident Fund (EPF)</span>
-                <p className="text-base font-bold text-white mt-1">12% on Basic Salary</p>
-                <span className="text-[11px] text-slate-500">Statutory wage ceiling capped at ₹15,000/mo</span>
+                <p className="text-base font-bold text-white mt-1">Set per employee (default 12%)</p>
+                <span className="text-[11px] text-slate-500">Percentage of basic or a fixed amount, chosen on each salary revision</span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
                 <span className="text-slate-400 block">Professional Tax (PT)</span>
@@ -1550,8 +1546,8 @@ export default function SettingsPage() {
               </div>
               <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800">
                 <span className="text-slate-400 block">House Rent Allowance (HRA)</span>
-                <p className="text-base font-bold text-white mt-1">50% of Basic</p>
-                <span className="text-[11px] text-slate-500">Standard metro taxation allocation</span>
+                <p className="text-base font-bold text-white mt-1">₹0 (Not applicable)</p>
+                <span className="text-[11px] text-slate-500">Basic pay is the gross pay; there is no allowance split</span>
               </div>
             </div>
           </div>

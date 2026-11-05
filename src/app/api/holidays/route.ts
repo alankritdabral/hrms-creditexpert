@@ -4,6 +4,11 @@ import { authenticateRequest, authFailureResponse, requirePermission } from "@/l
 import { Branch } from "@/lib/types";
 
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if (!auth.authenticated) {
+    return authFailureResponse(auth);
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const branch = (searchParams.get("branch") as Branch) || undefined;

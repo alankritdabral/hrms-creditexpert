@@ -190,6 +190,11 @@ export function EmployeeProfile({
   const [roleMessage, setRoleMessage] = useState("");
 
   useEffect(() => {
+    // Only role administrators may list roles/users; everyone else is viewing their own profile.
+    if (currentUser.role !== "admin" && currentUser.role !== "hr") {
+      setEmployeeRole(currentUser.role || "employee");
+      return;
+    }
     async function fetchUserRole() {
       try {
         const res = await fetch("/api/roles");
@@ -214,7 +219,7 @@ export function EmployeeProfile({
       }
     }
     fetchUserRole();
-  }, [employee.employeeId, employee.personal.workEmail]);
+  }, [employee.employeeId, employee.personal.workEmail, currentUser.role]);
 
   const handleRoleChange = async (newRole: string) => {
     setIsUpdatingRole(true);
@@ -1244,9 +1249,13 @@ export function EmployeeProfile({
         <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-white text-base">Uploaded Documents & Compliance</h3>
-            <Button size="sm" variant="secondary" icon={<FileText className="w-4 h-4" />}>
-              Upload Document
-            </Button>
+            {canEditSalary && (
+              <Link href="/documents">
+                <Button size="sm" variant="secondary" icon={<FileText className="w-4 h-4" />}>
+                  Upload on Documents page
+                </Button>
+              </Link>
+            )}
           </div>
 
           {documents.length === 0 && !resolvedPassportPhoto ? (

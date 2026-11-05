@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Employee, AttendanceRecord, PayrollRun } from "@/lib/types";
+import { Employee, AttendanceRecord, PayrollRun, AttendancePolicy } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
+import { formatISTTime12, getISTDateString, lateCutoffLabel } from "@/lib/attendance/ist-time";
 import { useAuth } from "@/lib/auth-context";
 import {
   BarChart3,
@@ -21,6 +21,7 @@ export default function ReportsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
+  const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<"headcount" | "payroll" | "attendance">(
     "headcount"
   );
@@ -29,14 +30,16 @@ export default function ReportsPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [empRes, attRes, payRes] = await Promise.all([
+        const [empRes, attRes, payRes, polRes] = await Promise.all([
           fetch("/api/employees").then((r) => r.json()),
           fetch(`/api/attendance?month=${getISTDateString().slice(0, 7)}`).then((r) => r.json()),
           fetch("/api/payroll").then((r) => r.json()),
+          fetch("/api/policy").then((r) => r.json()),
         ]);
         if (empRes.success) setEmployees(empRes.data);
         if (attRes.success) setAttendance(attRes.data);
         if (payRes.success) setPayrollRuns(payRes.data);
+        if (polRes.success) setPolicy(polRes.data);
       } catch (e) {
         console.error(e);
       } finally {
@@ -84,7 +87,7 @@ export default function ReportsPage() {
       Branch: e.employment.branch || "Delhi",
       Status: e.employment.employmentStatus,
       JoiningDate: e.employment.dateOfJoining,
-      AnnualCTC: e.currentSalary.annualCtc,
+      AnnualCTC: e.currentSalary?.annualCtc ?? "",
       WorkEmail: e.personal.workEmail,
     }));
     exportToCSV(rows, `HRMS_Headcount_Report_${new Date().toISOString().split("T")[0]}`);
@@ -273,7 +276,7 @@ export default function ReportsPage() {
                           {e.employment.dateOfJoining}
                         </td>
                         <td className="py-2.5 text-right font-mono font-bold text-emerald-400">
-                          ₹{e.currentSalary.annualCtc.toLocaleString("en-IN")}
+                          {e.currentSalary ? `₹${e.currentSalary.annualCtc.toLocaleString("en-IN")}` : "—"}
                         </td>
                       </tr>
                     ))}
@@ -360,7 +363,7 @@ export default function ReportsPage() {
         <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-white text-base">Attendance Regularization & Overtime Report</h3>
-            <span className="text-xs text-slate-400">Grace period: 15 mins (Cutoff 10:15 AM)</span>
+            <span className="text-xs text-slate-400">Grace period: {policy?.gracePeriodMinutes ?? 15} mins (Cutoff {lateCutoffLabel(policy?.officeStartTime, policy?.gracePeriodMinutes)})</span>
           </div>
 
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">

@@ -1,3 +1,4 @@
+import "server-only";
 import { v2 as cloudinary, UploadApiResponse } from "cloudinary";
 import fs from "fs";
 import path from "path";
@@ -30,7 +31,7 @@ export interface UploadResult {
 
 /**
  * Uploads a file buffer to Cloudinary with automatic fallback
- * to local static storage (/public/uploads/kyc) if credentials are not yet set.
+ * to local private storage (.uploads/kyc, served only through /uploads with a session check) if credentials are not yet set.
  */
 export async function uploadKycDocument(
   buffer: Buffer,
@@ -80,13 +81,13 @@ export async function uploadKycDocument(
     }
   } else {
     console.info(
-      "ℹ️ Cloudinary credentials not detected in .env.local. Saving uploaded document to local /public/uploads/kyc fallback directory."
+      "ℹ️ Cloudinary credentials not detected in .env.local. Saving uploaded document to the local .uploads/kyc fallback directory."
     );
   }
 
   // Graceful fallback to local disk storage
   try {
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "kyc", sanitizedIdentifier);
+    const uploadDir = path.join(process.cwd(), ".uploads", "kyc", sanitizedIdentifier);
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }

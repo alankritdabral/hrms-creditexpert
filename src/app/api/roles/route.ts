@@ -15,6 +15,10 @@ export async function GET(req: NextRequest) {
     return authFailureResponse(auth);
   }
 
+  // The response lists every user's email and role, so it is restricted to role administrators.
+  const permError = requirePermission(auth, "settings:manage");
+  if (permError) return permError;
+
   try {
     const roles = await getCustomRoles().catch((err) => {
       console.warn("getCustomRoles fallback warning:", err);

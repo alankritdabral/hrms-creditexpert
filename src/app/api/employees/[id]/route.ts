@@ -6,6 +6,7 @@ import {
   authFailureResponse,
   requirePermission,
   requireEmployeeScope,
+  requireOwnOrPermission,
   requireBranchScope,
 } from "@/lib/api-auth";
 
@@ -122,28 +123,24 @@ export async function PATCH(
   try {
     const { id } = await params;
 
-    // Scope isolation: Employees can update their own profile; Admin & HR can manage all
-    const scopeErr = requireEmployeeScope(auth, id);
-    if (scopeErr) return scopeErr;
-
     const employee = await getEmployeeById(id);
     if (!employee) {
       return NextResponse.json({ success: false, error: "Employee not found" }, { status: 404 });
     }
+
+    // Scope isolation: anyone may update their own profile photo; changing someone else's needs employees:manage
+    const scopeErr = requireOwnOrPermission(auth, employee.employeeId, "employees:manage");
+    if (scopeErr) return scopeErr;
 
     const branchErr = requireBranchScope(auth, employee.employment.branch);
     if (branchErr) return branchErr;
 
     const body = await req.json();
 
-    // Branch change: admin & HR only
+    // Branch change: requires employees:manage (admin & HR)
     if (body.branch !== undefined) {
-      if (auth.actor.role !== "admin" && auth.actor.role !== "hr") {
-        return NextResponse.json(
-          { success: false, error: "Only admin or HR can change an employee's branch" },
-          { status: 403 }
-        );
-      }
+      const manageErr = requirePermission(auth, "employees:manage");
+      if (manageErr) return manageErr;
       if (!BRANCHES.includes(body.branch)) {
         return NextResponse.json({ success: false, error: "Invalid branch" }, { status: 400 });
       }

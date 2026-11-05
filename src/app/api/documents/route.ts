@@ -3,10 +3,14 @@ import { getDocuments, createDocument } from "@/lib/db/db-adapter";
 import {
   authenticateRequest,
   authFailureResponse,
-  requireEmployeeScope,
+  requireOwnOrPermission,
+  callerOf,
 } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
+import { ownOrScoped } from "@/lib/access";
 import { paginateList } from "@/lib/pagination";
 import { EmployeeDocument } from "@/lib/types";
+import { isTrustedUploadUrl } from "@/lib/upload-validation";
 
 const matchDoc = (d: EmployeeDocument, q: string) =>
   [d.title, d.employeeName, d.documentType].some((v) => v?.toLowerCase().includes(q));
@@ -21,19 +25,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const employeeId = searchParams.get("employeeId") || undefined;
 
-    // Scope check: Employees can only view their own documents
+    // Only documents:view_all (admin/HR) may read other people's documents
     if (employeeId) {
-      const scopeErr = requireEmployeeScope(auth, employeeId);
+      const scopeErr = requireOwnOrPermission(auth, employeeId, "documents:view_all");
       if (scopeErr) return scopeErr;
-    } else if (auth.role === "employee") {
-      // Employee without employeeId query parameter defaults to their own employeeId
-      const docs = await getDocuments(auth.employeeId);
-      const pagedOwn = paginateList(docs, searchParams, matchDoc);
-      if (pagedOwn) return NextResponse.json({ success: true, ...pagedOwn });
-      return NextResponse.json({ success: true, data: docs });
     }
 
-    const docs = await getDocuments(employeeId);
+    const docs = ownOrScoped(callerOf(auth), "documents:view_all", await getDocuments(employeeId), (d) => d.employeeId);
     const paged = paginateList(docs, searchParams, matchDoc);
     if (paged) return NextResponse.json({ success: true, ...paged });
     return NextResponse.json({ success: true, data: docs });
@@ -59,8 +57,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Scope check: employee can upload to their own record, admin/hr can upload to any
-    const scopeErr = requireEmployeeScope(auth, employeeId);
+    // Only files that our own upload endpoint stored can be attached
+    if (!isTrustedUploadUrl(fileUrl, process.env.CLOUDINARY_CLOUD_NAME)) {
+      return NextResponse.json(
+        { success: false, error: "fileUrl must be a file uploaded through the HRMS upload endpoint" },
+        { status: 400 }
+      );
+    }
+
+    // Anyone may add to their own record; documents:manage (admin/HR) may add to any
+    const scopeErr = requireOwnOrPermission(auth, employeeId, "documents:manage");
     if (scopeErr) return scopeErr;
 
     const newDoc = await createDocument(
@@ -73,7 +79,7 @@ export async function POST(req: NextRequest) {
         uploadedBy: auth.actor.name,
         uploadDate: new Date().toISOString(),
         expiryDate,
-        status: auth.role === "employee" ? "Pending" : "Verified",
+        status: hasPermission(auth.role, "documents:manage") ? "Verified" : "Pending",
         notes,
       },
       auth.actor

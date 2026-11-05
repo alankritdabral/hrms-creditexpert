@@ -6,9 +6,10 @@ import {
   getAttendanceRecords,
   getEmployeeIncentives,
 } from "@/lib/db/db-adapter";
-import { calculateEmployeePayrollSnapshot } from "@/lib/payroll-engine";
+import { calculateEmployeePayrollSnapshot, nextPayrollStatus, LOCKED_PAYROLL_STATUSES } from "@/lib/payroll-engine";
 import { PayrollRun, PayrollStatus } from "@/lib/types";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -16,17 +17,11 @@ export async function GET(req: NextRequest) {
     return authFailureResponse(auth);
   }
 
-  // If not an employee, enforce payroll:view permission (Admin & HR)
-  if (auth.role !== "employee") {
-    const permError = requirePermission(auth, "payroll:view");
-    if (permError) return permError;
-  }
-
   try {
     let runs = await getPayrollRuns();
 
-    // If requesting user is an employee, restrict items strictly to their own payslips
-    if (auth.role === "employee") {
+    // Callers without payroll:view (employees and custom roles) only ever get their own payslip lines
+    if (!hasPermission(auth.role, "payroll:view")) {
       runs = runs
         .map((r) => {
           const myItems = r.items.filter((i) => i.employeeId === auth.employeeId);
@@ -67,9 +62,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Month (YYYY-MM) is required" }, { status: 400 });
     }
 
+    const runCode = `PAY-${month}`;
+
+    // A finalized run is a locked snapshot: recalculating would silently rewrite issued payslips.
+    const existingRun = (await getPayrollRuns()).find((r) => r.runCode === runCode);
+    if (existingRun && LOCKED_PAYROLL_STATUSES.includes(existingRun.status)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Payroll for ${month} is already ${existingRun.status} and cannot be recalculated.`,
+        },
+        { status: 409 }
+      );
+    }
+
     const employees = await getEmployees();
-    const activeEmployees = employees.filter((e) =>
-      ["Active", "Probation", "Confirmed", "On Notice"].includes(e.employment.employmentStatus)
+    // One payslip per person, even if the directory ever holds a duplicate record
+    const activeEmployees = Array.from(
+      new Map(
+        employees
+          .filter((e) => ["Active", "Probation", "Confirmed", "On Notice"].includes(e.employment.employmentStatus))
+          .map((e) => [e.employeeId, e])
+      ).values()
     );
 
     // Only the payroll month — previously this loaded (and counted) every month ever recorded.
@@ -78,7 +92,6 @@ export async function POST(req: NextRequest) {
       (i) => i.status === "Approved"
     );
 
-    const runCode = `PAY-${month}`;
     const items = activeEmployees.map((emp) => {
       const empAttendance = attendanceRecords.filter((a) => a.employeeId === emp.employeeId);
       const empIncentives = approvedIncentives.filter((i) => i.employeeId === emp.employeeId);
@@ -95,7 +108,7 @@ export async function POST(req: NextRequest) {
     const totalPfEmployer = items.reduce((acc, curr) => acc + curr.employerPf, 0);
 
     const payrollRun: PayrollRun = {
-      id: `pay-run-${Date.now()}`,
+      id: runCode,
       runCode,
       month,
       periodLabel: periodLabel || month,
@@ -150,11 +163,14 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Payroll run not found" }, { status: 404 });
     }
 
-    // Once finalized, only Admin or HR can modify or advance
-    if (run.status === "FINALIZED" && status !== "PAID" && !["admin", "hr"].includes(auth.role)) {
+    // A run only ever moves to its next stage; no skipping ahead and no going back.
+    if (status !== nextPayrollStatus(run.status)) {
       return NextResponse.json(
-        { success: false, error: "Finalized payroll cannot be modified without Admin/HR authorization." },
-        { status: 403 }
+        {
+          success: false,
+          error: `Invalid status change: ${run.status} can only advance to ${nextPayrollStatus(run.status) ?? "nothing (final stage)"}.`,
+        },
+        { status: 400 }
       );
     }
 

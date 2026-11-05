@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEmployeeLogins, saveEmployeeLogin } from "@/lib/db/db-adapter";
+import { getEmployeeLogins, saveEmployeeLogin, getEmployeeLoginById } from "@/lib/db/db-adapter";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
+import { hasPermission } from "@/lib/permissions";
+import { getISTMonthString } from "@/lib/attendance/ist-time";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -10,11 +12,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const month = searchParams.get("month") || new Date().toISOString().slice(0, 7);
+    const month = searchParams.get("month") || getISTMonthString();
     let logins = await getEmployeeLogins(month);
 
-    // Employees may only ever see their own records (enforced server-side, not by a client hint).
-    if (auth.role === "employee" || searchParams.get("scope") === "mine") {
+    // Callers without logins:view_all may only ever see their own records (enforced server-side, not by a client hint).
+    if (!hasPermission(auth.role, "logins:view_all") || searchParams.get("scope") === "mine") {
       logins = logins.filter((l) => l.employeeId === auth.employeeId);
     } else {
       // Managers/HR are limited to their branch scope.
@@ -60,6 +62,24 @@ export async function POST(req: NextRequest) {
         { success: false, error: "employeeId and month are required" },
         { status: 400 }
       );
+    }
+
+    // Callers without logins:view_all (employees, custom roles) can only save their OWN records.
+    const canManageOthers = hasPermission(auth.role, "logins:view_all");
+    if (!canManageOthers && employeeId !== auth.employeeId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: you can only update your own login records." },
+        { status: 403 }
+      );
+    }
+    if (!canManageOthers && id && id !== `login-${auth.employeeId}-${month}`) {
+      const existing = await getEmployeeLoginById(id);
+      if (!existing || existing.employeeId !== auth.employeeId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden: invalid record for your account." },
+          { status: 403 }
+        );
+      }
     }
 
     const record = await saveEmployeeLogin(
@@ -108,6 +128,17 @@ export async function DELETE(req: NextRequest) {
     }
 
     const { deleteEmployeeLogin } = await import("@/lib/db/db-adapter");
+
+    // Callers without logins:view_all may delete only their own records.
+    if (!hasPermission(auth.role, "logins:view_all")) {
+      const existing = await getEmployeeLoginById(id);
+      if (!existing || existing.employeeId !== auth.employeeId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden: you can only delete your own login records." },
+          { status: 403 }
+        );
+      }
+    }
     const success = await deleteEmployeeLogin(id, {
       name: auth.actor?.name || auth.session?.name || "User",
       role: auth.actor?.role || auth.session?.role || auth.role || "employee",

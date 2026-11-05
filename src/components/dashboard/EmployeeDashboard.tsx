@@ -26,7 +26,7 @@ import {
   GeolocationClientError,
 } from "@/lib/attendance/client-geolocation";
 import { LocationHelpModal } from "@/components/attendance/LocationHelpModal";
-import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
+import { formatISTTime12, getISTDateString, getISTMonthString } from "@/lib/attendance/ist-time";
 
 export function EmployeeDashboard() {
   const { currentUser } = useAuth();
@@ -52,7 +52,7 @@ export function EmployeeDashboard() {
           fetch(`/api/leaves?employeeId=${empId}`).then((r) => r.json()),
           fetch("/api/announcements").then((r) => r.json()),
           fetch("/api/holidays").then((r) => r.json()),
-          fetch(`/api/incentives?employeeId=${empId}`).then((r) => r.json()),
+          fetch(`/api/incentives?month=${getISTMonthString()}`).then((r) => r.json()),
           fetch("/api/payroll").then((r) => r.json()),
         ]);
 
@@ -70,8 +70,8 @@ export function EmployeeDashboard() {
           );
           setHolidays(filtered);
         }
-        if (incRes.success && incRes.data?.records) {
-          const myInc = (incRes.data.records as EmployeeIncentiveRecord[]).find(
+        if (incRes.success && incRes.data?.incentives) {
+          const myInc = (incRes.data.incentives as EmployeeIncentiveRecord[]).find(
             (r) => r.employeeId === empId
           );
           setIncentive(myInc || null);
@@ -311,7 +311,7 @@ export function EmployeeDashboard() {
               ? "Incentive Only"
               : employee
               ? `₹${employee.currentSalary.grossSalary.toLocaleString("en-IN")}`
-              : "₹36,500"
+              : "—"
           }
           subtitle={
             employee?.currentSalary?.isIncentiveOnly || (employee && employee.currentSalary.annualCtc === 0)
