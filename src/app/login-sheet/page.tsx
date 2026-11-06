@@ -16,6 +16,8 @@ import { getISTDateString } from "@/lib/attendance/ist-time";
 import { distinct } from "@/lib/logins-filter";
 import {
   EMPTY_LOGIN_SHEET_FILTERS,
+  FILE_BLANKS,
+  LOGIN_SHEET_FILE_OPTIONS,
   LOGIN_SHEET_COLUMNS,
   LOGIN_SHEET_STATUSES,
   activeSheetFilterCount,
@@ -192,6 +194,7 @@ export default function LoginSheetPage() {
       dsas: distinct(entries.map((e) => e.dsaName)),
       products: distinct(entries.map((e) => e.product)),
       statuses: distinct([...LOGIN_SHEET_STATUSES, ...entries.map((e) => e.status)]),
+      files: [...distinct([...LOGIN_SHEET_FILE_OPTIONS, ...entries.map((e) => e.file)]), FILE_BLANKS],
     }),
     [entries]
   );
@@ -426,6 +429,13 @@ export default function LoginSheetPage() {
               options={options.statuses}
               value={filters.status}
               onChange={(v) => setFilter("status", v)}
+            />
+            <MultiSelect
+              label="File"
+              anyLabel="All files"
+              options={options.files}
+              value={filters.file}
+              onChange={(v) => setFilter("file", v)}
             />
             {hasAnyFilter && (
               <button

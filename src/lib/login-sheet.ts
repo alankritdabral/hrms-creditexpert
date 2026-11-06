@@ -8,6 +8,8 @@ import { BRANCHES, type Branch, type LoginSheetEntry } from "@/lib/types";
 export const LOGIN_SHEET_STATUSES = ["SENT", "LOGIN", "APPROVED", "DISBURSED", "REJECT"] as const;
 /** The File column: one choice per customer, the same for every bank the file went to. Blank is allowed. */
 export const LOGIN_SHEET_FILE_OPTIONS = ["BACKEND", "PENDING", "RE LOOK"] as const;
+/** Filter value that matches rows with no File set (Excel's "(Blanks)"). */
+export const FILE_BLANKS = "(Blanks)";
 export const LOGIN_SHEET_PRODUCTS = ["PL", "BL", "HL", "LAP", "CAR LOAN", "CC", "OD"] as const;
 
 /** The columns of the Excel sheet, in order. Used for the table header and the export. */
@@ -168,6 +170,8 @@ export interface LoginSheetFilters {
   product: string;
   /** Any of these statuses; empty = all. */
   status: string[];
+  /** Any of these File values (FILE_BLANKS matches rows with none); empty = all. */
+  file: string[];
 }
 
 export const EMPTY_LOGIN_SHEET_FILTERS: LoginSheetFilters = {
@@ -180,11 +184,12 @@ export const EMPTY_LOGIN_SHEET_FILTERS: LoginSheetFilters = {
   dsa: "",
   product: "",
   status: [],
+  file: [],
 };
 
 /** Number of dropdown/date filters that are narrowing the list (the search box is not counted). */
 export function activeSheetFilterCount(f: LoginSheetFilters): number {
-  return [f.dateFrom, f.dateTo, f.employeeId, f.branch, f.bank, f.dsa, f.product, f.status.length > 0 ? "x" : ""].filter(Boolean).length;
+  return [f.dateFrom, f.dateTo, f.employeeId, f.branch, f.bank, f.dsa, f.product, f.status.length > 0 ? "x" : "", f.file.length > 0 ? "x" : ""].filter(Boolean).length;
 }
 
 export function filterLoginSheet(entries: LoginSheetEntry[], f: LoginSheetFilters): LoginSheetEntry[] {
@@ -205,6 +210,7 @@ export function filterLoginSheet(entries: LoginSheetEntry[], f: LoginSheetFilter
     if (f.dsa && e.dsaName !== f.dsa) return false;
     if (f.product && e.product !== f.product) return false;
     if (f.status.length > 0 && !f.status.includes(e.status)) return false;
+    if (f.file.length > 0 && !f.file.includes(e.file || FILE_BLANKS)) return false;
     return true;
   });
 }

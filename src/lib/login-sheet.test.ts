@@ -3,6 +3,7 @@ import {
   EMPTY_LOGIN_SHEET_FILTERS,
   activeSheetFilterCount,
   filterLoginSheet,
+  FILE_BLANKS,
   loginSheetToCsv,
   normalizeEntryInput,
   sortLoginSheet,
@@ -95,8 +96,8 @@ const row = (o: Partial<LoginSheetEntry> & { id: string }): LoginSheetEntry => (
 });
 
 const data = [
-  row({ id: "a", panNo: "ABCD1111A", dsaName: "FB", product: "PL", branch: "Delhi", status: "SENT", time: "10:00" }),
-  row({ id: "b", panNo: "ABCD1111A", bankName: "ICICI BANK", dsaName: "CREDILIO", product: "PL", branch: "Dehradun", status: "LOGIN", loginId: "US999", time: "12:22", amount: 200 }),
+  row({ id: "a", panNo: "ABCD1111A", dsaName: "FB", product: "PL", branch: "Delhi", status: "SENT", time: "10:00", file: "BACKEND" }),
+  row({ id: "b", panNo: "ABCD1111A", bankName: "ICICI BANK", dsaName: "CREDILIO", product: "PL", branch: "Dehradun", status: "LOGIN", loginId: "US999", time: "12:22", amount: 200, file: "RE LOOK" }),
   row({ id: "c", employeeId: "E2", empName: "Ravi", customerName: "SITA", date: "2026-11-05", bankName: "HDFC BANK", product: "HL", status: "DISBURSED", amount: 300, amount2: 250 }),
 ];
 const ids = (f: Partial<LoginSheetFilters>) => filterLoginSheet(data, { ...EMPTY_LOGIN_SHEET_FILTERS, ...f }).map((r) => r.id);
@@ -121,6 +122,13 @@ describe("filterLoginSheet", () => {
     expect(ids({ status: ["SENT", "DISBURSED"] })).toEqual(["a", "c"]);
     expect(ids({ status: ["LOGIN", "REJECT"] })).toEqual(["b"]);
     expect(ids({ status: [] })).toEqual(["a", "b", "c"]);
+  });
+  it("filters by File, where (Blanks) matches rows with none", () => {
+    expect(ids({ file: ["BACKEND"] })).toEqual(["a"]);
+    expect(ids({ file: ["BACKEND", "RE LOOK"] })).toEqual(["a", "b"]);
+    expect(ids({ file: [FILE_BLANKS] })).toEqual(["c"]);
+    expect(ids({ file: ["PENDING", FILE_BLANKS] })).toEqual(["c"]);
+    expect(ids({ file: [] })).toEqual(["a", "b", "c"]);
   });
   it("filters by an inclusive date range", () => {
     expect(ids({ dateFrom: "2026-11-06" })).toEqual(["a", "b"]);
