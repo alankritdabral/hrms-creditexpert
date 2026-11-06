@@ -1,7 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { EmployeeLoginRecord, BankDisbursalBreakdown, CustomerDisbursalEntry, Employee } from "@/lib/types";
+import { EmployeeLoginRecord, BankDisbursalBreakdown, CustomerDisbursalEntry } from "@/lib/types";
+
+/** Who a login record can be entered for: id, name, department and branch only. */
+interface PersonOption {
+  employeeId: string;
+  name: string;
+  department?: string;
+  branch?: string;
+}
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -36,11 +44,12 @@ import {
 } from "@/lib/logins-filter";
 
 export default function LoginsPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, hasPermission } = useAuth();
+  const canEnterForOthers = hasPermission("logins:view_all");
   const { banks: lenderBanks, isKnown: isKnownBank, save: saveLenderBank, refresh: refreshLenderBanks } = useLenderBanks();
   const [bankSaveMsg, setBankSaveMsg] = useState<string | null>(null);
   const [logins, setLogins] = useState<EmployeeLoginRecord[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<PersonOption[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(getISTMonthString());
   const [filters, setFilters] = useState<LoginFilters>(EMPTY_LOGIN_FILTERS);
   const setFilter = <K extends keyof LoginFilters>(key: K, value: LoginFilters[K]) =>
@@ -78,9 +87,9 @@ export default function LoginsPage() {
   const openAddLoginModal = () => {
     if (employees.length > 0 && !addEmpId) {
       setAddEmpId(employees[0].employeeId);
-      setAddEmpName(employees[0].personal.fullName);
-      setAddDepartment(employees[0].employment.department || "Sales");
-      setAddBranch(employees[0].employment.branch || "Delhi");
+      setAddEmpName(employees[0].name);
+      setAddDepartment(employees[0].department || "Sales");
+      setAddBranch(employees[0].branch || "Delhi");
     }
     setIsAddLoginModalOpen(true);
   };
@@ -106,7 +115,10 @@ export default function LoginsPage() {
     try {
       const [loginRes, empRes] = await Promise.all([
         fetch(`/api/logins?month=${selectedMonth}`).then((r) => r.json()),
-        fetch("/api/employees").then((r) => r.json()),
+        // Anyone who may enter logins for others gets the full name list; everyone else can only enter their own.
+        canEnterForOthers
+          ? fetch("/api/employee-directory").then((r) => r.json())
+          : Promise.resolve({ success: true, data: [{ employeeId: currentUser.employeeId, name: currentUser.name, department: currentUser.department, branch: currentUser.branch }] }),
       ]);
 
       if (loginRes.success && Array.isArray(loginRes.data)) {
@@ -115,10 +127,12 @@ export default function LoginsPage() {
       if (empRes.success && Array.isArray(empRes.data)) {
         setEmployees(empRes.data);
         if (empRes.data.length > 0 && !addEmpId) {
-          setAddEmpId(empRes.data[0].employeeId);
-          setAddEmpName(empRes.data[0].personal.fullName);
-          setAddDepartment(empRes.data[0].employment.department || "Sales");
-          setAddBranch(empRes.data[0].employment.branch || "Delhi");
+          // Start on the signed-in person; they can pick someone else if they are allowed to.
+          const first = empRes.data.find((p: PersonOption) => p.employeeId === currentUser.employeeId) || empRes.data[0];
+          setAddEmpId(first.employeeId);
+          setAddEmpName(first.name);
+          setAddDepartment(first.department || "Sales");
+          setAddBranch(first.branch || "Delhi");
         }
       }
     } catch (e) {
@@ -130,7 +144,8 @@ export default function LoginsPage() {
 
   useEffect(() => {
     loadData();
-  }, [selectedMonth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth, canEnterForOthers, currentUser.employeeId]);
 
   // Open Disbursal Management Modal
   const handleOpenDisbursals = (record: EmployeeLoginRecord) => {
@@ -349,7 +364,7 @@ export default function LoginsPage() {
     const selectedEmp = employees.find((e) => e.employeeId === addEmpId);
     const finalEmpName = (isCustomEmployee || employees.length === 0)
       ? addEmpName.trim()
-      : (selectedEmp?.personal.fullName || addEmpName.trim() || addEmpId);
+      : (selectedEmp?.name || addEmpName.trim() || addEmpId);
 
     if (!finalEmpName) {
       alert("Please enter or select an employee name.");
@@ -363,11 +378,11 @@ export default function LoginsPage() {
 
     const finalDept = (isCustomEmployee || employees.length === 0)
       ? (addDepartment || "Sales")
-      : (selectedEmp?.employment.department || addDepartment || "Sales");
+      : (selectedEmp?.department || addDepartment || "Sales");
 
     const finalBranch = (isCustomEmployee || employees.length === 0)
       ? (addBranch || "Delhi")
-      : (selectedEmp?.employment.branch || addBranch || "Delhi");
+      : (selectedEmp?.branch || addBranch || "Delhi");
 
     const lenderName = cleanBankName(addInitialBank);
     if ((Number(addInitialDisbursal) || 0) > 0 && !lenderName) {
@@ -1610,7 +1625,7 @@ export default function LoginsPage() {
               <label className="block text-xs font-semibold text-slate-700">
                 Employee Details *
               </label>
-              {employees.length > 0 && (
+              {employees.length > 0 && canEnterForOthers && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1620,7 +1635,7 @@ export default function LoginsPage() {
                       setAddEmpId("");
                     } else if (employees.length > 0) {
                       setAddEmpId(employees[0].employeeId);
-                      setAddEmpName(employees[0].personal.fullName);
+                      setAddEmpName(employees[0].name);
                     }
                   }}
                   className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
@@ -1637,17 +1652,17 @@ export default function LoginsPage() {
                   setAddEmpId(e.target.value);
                   const matched = employees.find((emp) => emp.employeeId === e.target.value);
                   if (matched) {
-                    setAddEmpName(matched.personal.fullName);
-                    setAddDepartment(matched.employment.department || "Sales");
-                    setAddBranch(matched.employment.branch || "Delhi");
+                    setAddEmpName(matched.name);
+                    setAddDepartment(matched.department || "Sales");
+                    setAddBranch(matched.branch || "Delhi");
                   }
                 }}
                 className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500 bg-slate-50 font-medium"
                 required
               >
                 {employees.map((e) => (
-                  <option key={e.id} value={e.employeeId}>
-                    {e.personal.fullName} ({e.employeeId} • {e.employment.department} • {e.employment.branch})
+                  <option key={e.employeeId} value={e.employeeId}>
+                    {e.name} ({e.employeeId}{e.department ? ` • ${e.department}` : ""}{e.branch ? ` • ${e.branch}` : ""})
                   </option>
                 ))}
               </select>

@@ -9,6 +9,7 @@ import {
 } from "@/lib/db/db-adapter";
 import { authenticateRequest, authFailureResponse, requirePermission, type AuthSuccess } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/permissions";
+import { ensureCallerEmployee } from "@/lib/temp-employee";
 import { getISTDateString, getISTMonthString } from "@/lib/attendance/ist-time";
 import { MAX_ENTRIES_PER_REQUEST, normalizeEntryInput, type LoginSheetInput } from "@/lib/login-sheet";
 
@@ -35,6 +36,8 @@ async function resolveOwner(
 ): Promise<{ owner: Owner; error: null } | { owner: null; error: NextResponse }> {
   const own = { employeeId: auth.employeeId, empName: auth.actor?.name || auth.session?.name || auth.employeeId };
   if (typeof requestedEmployeeId !== "string" || !requestedEmployeeId || requestedEmployeeId === auth.employeeId) {
+    // Entering as yourself with no employee record yet: a temporary one is created so the rows have an owner.
+    await ensureCallerEmployee(auth);
     return { owner: own, error: null };
   }
   if (!hasPermission(auth, "logins:view_all")) {

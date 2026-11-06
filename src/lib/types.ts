@@ -329,6 +329,8 @@ export interface Employee {
   statutory: StatutoryInfo;
   currentSalary: SalaryComponent;
   salaryHistory: SalaryRevisionRecord[];
+  /** A placeholder created automatically for a login account that had no employee record. */
+  isTemporary?: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEmployeeLogins, saveEmployeeLogin, getEmployeeLoginById } from "@/lib/db/db-adapter";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/permissions";
+import { ensureCallerEmployee } from "@/lib/temp-employee";
 import { getISTMonthString } from "@/lib/attendance/ist-time";
 
 export async function GET(req: NextRequest) {
@@ -81,6 +82,9 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+
+    // Saving as yourself with no employee record yet: a temporary one is created so the record has an owner.
+    if (employeeId === auth.employeeId) await ensureCallerEmployee(auth);
 
     const record = await saveEmployeeLogin(
       {

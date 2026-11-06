@@ -12,11 +12,11 @@ vi.mock("@/lib/db/db-adapter", () => ({
     {
       employeeId: "EMP-2",
       personal: { fullName: "Zoya", email: "z@x.com", phone: "9999999999" },
-      employment: { branch: "Dehradun" },
+      employment: { branch: "Dehradun", department: "Sales" },
       statutory: { pan: "ABCDE1234F" },
       currentSalary: { basic: 1 },
     },
-    { employeeId: "EMP-1", personal: { fullName: "Amit" }, employment: { branch: "Delhi" } },
+    { employeeId: "EMP-1", personal: { fullName: "Amit" }, employment: { branch: "Delhi", department: "Ops" } },
   ]),
 }));
 
@@ -42,11 +42,24 @@ describe("/api/employee-directory", () => {
   it("lets a custom role with logins:view_all see every employee, names only", async () => {
     currentAuth = authFor("role-backend-team-1234", ["logins:view_all"]);
     const json = await (await get()).json();
-    expect(json.data).toEqual([
-      { employeeId: "EMP-1", name: "Amit", branch: "Delhi" },
-      { employeeId: "EMP-2", name: "Zoya", branch: "Dehradun" },
+    expect(json.data.filter((p: any) => p.employeeId !== "EMP-9")).toEqual([
+      { employeeId: "EMP-1", name: "Amit", department: "Ops", branch: "Delhi" },
+      { employeeId: "EMP-2", name: "Zoya", department: "Sales", branch: "Dehradun" },
     ]);
     expect(JSON.stringify(json)).not.toMatch(/pan|salary|phone|email/i);
+  });
+
+  it("adds the caller when they have no employee record", async () => {
+    currentAuth = authFor("role-backend-team-1234", ["logins:view_all"]);
+    const json = await (await get()).json();
+    expect(json.data.map((p: any) => p.employeeId)).toEqual(["EMP-1", "EMP-9", "EMP-2"]);
+    expect(json.data.find((p: any) => p.employeeId === "EMP-9")).toMatchObject({ name: "Someone", branch: "Delhi" });
+  });
+
+  it("does not duplicate a caller who is an employee", async () => {
+    currentAuth = { ...authFor("role-backend-team-1234", ["logins:view_all"]), employeeId: "EMP-1" };
+    const json = await (await get()).json();
+    expect(json.data.filter((p: any) => p.employeeId === "EMP-1")).toHaveLength(1);
   });
 
   it("refuses plain employees and custom roles without the permission", async () => {

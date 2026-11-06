@@ -179,6 +179,11 @@ export default function EmployeesPage() {
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm group-hover:text-blue-600 transition-colors">
                     {emp.personal.fullName}
+                    {emp.isTemporary && (
+                      <span className="ml-1.5 align-middle text-[9px] font-bold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                        Temporary
+                      </span>
+                    )}
                   </h3>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[11px] font-mono text-blue-600 font-semibold">

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasPermission, getRolePermissions, getBranchScope, canRoleAccessSection, sanitizeGrantedPermissions } from "./permissions";
+import { hasPermission, getRolePermissions, getBranchScope, canRoleAccessSection, sanitizeGrantedPermissions, effectiveRoleGrants, defaultGrantsForRoleName } from "./permissions";
 
 describe("permissions (current behaviour)", () => {
   it("gives admin and hr every permission", () => {
@@ -74,5 +74,19 @@ describe("granted permissions on custom roles", () => {
   it("does not change what a bare role id gets", () => {
     expect(hasPermission(backend.role, "logins:view_all")).toBe(false);
     expect(getRolePermissions({ role: "employee", permissions: ["incentives:manage"] })).toContain("incentives:manage");
+  });
+});
+
+describe("default grants by role name", () => {
+  it("gives a never-configured Backend Team role its defaults, whatever the id or spelling", () => {
+    expect(effectiveRoleGrants({ name: "Backend Team" })).toEqual(["logins:view_all", "incentives:view_all", "incentives:manage"]);
+    expect(defaultGrantsForRoleName("  backend-team ")).toHaveLength(3);
+  });
+  it("lets an administrator override the defaults, including with nothing ticked", () => {
+    expect(effectiveRoleGrants({ name: "Backend Team", permissions: [] })).toEqual([]);
+    expect(effectiveRoleGrants({ name: "Backend Team", permissions: ["logins:view_all"] })).toEqual(["logins:view_all"]);
+  });
+  it("gives other roles nothing by default", () => {
+    expect(effectiveRoleGrants({ name: "Team Lead" })).toEqual([]);
   });
 });

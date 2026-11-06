@@ -139,6 +139,24 @@ export const GRANTABLE_PERMISSIONS: { permission: Permission; label: string; des
 
 const GRANTABLE_SET = new Set<string>(GRANTABLE_PERMISSIONS.map((g) => g.permission));
 
+/**
+ * Extra permissions a role gets until an administrator saves its permissions in Settings.
+ * Only roles named here have defaults; saving the role in Settings (even with nothing ticked) replaces them.
+ */
+const DEFAULT_GRANTS_BY_ROLE_NAME: Record<string, Permission[]> = {
+  backendteam: ["logins:view_all", "incentives:view_all", "incentives:manage"],
+};
+
+export function defaultGrantsForRoleName(name: string | undefined | null): Permission[] {
+  const key = (name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return DEFAULT_GRANTS_BY_ROLE_NAME[key] ?? [];
+}
+
+/** The permissions a role effectively carries: its saved list, or the defaults while it has never been saved. */
+export function effectiveRoleGrants(role: { name?: string; permissions?: unknown }): Permission[] {
+  return role.permissions === undefined ? defaultGrantsForRoleName(role.name) : sanitizeGrantedPermissions(role.permissions);
+}
+
 /** Keeps only permissions that may be granted to a custom role; drops anything else. */
 export function sanitizeGrantedPermissions(input: unknown): Permission[] {
   if (!Array.isArray(input)) return [];

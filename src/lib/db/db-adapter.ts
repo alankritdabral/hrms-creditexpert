@@ -19,7 +19,7 @@ import {
   SEED_USERS,
   SEED_USER_ACCOUNTS,
 } from "./seed-data";
-import { sanitizeGrantedPermissions, type Permission } from "../permissions";
+import { effectiveRoleGrants, sanitizeGrantedPermissions, type Permission } from "../permissions";
 import { PRESET_LENDER_BANKS, MAX_SAVED_BANKS, bankKey, cleanBankName, mergeBankLists } from "../lender-banks";
 import {
   Employee,
@@ -425,6 +425,87 @@ export async function createEmployee(
   });
 
   return newEmp;
+}
+
+/**
+ * Creates a temporary employee record under the account's own employee ID when that ID has no
+ * employee record yet, so entries made as that person hang on a real employee. It is marked
+ * `isTemporary` and given the "Candidate" status, which keeps it out of payroll and active headcount.
+ * Nothing is overwritten: an existing record, however it appeared, is left untouched.
+ * Returns the record that was created, or null when one already existed.
+ */
+export async function ensureTemporaryEmployee(
+  account: { employeeId: string; name: string; email?: string; branch: Branch; department?: string },
+  actor: { name: string; role: string }
+): Promise<Employee | null> {
+  const employeeId = (account.employeeId || "").trim();
+  if (!employeeId || employeeId.toUpperCase() === "PENDING") return null;
+  if (await loadEmployeeForUpdate(employeeId)) return null;
+
+  const now = new Date().toISOString();
+  const name = (account.name || employeeId).trim();
+  const email = account.email || "";
+  const branch = account.branch || "Delhi";
+  const emp: Employee = {
+    id: employeeId,
+    employeeId,
+    personal: {
+      employeeId,
+      firstName: name.split(" ")[0] || name,
+      lastName: name.split(" ").slice(1).join(" "),
+      fullName: name,
+      dob: "",
+      gender: "Other",
+      mobileNumber: "",
+      personalEmail: email,
+      workEmail: email,
+      address: "",
+      emergencyContact: { name: "", relationship: "", phone: "" },
+    },
+    employment: {
+      dateOfJoining: getISTDateString(),
+      department: account.department || "Unassigned",
+      designation: "Temporary (no employee record yet)",
+      branch,
+      workLocation: `${branch} Branch`,
+      employmentType: "Full-time",
+      employmentStatus: "Candidate",
+      probationMonths: 0,
+      employeeCategory: "Temporary",
+    },
+    statutory: { pan: "", aadhaar: "", uan: "", pfAccountNumber: "", bankAccountNumber: "", ifscCode: "", bankName: "" },
+    currentSalary: calculateSalaryFromMonthly({ monthlyAmount: 0, salaryBasis: "incentive_only", includePf: false }),
+    salaryHistory: [],
+    isTemporary: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  if (isFirestoreConfigured()) {
+    const created = await withTransaction(
+      async (tx, db) => {
+        const ref = db.collection("employees").doc(employeeId);
+        if ((await tx.get(ref)).exists) return false;
+        tx.create(ref, toFirestoreData(emp));
+        return true;
+      },
+      ["employees"]
+    );
+    if (!created) return null;
+  } else {
+    if (memory.employees.some((e) => e.employeeId.toLowerCase() === employeeId.toLowerCase())) return null;
+    memory.employees.unshift(emp);
+  }
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "EMPLOYEE_CREATED",
+    employeeId,
+    employeeName: name,
+    details: `Created temporary employee record for ${name} (${employeeId}): the login account had no employee record. Attach it to the real employee later.`,
+  });
+  return emp;
 }
 
 export interface UpdateEmployeeAvatarInput {
@@ -2346,7 +2427,7 @@ export async function getCustomRoleGrants(roleId: string | undefined | null): Pr
   if (!roleGrantsCache || Date.now() - roleGrantsCache.at > ROLE_GRANTS_TTL_MS) {
     const roles = await syncCustomRoles();
     const byRole = new Map<string, Permission[]>();
-    for (const r of roles) byRole.set(r.id.toLowerCase().trim(), sanitizeGrantedPermissions(r.permissions));
+    for (const r of roles) byRole.set(r.id.toLowerCase().trim(), effectiveRoleGrants(r));
     roleGrantsCache = { at: Date.now(), byRole };
   }
   return roleGrantsCache.byRole.get(id) ?? [];
@@ -2367,6 +2448,7 @@ export async function getCustomRoles(): Promise<CustomRole[]> {
       return {
         ...role,
         sections: Array.isArray(role.sections) ? role.sections : [],
+        permissions: effectiveRoleGrants(role),
         userCount: count,
       };
     });
@@ -2375,6 +2457,7 @@ export async function getCustomRoles(): Promise<CustomRole[]> {
     return memory.customRoles.map((role) => ({
       ...role,
       sections: Array.isArray(role.sections) ? role.sections : [],
+      permissions: effectiveRoleGrants(role),
       userCount: 0,
     }));
   }
