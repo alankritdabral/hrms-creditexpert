@@ -6,6 +6,8 @@ import { BRANCHES, type Branch, type LoginSheetEntry } from "@/lib/types";
  */
 
 export const LOGIN_SHEET_STATUSES = ["SENT", "LOGIN", "APPROVED", "DISBURSED", "REJECT"] as const;
+/** The File column: one choice per customer, the same for every bank the file went to. Blank is allowed. */
+export const LOGIN_SHEET_FILE_OPTIONS = ["BACKEND", "PENDING", "RE LOOK"] as const;
 export const LOGIN_SHEET_PRODUCTS = ["PL", "BL", "HL", "LAP", "CAR LOAN", "CC", "OD"] as const;
 
 /** The columns of the Excel sheet, in order. Used for the table header and the export. */

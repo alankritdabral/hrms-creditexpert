@@ -3,11 +3,14 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useParams } from "next/navigation";
 import { EmployeeProfile } from "@/components/employees/EmployeeProfile";
+import { AttachTemporaryBanner } from "@/components/employees/AttachTemporaryBanner";
+import { useAuth } from "@/lib/auth-context";
 import { Employee, AttendanceRecord, LeaveRequest, EmployeeIncentiveRecord, AssetRecord, EmployeeDocument } from "@/lib/types";
 
 function EmployeeDetailContent() {
   const params = useParams();
   const employeeId = params?.id as string;
+  const { hasPermission } = useAuth();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -79,15 +82,18 @@ function EmployeeDetailContent() {
   }
 
   return (
-    <EmployeeProfile
-      employee={employee}
-      attendance={attendance}
-      leaves={leaves}
-      incentives={incentives}
-      assets={assets}
-      documents={documents}
-      onRefresh={loadData}
-    />
+    <>
+      {employee.isTemporary && hasPermission("employees:manage") && <AttachTemporaryBanner employee={employee} />}
+      <EmployeeProfile
+        employee={employee}
+        attendance={attendance}
+        leaves={leaves}
+        incentives={incentives}
+        assets={assets}
+        documents={documents}
+        onRefresh={loadData}
+      />
+    </>
   );
 }
 

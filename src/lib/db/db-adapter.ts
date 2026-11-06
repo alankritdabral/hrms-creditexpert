@@ -427,26 +427,10 @@ export async function createEmployee(
   return newEmp;
 }
 
-/**
- * Creates a temporary employee record under the account's own employee ID when that ID has no
- * employee record yet, so entries made as that person hang on a real employee. It is marked
- * `isTemporary` and given the "Candidate" status, which keeps it out of payroll and active headcount.
- * Nothing is overwritten: an existing record, however it appeared, is left untouched.
- * Returns the record that was created, or null when one already existed.
- */
-export async function ensureTemporaryEmployee(
-  account: { employeeId: string; name: string; email?: string; branch: Branch; department?: string },
-  actor: { name: string; role: string }
-): Promise<Employee | null> {
-  const employeeId = (account.employeeId || "").trim();
-  if (!employeeId || employeeId.toUpperCase() === "PENDING") return null;
-  if (await loadEmployeeForUpdate(employeeId)) return null;
-
+/** The placeholder employee used for people who have no real employee record yet. Out of payroll via "Candidate". */
+function buildTemporaryEmployee(employeeId: string, name: string, email: string, branch: Branch, department?: string): Employee {
   const now = new Date().toISOString();
-  const name = (account.name || employeeId).trim();
-  const email = account.email || "";
-  const branch = account.branch || "Delhi";
-  const emp: Employee = {
+  return {
     id: employeeId,
     employeeId,
     personal: {
@@ -464,7 +448,7 @@ export async function ensureTemporaryEmployee(
     },
     employment: {
       dateOfJoining: getISTDateString(),
-      department: account.department || "Unassigned",
+      department: department || "Unassigned",
       designation: "Temporary (no employee record yet)",
       branch,
       workLocation: `${branch} Branch`,
@@ -480,6 +464,176 @@ export async function ensureTemporaryEmployee(
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * Adds a temporary employee for a person typed in by name (for example a Login Sheet row for someone who has no
+ * employee record). A temporary employee already saved under the same name is reused, so typing the same
+ * name twice never creates two people. A real (non-temporary) employee with that name is not reused: the picker is for those.
+ */
+export async function createTemporaryEmployeeByName(
+  name: string,
+  branch: Branch | undefined,
+  actor: { name: string; role: string }
+): Promise<Employee> {
+  const clean = name.trim().replace(/\s+/g, " ");
+  const existing = (await getEmployees()).find(
+    (e) => e.isTemporary && (e.personal?.fullName || "").trim().toLowerCase() === clean.toLowerCase()
+  );
+  if (existing) return existing;
+
+  const emp = await insertEmployeeWithNewId((employeeId) =>
+    buildTemporaryEmployee(employeeId, clean, "", branch || "Delhi")
+  );
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "EMPLOYEE_CREATED",
+    employeeId: emp.employeeId,
+    employeeName: clean,
+    details: `Created temporary employee ${clean} (${emp.employeeId}) from a typed name. Attach it to the real employee later.`,
+  });
+  return emp;
+}
+
+export interface AttachTemporaryResult {
+  target: Employee;
+  loginSheetRows: number;
+  loginRecords: number;
+  incentives: number;
+}
+
+/**
+ * Merges a temporary employee into a registered one: their Login Sheet rows, monthly login records and
+ * manual incentives move to the registered employee, and the temporary record is then removed.
+ * Refuses (ConflictError / ValidationError) when the source is not temporary, is a login account's own
+ * record, or has an incentive already paid in a payroll run.
+ */
+export async function attachTemporaryEmployee(
+  temporaryId: string,
+  targetId: string,
+  actor: { name: string; role: string }
+): Promise<AttachTemporaryResult> {
+  const temp = await loadEmployeeForUpdate(temporaryId);
+  if (!temp) throw new ValidationError("The temporary employee was not found.");
+  if (!temp.isTemporary) throw new ValidationError("Only a temporary employee can be attached to another employee.");
+  const target = await loadEmployeeForUpdate(targetId);
+  if (!target) throw new ValidationError("The employee to attach to was not found.");
+  if (target.isTemporary) throw new ValidationError("Choose a registered employee, not another temporary one.");
+  if (target.employeeId === temp.employeeId) throw new ValidationError("Choose a different employee.");
+  if (await getUserAccountByEmployeeId(temp.employeeId)) {
+    throw new ConflictError("This temporary record belongs to a login account, so it cannot be merged into another employee.");
+  }
+
+  const tempId = temp.employeeId;
+  const targetName = target.personal.fullName;
+  const byEmployee = <T extends { employeeId: string }>(rows: T[]) => rows.filter((r) => r.employeeId === tempId);
+  const query = async <T extends { employeeId: string }>(collection: string, memoryRows: T[]): Promise<T[]> =>
+    isFirestoreConfigured()
+      ? await queryCollectionFromFirestore<T>(collection, [{ field: "employeeId", op: "==", value: tempId }])
+      : byEmployee(memoryRows);
+
+  const incentives = await query<EmployeeIncentiveRecord>("incentives", memory.employeeIncentives);
+  if (incentives.some((i) => i.payrollRunId)) {
+    throw new ConflictError("This temporary employee has an incentive that was already paid in a payroll run, so it cannot be merged.");
+  }
+  const sheetRows = await query<LoginSheetEntry>(LOGIN_SHEET_COLLECTION, memory.loginSheet);
+  const loginRecords = await query<EmployeeLoginRecord>("employee_logins", memory.employeeLogins);
+
+  // 1. Login Sheet rows keep everything but their owner.
+  const now = new Date().toISOString();
+  for (const row of sheetRows) {
+    const moved: LoginSheetEntry = { ...row, employeeId: target.employeeId, empName: targetName, updatedAt: now, updatedBy: actor.name };
+    upsertMemory(memory.loginSheet, (e) => e.id === moved.id, moved);
+    await persist(LOGIN_SHEET_COLLECTION, moved.id, moved);
+  }
+  invalidateFirestoreCache(LOGIN_SHEET_COLLECTION);
+
+  // 2. Monthly login records: re-keyed to the target, or merged into the target's record for that month.
+  for (const rec of loginRecords) {
+    const newId = `login-${target.employeeId}-${rec.month}`;
+    const existing = await getEmployeeLoginById(newId);
+    let merged: EmployeeLoginRecord;
+    if (!existing) {
+      merged = {
+        ...rec,
+        id: newId,
+        employeeId: target.employeeId,
+        employeeName: targetName,
+        department: target.employment.department,
+        branch: target.employment.branch,
+        lastUpdatedAt: now,
+        updatedBy: actor.name,
+      };
+    } else {
+      const banks = [...(existing.banks || []), ...(rec.banks || [])];
+      const sum = (k: "totalDisbursal" | "axisBankDisbursal" | "otherBanksDisbursal") => Number(existing[k] || 0) + Number(rec[k] || 0);
+      const totals =
+        banks.length > 0
+          ? totalsFromBanks(banks)
+          : { banks, totalDisbursal: sum("totalDisbursal"), axisBankDisbursal: sum("axisBankDisbursal"), otherBanksDisbursal: sum("otherBanksDisbursal") };
+      merged = {
+        ...existing,
+        ...totals,
+        loginsCount: Number(existing.loginsCount || 0) + Number(rec.loginsCount || 0),
+        remarks: [existing.remarks, rec.remarks].filter(Boolean).join(" | "),
+        lastUpdatedAt: now,
+        updatedBy: actor.name,
+      };
+    }
+    upsertMemory(memory.employeeLogins, (l) => l.id === merged.id, merged);
+    await persist("employee_logins", merged.id, merged);
+    memory.employeeLogins = memory.employeeLogins.filter((l) => l.id !== rec.id || l.id === merged.id);
+    if (rec.id !== merged.id) await persistDelete("employee_logins", rec.id);
+  }
+
+  // 3. Incentives calculated from logins are dropped (recalculating gives the target's own figure);
+  //    hand-made ones move to the target.
+  for (const inc of incentives) {
+    if (inc.sourceLoginRecordId) {
+      memory.employeeIncentives = memory.employeeIncentives.filter((i) => i.id !== inc.id);
+      await persistDelete("incentives", inc.id);
+    } else {
+      const moved: EmployeeIncentiveRecord = { ...inc, employeeId: target.employeeId, employeeName: targetName };
+      upsertMemory(memory.employeeIncentives, (i) => i.id === moved.id, moved);
+      await persist("incentives", moved.id, moved);
+    }
+  }
+
+  // 4. The temporary record is no longer needed.
+  memory.employees = memory.employees.filter((e) => e.employeeId !== tempId);
+  await persistDelete("employees", temp.employeeId);
+  invalidateFirestoreCache("employees");
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "EMPLOYEE_UPDATED",
+    employeeId: target.employeeId,
+    employeeName: targetName,
+    details: `Attached temporary employee ${temp.personal.fullName} (${tempId}) to ${targetName} (${target.employeeId}): moved ${sheetRows.length} login sheet rows, ${loginRecords.length} monthly login records and ${incentives.filter((i) => !i.sourceLoginRecordId).length} incentives.`,
+  });
+
+  return { target, loginSheetRows: sheetRows.length, loginRecords: loginRecords.length, incentives: incentives.length };
+}
+
+/**
+ * Creates a temporary employee record under the account's own employee ID when that ID has no
+ * employee record yet, so entries made as that person hang on a real employee. It is marked
+ * `isTemporary` and given the "Candidate" status, which keeps it out of payroll and active headcount.
+ * Nothing is overwritten: an existing record, however it appeared, is left untouched.
+ * Returns the record that was created, or null when one already existed.
+ */
+export async function ensureTemporaryEmployee(
+  account: { employeeId: string; name: string; email?: string; branch: Branch; department?: string },
+  actor: { name: string; role: string }
+): Promise<Employee | null> {
+  const employeeId = (account.employeeId || "").trim();
+  if (!employeeId || employeeId.toUpperCase() === "PENDING") return null;
+  if (await loadEmployeeForUpdate(employeeId)) return null;
+
+  const name = (account.name || employeeId).trim();
+  const emp = buildTemporaryEmployee(employeeId, name, account.email || "", account.branch || "Delhi", account.department);
 
   if (isFirestoreConfigured()) {
     const created = await withTransaction(

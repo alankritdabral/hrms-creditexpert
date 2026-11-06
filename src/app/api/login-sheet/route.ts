@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getEmployees,
+  createTemporaryEmployeeByName,
   getLoginSheetEntries,
   getLoginSheetEntryById,
   createLoginSheetEntries,
@@ -32,8 +33,23 @@ type Owner = { employeeId: string; empName: string };
 
 async function resolveOwner(
   auth: AuthSuccess,
-  requestedEmployeeId: unknown
+  requestedEmployeeId: unknown,
+  newEmployeeName?: unknown,
+  branch?: LoginSheetInput["branch"]
 ): Promise<{ owner: Owner; error: null } | { owner: null; error: NextResponse }> {
+  // A name typed in by hand: becomes (or reuses) a temporary employee that can be attached to the real person later.
+  if (typeof newEmployeeName === "string" && newEmployeeName.trim()) {
+    if (!hasPermission(auth, "logins:view_all")) {
+      return { owner: null, error: fail("Forbidden: you can only add or change your own login sheet rows.", 403) };
+    }
+    const name = newEmployeeName.trim().replace(/\s+/g, " ");
+    if (name.length < 2 || name.length > 80) return { owner: null, error: fail("Employee name must be 2 to 80 characters.") };
+    const emp = await createTemporaryEmployeeByName(name, branch ?? auth.branch, {
+      name: auth.actor?.name || auth.session?.name || "User",
+      role: auth.actor?.role || auth.session?.role || auth.role || "employee",
+    });
+    return { owner: { employeeId: emp.employeeId, empName: emp.personal.fullName }, error: null };
+  }
   const own = { employeeId: auth.employeeId, empName: auth.actor?.name || auth.session?.name || auth.employeeId };
   if (typeof requestedEmployeeId !== "string" || !requestedEmployeeId || requestedEmployeeId === auth.employeeId) {
     // Entering as yourself with no employee record yet: a temporary one is created so the rows have an owner.
@@ -95,7 +111,7 @@ export async function POST(req: NextRequest) {
       inputs.push(r.value);
     }
 
-    const resolved = await resolveOwner(auth, body?.employeeId);
+    const resolved = await resolveOwner(auth, body?.employeeId, body?.newEmployeeName, inputs[0]?.branch);
     if (resolved.error) return resolved.error;
 
     const created = await createLoginSheetEntries(resolved.owner, inputs, actorOf(auth));
@@ -128,8 +144,9 @@ export async function PUT(req: NextRequest) {
 
     // Reassigning a row to another employee is limited to callers who can view everyone.
     let owner: { employeeId: string; empName: string } | null = null;
-    if (typeof body.employeeId === "string" && body.employeeId && body.employeeId !== existing.employeeId) {
-      const resolved = await resolveOwner(auth, body.employeeId);
+    const hasNewName = typeof body.newEmployeeName === "string" && body.newEmployeeName.trim() !== "";
+    if (hasNewName || (typeof body.employeeId === "string" && body.employeeId && body.employeeId !== existing.employeeId)) {
+      const resolved = await resolveOwner(auth, body.employeeId, body.newEmployeeName, r.value.branch);
       if (resolved.error) return resolved.error;
       owner = resolved.owner;
     }

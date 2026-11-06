@@ -82,7 +82,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <Suspense fallback={<header className="h-16 bg-white border-b border-slate-200" />}>
               <Header />
             </Suspense>
-            <main className="flex-1 p-3 sm:p-5 lg:p-8 max-w-7xl w-full mx-auto min-w-0 overflow-x-hidden">
+            <main
+              className={`flex-1 w-full mx-auto min-w-0 overflow-x-hidden ${
+                // The Login Sheet is a wide, Excel-like table: give it the full width so its columns fit without scrolling.
+                pathname.startsWith("/login-sheet") ? "p-3 sm:p-4 max-w-none" : "p-3 sm:p-5 lg:p-8 max-w-7xl"
+              }`}
+            >
               <Suspense
                 fallback={
                   <div className="py-12 text-center text-slate-500 text-xs font-mono">

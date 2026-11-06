@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { MAX_ENTRIES_PER_REQUEST, type LoginSheetInput } from "@/lib/login-sheet";
 import { duplicateKey, parseSheetRows, type ImportRow } from "@/lib/login-sheet-import";
 import { entriesToXlsx, xlsxToGrid } from "@/lib/login-sheet-excel";
+import { findSimilarEmployees, nameSimilarity } from "@/lib/name-match";
 import { downloadBlob, XLSX_MIME } from "@/lib/download";
 import type { LoginSheetEntry } from "@/lib/types";
 import type { SheetEmployee } from "@/components/login-sheet/EntryFormModal";
@@ -26,11 +27,26 @@ interface Props {
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 
+/** Choice for a name in the sheet that matches no employee: create a temporary one (the default) or use this employee. */
+const TEMP = "__temp__";
+
 interface PlannedRow {
   row: ImportRow;
   employeeId?: string;
+  /** Set when the name matches nobody and a temporary employee will be created for it. */
+  tempName?: string;
   problem?: string;
   duplicate?: boolean;
+}
+
+/** Who a batch of rows goes to: an employee ID, or a typed name that becomes a temporary employee. */
+const groupKey = (p: { employeeId?: string; tempName?: string }) => (p.employeeId ? `id:${p.employeeId}` : `tmp:${norm(p.tempName || "")}`);
+
+interface UnmatchedName {
+  key: string;
+  name: string;
+  rows: number;
+  similar: { employeeId: string; name: string }[];
 }
 
 export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees, existing, onImported }: Props) {
@@ -41,8 +57,11 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
   const [reading, setReading] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** What to do with each sheet name that matches no employee, by normalised name. */
+  const [choices, setChoices] = useState<Record<string, string>>({});
 
   const reset = () => {
+    setChoices({});
     setFileName("");
     setParsed(null);
     setFatal(null);
@@ -58,24 +77,50 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
 
   const plan: PlannedRow[] = useMemo(() => {
     if (!parsed) return [];
-    const byName = new Map(employees.map((e) => [norm(e.name), e.employeeId]));
+    // A name matches an employee when it is the same ignoring case, spacing, titles and word order.
+    const matchEmployee = (name: string) => employees.find((e) => norm(e.name) === norm(name) || nameSimilarity(e.name, name) === 1)?.employeeId;
     const seen = new Set(existing.map((e) => `${e.employeeId}|${duplicateKey(e)}`));
     return parsed.map((row) => {
       if (row.error || !row.input) return { row, problem: row.error };
       let employeeId = self.employeeId;
       if (canPickEmployee && row.empName) {
-        const match = byName.get(norm(row.empName));
-        if (!match) return { row, problem: `Employee "${row.empName}" was not found.` };
-        employeeId = match;
+        const match = matchEmployee(row.empName);
+        if (match) employeeId = match;
+        else {
+          const choice = choices[norm(row.empName)] ?? TEMP;
+          if (choice === TEMP) {
+            // Not an employee yet: a temporary one is created, to be attached to the real person later.
+            const tempKey = `tmp:${norm(row.empName)}|${duplicateKey(row.input)}`;
+            if (seen.has(tempKey)) return { row, tempName: row.empName, duplicate: true };
+            seen.add(tempKey);
+            return { row, tempName: row.empName };
+          }
+          employeeId = choice;
+        }
       }
       const key = `${employeeId}|${duplicateKey(row.input)}`;
       if (seen.has(key)) return { row, employeeId, duplicate: true };
       seen.add(key);
       return { row, employeeId };
     });
-  }, [parsed, employees, existing, self.employeeId, canPickEmployee]);
+  }, [parsed, employees, existing, self.employeeId, canPickEmployee, choices]);
 
-  const ready = plan.filter((p) => p.employeeId && !p.problem && !p.duplicate);
+  // Sheet names that match no employee, with the registered people they look like.
+  const unmatched: UnmatchedName[] = useMemo(() => {
+    if (!parsed || !canPickEmployee) return [];
+    const map = new Map<string, UnmatchedName>();
+    for (const row of parsed) {
+      if (row.error || !row.input || !row.empName) continue;
+      if (employees.some((e) => norm(e.name) === norm(row.empName) || nameSimilarity(e.name, row.empName) === 1)) continue;
+      const key = norm(row.empName);
+      const found = map.get(key);
+      if (found) found.rows += 1;
+      else map.set(key, { key, name: row.empName, rows: 1, similar: findSimilarEmployees(row.empName, employees).map((m) => m.employee) });
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [parsed, canPickEmployee, employees]);
+
+  const ready = plan.filter((p) => (p.employeeId || p.tempName) && !p.problem && !p.duplicate);
   const problems = plan.filter((p) => p.problem);
   const duplicates = plan.filter((p) => p.duplicate);
   const renamed = !canPickEmployee && parsed ? parsed.filter((r) => r.empName && norm(r.empName) !== norm(self.name)).length : 0;
@@ -111,27 +156,31 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
   const runImport = async () => {
     setError(null);
     // One request per employee, in chunks the server accepts.
-    const groups = new Map<string, LoginSheetInput[]>();
+    const groups = new Map<string, { employeeId?: string; tempName?: string; rows: LoginSheetInput[] }>();
     for (const p of ready) {
-      const list = groups.get(p.employeeId!) ?? [];
-      list.push(p.row.input!);
-      groups.set(p.employeeId!, list);
+      const k = groupKey(p);
+      const g = groups.get(k) ?? { employeeId: p.employeeId, tempName: p.tempName, rows: [] };
+      g.rows.push(p.row.input!);
+      groups.set(k, g);
     }
     const total = ready.length;
     let done = 0;
     const dates: string[] = [];
     setProgress({ done, total });
     try {
-      for (const [employeeId, rows] of groups) {
-        for (let i = 0; i < rows.length; i += MAX_ENTRIES_PER_REQUEST) {
-          const chunk = rows.slice(i, i + MAX_ENTRIES_PER_REQUEST);
+      for (const group of groups.values()) {
+        // For a temporary employee the first request creates it; later requests reuse the ID it returns.
+        let employeeId = group.employeeId;
+        for (let i = 0; i < group.rows.length; i += MAX_ENTRIES_PER_REQUEST) {
+          const chunk = group.rows.slice(i, i + MAX_ENTRIES_PER_REQUEST);
           const res = await fetch("/api/login-sheet", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ employeeId, entries: chunk }),
+            body: JSON.stringify(employeeId ? { employeeId, entries: chunk } : { newEmployeeName: group.tempName, entries: chunk }),
           });
           const json = await res.json();
           if (!json.success) throw new Error(json.error || "The server rejected some rows.");
+          if (!employeeId && json.data?.[0]?.employeeId) employeeId = json.data[0].employeeId;
           done += chunk.length;
           dates.push(...chunk.map((c) => c.date));
           setProgress({ done, total });
@@ -208,6 +257,57 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
             {renamed > 0 && (
               <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5">
                 {renamed} {renamed === 1 ? "row names" : "rows name"} a different employee. All rows are added under your name ({self.name}).
+              </div>
+            )}
+
+            {unmatched.length > 0 && (
+              <div className="rounded-xl border border-amber-200 overflow-hidden">
+                <div className="px-3 py-2 bg-amber-50 text-xs text-amber-900">
+                  <span className="font-bold">{unmatched.length} {unmatched.length === 1 ? "name is" : "names are"} not in the employee list.</span>{" "}
+                  They are added as temporary employees you can attach to the registered person later, or choose an existing employee here.
+                </div>
+                <ul className="max-h-48 overflow-y-auto divide-y divide-amber-100 text-xs">
+                  {unmatched.map((u) => (
+                    <li key={u.key} className="px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-slate-800 truncate">{u.name}</div>
+                        <div className="text-[11px] text-slate-500">
+                          {u.rows} {u.rows === 1 ? "row" : "rows"}
+                          {u.similar.length > 0 && (
+                            <span className="text-amber-700 font-medium">
+                              {" "}
+                              · looks like {u.similar.map((m) => `${m.name} (${m.employeeId})`).join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <select
+                        className="text-xs rounded-lg border border-slate-200 bg-white px-2 py-1.5 max-w-[16rem] text-slate-900"
+                        value={choices[u.key] ?? TEMP}
+                        onChange={(e) => setChoices((c) => ({ ...c, [u.key]: e.target.value }))}
+                        aria-label={`What to do with ${u.name}`}
+                      >
+                        <option value={TEMP}>Create temporary employee</option>
+                        {u.similar.length > 0 && (
+                          <optgroup label="Looks like">
+                            {u.similar.map((m) => (
+                              <option key={`s-${m.employeeId}`} value={m.employeeId}>
+                                Attach to {m.name} ({m.employeeId})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="Attach to another employee">
+                          {employees.map((e) => (
+                            <option key={e.employeeId} value={e.employeeId}>
+                              {e.name} ({e.employeeId})
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

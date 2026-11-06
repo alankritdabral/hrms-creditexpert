@@ -10,7 +10,9 @@ vi.mock("@/lib/api-auth", async (importOriginal) => {
 const create = vi.fn(async (owner: any, inputs: any[]) => inputs.map((i, n) => ({ ...i, id: `ls-${n}`, employeeId: owner.employeeId, empName: owner.empName })));
 const update = vi.fn(async (id: string, input: any, owner: any) => ({ ...input, id, employeeId: owner?.employeeId ?? "EMP-OLD", empName: owner?.empName ?? "Old" }));
 const ensureTemp = vi.fn(async (..._args: unknown[]) => null as unknown);
+const byName = vi.fn(async (name: string, _branch: unknown, _actor: unknown) => ({ employeeId: "EMP-TEMP-1", personal: { fullName: name } }));
 vi.mock("@/lib/db/db-adapter", () => ({
+  createTemporaryEmployeeByName: (...a: unknown[]) => byName(...(a as [string, unknown, unknown])),
   ensureTemporaryEmployee: (...a: unknown[]) => ensureTemp(...a),
   getEmployees: vi.fn(async () => [
     { employeeId: "EMP-DEHRADUN", personal: { fullName: "Zoya" }, employment: { branch: "Dehradun" } },
@@ -42,6 +44,7 @@ beforeEach(() => {
   create.mockClear();
   update.mockClear();
   ensureTemp.mockClear();
+  byName.mockClear();
 });
 
 describe("Login Sheet: custom role with logins:view_all", () => {
@@ -67,6 +70,33 @@ describe("Login Sheet: custom role with logins:view_all", () => {
     ensureTemp.mockClear();
     await sheet.POST(req("POST", { employeeId: "EMP-DEHRADUN", entries: [row] }));
     expect(ensureTemp).not.toHaveBeenCalled();
+  });
+
+  it("can type a new name, which becomes a temporary employee that owns the rows", async () => {
+    currentAuth = authFor(["logins:view_all"]);
+    const res = await sheet.POST(req("POST", { newEmployeeName: "  Ravi   Kumar ", entries: [{ ...row, branch: "Dehradun" }] }));
+    expect(res.status).toBe(200);
+    expect(byName).toHaveBeenCalledWith("Ravi Kumar", "Dehradun", expect.objectContaining({ name: "Backend User" }));
+    expect(create.mock.calls[0][0]).toEqual({ employeeId: "EMP-TEMP-1", empName: "Ravi Kumar" });
+  });
+
+  it("can reassign an existing row to a newly typed name", async () => {
+    currentAuth = authFor(["logins:view_all"]);
+    const res = await sheet.PUT(req("PUT", { id: "ls-1", employeeId: "", newEmployeeName: "Ravi Kumar", ...row }));
+    expect(res.status).toBe(200);
+    expect(update.mock.calls[0][2]).toEqual({ employeeId: "EMP-TEMP-1", empName: "Ravi Kumar" });
+  });
+
+  it("rejects a typed name that is too short", async () => {
+    currentAuth = authFor(["logins:view_all"]);
+    expect((await sheet.POST(req("POST", { newEmployeeName: "A", entries: [row] }))).status).toBe(400);
+    expect(byName).not.toHaveBeenCalled();
+  });
+
+  it("refuses a typed name without logins:view_all", async () => {
+    currentAuth = authFor([]);
+    expect((await sheet.POST(req("POST", { newEmployeeName: "Ravi Kumar", entries: [row] }))).status).toBe(403);
+    expect(byName).not.toHaveBeenCalled();
   });
 
   it("cannot do either without the permission", async () => {

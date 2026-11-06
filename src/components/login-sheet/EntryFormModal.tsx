@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { BRANCHES, type LoginSheetEntry } from "@/lib/types";
-import { LOGIN_SHEET_PRODUCTS, LOGIN_SHEET_STATUSES, MAX_ENTRIES_PER_REQUEST } from "@/lib/login-sheet";
+import { LOGIN_SHEET_FILE_OPTIONS, LOGIN_SHEET_PRODUCTS, LOGIN_SHEET_STATUSES, MAX_ENTRIES_PER_REQUEST } from "@/lib/login-sheet";
 import { getISTDateString } from "@/lib/attendance/ist-time";
+import { findSimilarEmployees } from "@/lib/name-match";
 
 export interface SheetEmployee {
   employeeId: string;
@@ -19,7 +20,6 @@ interface Line {
   bankName: string;
   dsaName: string;
   loginId: string;
-  file: string;
   status: string;
   remarks: string;
   insuranceDetails: string;
@@ -37,6 +37,8 @@ interface Shared {
   product: string;
   branch: string;
   amount: string;
+  /** One File value for the whole customer, so it is the same for every bank line. */
+  file: string;
 }
 
 /** What the form submits: one payload per row (new rows carry no id). */
@@ -53,8 +55,11 @@ interface Props {
   self: SheetEmployee;
   bankOptions: string[];
   dsaOptions: string[];
-  onSubmit: (rows: EntryPayload[], employeeId: string, editingId: string | null) => Promise<string | null>;
+  /** `newEmployeeName` is set when a name was typed in instead of picking an employee (a temporary employee is created). */
+  onSubmit: (rows: EntryPayload[], employeeId: string, editingId: string | null, newEmployeeName?: string) => Promise<string | null>;
 }
+
+const NEW_EMPLOYEE = "__new__";
 
 const inputCls =
   "w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
@@ -77,7 +82,6 @@ const newLine = (over: Partial<Line> = {}): Line => ({
   bankName: "",
   dsaName: "",
   loginId: "",
-  file: "",
   status: "SENT",
   remarks: "",
   insuranceDetails: "",
@@ -97,6 +101,7 @@ function blankShared(self: SheetEmployee): Shared {
     product: "PL",
     branch: self.branch || "",
     amount: "",
+    file: "",
   };
 }
 
@@ -105,11 +110,18 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
   const [lines, setLines] = useState<Line[]>([newLine()]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [newName, setNewName] = useState("");
+  const addingNew = shared.employeeId === NEW_EMPLOYEE;
+  const similarToNew = useMemo(
+    () => (addingNew && newName.trim().length >= 3 ? findSimilarEmployees(newName, employees) : []),
+    [addingNew, newName, employees]
+  );
 
   // Reset the form each time it is opened (blank for a new entry, filled for an edit).
   useEffect(() => {
     if (!isOpen) return;
     setError(null);
+    setNewName("");
     if (editing) {
       setShared({
         customerName: editing.customerName,
@@ -122,13 +134,13 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
         product: editing.product || "",
         branch: editing.branch || "",
         amount: String(editing.amount ?? ""),
+        file: editing.file || "",
       });
       setLines([
         newLine({
           bankName: editing.bankName,
           dsaName: editing.dsaName || "",
           loginId: editing.loginId || "",
-          file: editing.file || "",
           status: editing.status,
           remarks: editing.remarks || "",
           insuranceDetails: editing.insuranceDetails || "",
@@ -147,6 +159,10 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   const pickEmployee = (employeeId: string) => {
+    if (employeeId === NEW_EMPLOYEE) {
+      setShared((p) => ({ ...p, employeeId }));
+      return;
+    }
     const emp = employees.find((e) => e.employeeId === employeeId);
     setShared((p) => ({ ...p, employeeId, branch: emp?.branch || p.branch }));
   };
@@ -155,6 +171,10 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (addingNew && newName.trim().length < 2) {
+      setError("Type the employee's name (at least 2 characters).");
+      return;
+    }
     setSaving(true);
     setError(null);
     const rows: EntryPayload[] = lines.map((l) => ({
@@ -170,13 +190,13 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
       bankName: l.bankName,
       dsaName: l.dsaName,
       loginId: l.loginId,
-      file: l.file,
+      file: shared.file,
       status: l.status,
       remarks: l.remarks,
       insuranceDetails: l.insuranceDetails,
       amount2: l.amount2,
     }));
-    const err = await onSubmit(rows, shared.employeeId, editing?.id ?? null);
+    const err = await onSubmit(rows, addingNew ? "" : shared.employeeId, editing?.id ?? null, addingNew ? newName.trim() : undefined);
     setSaving(false);
     if (err) setError(err);
   };
@@ -234,9 +254,41 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
                       {emp.name} ({emp.employeeId})
                     </option>
                   ))}
+                  <option value={NEW_EMPLOYEE}>+ Type a new name (temporary employee)</option>
                 </select>
               ) : (
                 <input className={`${inputCls} bg-slate-50 text-slate-600`} readOnly value={editing?.empName || empName} />
+              )}
+              {canPickEmployee && addingNew && (
+                <div className="mt-1.5">
+                  <input
+                    className={inputCls}
+                    autoFocus
+                    required
+                    maxLength={80}
+                    placeholder="Employee name"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                  />
+                  {similarToNew.length > 0 && (
+                    <p className="mt-1 text-[11px] text-amber-700">
+                      Already registered?{" "}
+                      {similarToNew.map((m) => (
+                        <button
+                          key={m.employee.employeeId}
+                          type="button"
+                          className="font-semibold underline underline-offset-2 mr-2 cursor-pointer"
+                          onClick={() => pickEmployee(m.employee.employeeId)}
+                        >
+                          Use {m.employee.name} ({m.employee.employeeId})
+                        </button>
+                      ))}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Saved as a temporary employee. Attach it to the real person once they register.
+                  </p>
+                </div>
               )}
             </div>
             <div>
@@ -255,6 +307,20 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
                 {BRANCHES.map((b) => (
                   <option key={b} value={b}>
                     {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>File</label>
+              <select className={inputCls} value={shared.file} onChange={(e) => setS("file", e.target.value)}>
+                <option value="">(Blank)</option>
+                {shared.file && !(LOGIN_SHEET_FILE_OPTIONS as readonly string[]).includes(shared.file) && (
+                  <option value={shared.file}>{shared.file}</option>
+                )}
+                {LOGIN_SHEET_FILE_OPTIONS.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
                   </option>
                 ))}
               </select>
@@ -311,10 +377,6 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
                 <div>
                   <label className={labelCls}>Login ID</label>
                   <input className={`${inputCls} uppercase font-mono`} value={l.loginId} onChange={(e) => setLine(l.key, { loginId: e.target.value })} />
-                </div>
-                <div>
-                  <label className={labelCls}>File</label>
-                  <input className={`${inputCls} uppercase`} value={l.file} onChange={(e) => setLine(l.key, { file: e.target.value })} />
                 </div>
                 <div>
                   <label className={labelCls}>Status *</label>

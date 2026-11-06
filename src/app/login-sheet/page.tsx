@@ -54,6 +54,30 @@ const filterCls = (active: boolean) =>
     active ? "border-blue-300 bg-blue-50/60 text-blue-900 font-semibold" : "border-slate-200 bg-slate-50/50 text-slate-700"
   }`;
 
+/** Relative width of each column (about pixels at a 1440px-wide screen); the table scales them to fill the page width. */
+const COLUMN_WIDTHS: Record<(typeof LOGIN_SHEET_COLUMNS)[number], number> = {
+  "Customer Name": 72,
+  "PAN No.": 66,
+  Number: 64,
+  Location: 48,
+  Date: 66,
+  "Emp Name": 70,
+  "Bank Name": 52,
+  "DSA Name": 46,
+  "Login ID": 56,
+  Product: 48,
+  Branch: 50,
+  File: 48,
+  Amount: 62,
+  Time: 38,
+  Status: 78,
+  "Remarks 1": 58,
+  "Insurance Details": 56,
+  "Amount 2": 62,
+};
+const NUM_COL = 22;
+const ACTIONS_COL = 52;
+
 export default function LoginSheetPage() {
   const { currentUser, hasPermission } = useAuth();
   const canViewAll = hasPermission("logins:view_all");
@@ -111,7 +135,7 @@ export default function LoginSheetPage() {
   }, [loadEntries]);
 
   // People the user may enter rows for: everyone (name list only) with logins:view_all, only themselves otherwise.
-  useEffect(() => {
+  const loadDirectory = useCallback(() => {
     if (!canViewAll) return;
     fetch("/api/employee-directory")
       .then((r) => r.json())
@@ -126,6 +150,9 @@ export default function LoginSheetPage() {
       })
       .catch(() => {});
   }, [canViewAll]);
+  useEffect(() => {
+    loadDirectory();
+  }, [loadDirectory]);
 
   const self: SheetEmployee = useMemo(
     () => ({ employeeId: currentUser.employeeId, name: currentUser.name, branch: currentUser.branch }),
@@ -170,6 +197,9 @@ export default function LoginSheetPage() {
   );
   const bankSuggestions = useMemo(() => mergeBankLists(savedBanks, options.banks), [savedBanks, options.banks]);
 
+  const columnTotal = NUM_COL + (canManage ? ACTIONS_COL : 0) + LOGIN_SHEET_COLUMNS.reduce((n, c) => n + COLUMN_WIDTHS[c], 0);
+  const pct = (w: number) => `${((w / columnTotal) * 100).toFixed(3)}%`;
+
   const canEdit = (row: LoginSheetEntry) => canManage && (canViewAll || row.employeeId === currentUser.employeeId);
 
   const openAdd = () => {
@@ -182,12 +212,19 @@ export default function LoginSheetPage() {
   };
 
   /** Returns an error message to show in the form, or null when everything was saved. */
-  const handleSubmit = async (rows: EntryPayload[], employeeId: string, editingId: string | null): Promise<string | null> => {
+  const handleSubmit = async (
+    rows: EntryPayload[],
+    employeeId: string,
+    editingId: string | null,
+    newEmployeeName?: string
+  ): Promise<string | null> => {
     try {
       const res = await fetch("/api/login-sheet", {
         method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingId ? { id: editingId, employeeId, ...rows[0] } : { employeeId, entries: rows }),
+        body: JSON.stringify(
+          editingId ? { id: editingId, employeeId, newEmployeeName, ...rows[0] } : { employeeId, newEmployeeName, entries: rows }
+        ),
       });
       const json = await res.json();
       if (!json.success) return json.error || "Could not save. Please try again.";
@@ -199,6 +236,7 @@ export default function LoginSheetPage() {
       const widened = lo !== dateFrom || hi !== dateTo;
       setFormOpen(false);
       setEditing(null);
+      if (newEmployeeName) loadDirectory(); // the new temporary employee joins the picker
       refreshBanks(); // a new bank name typed here is remembered by the server
       setNotice(editingId ? "Row updated." : `${rows.length} ${rows.length === 1 ? "row" : "rows"} added.`);
       if (widened) setFilters((p) => ({ ...p, dateFrom: lo, dateTo: hi }));
@@ -423,17 +461,26 @@ export default function LoginSheetPage() {
           {!rangeValid && <div className="text-xs text-rose-600">Choose a valid date range (From must not be after To).</div>}
         </div>
 
-        <div className="overflow-auto max-h-[70vh]">
-          <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-[1800px]">
+        {/* Fixed layout: the 18 columns share the page width (long text wraps) instead of scrolling sideways.
+            Only very narrow screens fall back to a minimum width and scroll. */}
+        <div className="overflow-x-auto overflow-y-auto max-h-[70vh]">
+          <table className="w-full table-fixed text-left text-[11px] leading-snug border-separate border-spacing-0 min-w-[1040px]">
+            <colgroup>
+              <col style={{ width: pct(NUM_COL) }} />
+              {LOGIN_SHEET_COLUMNS.map((c) => (
+                <col key={c} style={{ width: pct(COLUMN_WIDTHS[c]) }} />
+              ))}
+              {canManage && <col style={{ width: pct(ACTIONS_COL) }} />}
+            </colgroup>
             <thead>
-              <tr className="text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
-                <th className="sticky top-0 z-10 bg-slate-100 border-b border-r border-slate-200 py-3 px-3 text-center w-12">#</th>
+              <tr className="text-slate-600 font-semibold uppercase text-[9px] leading-tight">
+                <th className="sticky top-0 z-10 bg-slate-100 border-b border-r border-slate-200 py-2 px-1 text-center">#</th>
                 {LOGIN_SHEET_COLUMNS.map((c) => (
-                  <th key={c} className="sticky top-0 z-10 bg-slate-100 border-b border-r border-slate-200 py-3 px-3 whitespace-nowrap">
+                  <th key={c} className="sticky top-0 z-10 bg-slate-100 border-b border-r border-slate-200 py-2 px-1 [overflow-wrap:normal]">
                     {c}
                   </th>
                 ))}
-                {canManage && <th className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 py-3 px-3 text-right">Actions</th>}
+                {canManage && <th className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 py-2 px-1 text-right"><span className="sr-only">Actions</span></th>}
               </tr>
             </thead>
             <tbody>
@@ -478,32 +525,34 @@ export default function LoginSheetPage() {
                 </tr>
               ) : (
                 pageRows.map((r, i) => {
-                  const cell = "border-b border-r border-slate-100 py-2 px-3 whitespace-nowrap";
+                  const cell = "border-b border-r border-slate-100 py-1.5 px-1 align-top break-words";
+                  const nowrap = "whitespace-nowrap";
                   const editable = canEdit(r);
                   return (
                     <tr key={r.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className={`${cell} text-center text-slate-400 bg-slate-50/60 font-mono`}>{(safePage - 1) * PAGE_SIZE + i + 1}</td>
+                      <td className={`${cell} px-1 text-center text-slate-400 bg-slate-50/60 font-mono`}>{(safePage - 1) * PAGE_SIZE + i + 1}</td>
                       <td className={`${cell} font-semibold text-slate-900`}>{r.customerName}</td>
-                      <td className={`${cell} font-mono text-slate-700`}>{r.panNo}</td>
-                      <td className={`${cell} font-mono text-slate-700`}>{r.phone}</td>
+                      <td className={`${cell} ${nowrap} font-mono text-[10px] text-slate-700`}>{r.panNo}</td>
+                      <td className={`${cell} ${nowrap} font-mono text-[10px] text-slate-700`}>{r.phone}</td>
                       <td className={cell}>{r.location}</td>
-                      <td className={`${cell} font-mono`}>{formatDate(r.date)}</td>
+                      <td className={`${cell} ${nowrap} font-mono text-[10px]`}>{formatDate(r.date)}</td>
                       <td className={cell}>{r.empName}</td>
                       <td className={`${cell} font-medium`}>{r.bankName}</td>
                       <td className={cell}>{r.dsaName}</td>
-                      <td className={`${cell} font-mono`}>{r.loginId}</td>
+                      <td className={`${cell} font-mono break-all`}>{r.loginId}</td>
                       <td className={cell}>{r.product}</td>
                       <td className={cell}>{r.branch}</td>
                       <td className={cell}>{r.file}</td>
-                      <td className={`${cell} text-right font-mono`}>{money(r.amount)}</td>
-                      <td className={`${cell} font-mono`}>{r.time}</td>
+                      <td className={`${cell} ${nowrap} text-right font-mono text-[10px]`}>{money(r.amount)}</td>
+                      <td className={`${cell} ${nowrap} font-mono text-[10px]`}>{r.time}</td>
                       <td className={cell}>
                         {editable ? (
                           <select
                             value={r.status}
                             onChange={(e) => changeStatus(r, e.target.value)}
                             aria-label={`Status for ${r.customerName} at ${r.bankName}`}
-                            className={`rounded-full border px-2 py-0.5 text-[11px] font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${statusStyle(r.status)}`}
+                            title="Change status"
+                            className={`w-full max-w-full appearance-none text-center rounded-full border px-1 py-0.5 text-[10px] font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${statusStyle(r.status)}`}
                           >
                             {!(LOGIN_SHEET_STATUSES as readonly string[]).includes(r.status) && <option value={r.status}>{r.status}</option>}
                             {LOGIN_SHEET_STATUSES.map((s) => (
@@ -513,22 +562,22 @@ export default function LoginSheetPage() {
                             ))}
                           </select>
                         ) : (
-                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${statusStyle(r.status)}`}>{r.status}</span>
+                          <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusStyle(r.status)}`}>{r.status}</span>
                         )}
                       </td>
-                      <td className={`${cell} max-w-[16rem] truncate text-slate-600`} title={r.remarks}>
+                      <td className={`${cell} text-slate-600`} title={r.remarks}>
                         {r.remarks}
                       </td>
                       <td className={`${cell} text-slate-600`}>{r.insuranceDetails}</td>
-                      <td className={`${cell} text-right font-mono`}>{money(r.amount2)}</td>
+                      <td className={`${cell} ${nowrap} text-right font-mono text-[10px]`}>{money(r.amount2)}</td>
                       {canManage && (
-                        <td className="border-b border-slate-100 py-2 px-3 text-right whitespace-nowrap">
+                        <td className="border-b border-slate-100 py-1.5 px-1 text-right align-top">
                           {editable && (
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-end gap-0.5">
                               <button
                                 type="button"
                                 onClick={() => openEdit(r)}
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                className="p-1 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                                 title="Edit row"
                                 aria-label={`Edit ${r.customerName} at ${r.bankName}`}
                               >
@@ -537,7 +586,7 @@ export default function LoginSheetPage() {
                               <button
                                 type="button"
                                 onClick={() => deleteRow(r)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                 title="Delete row"
                                 aria-label={`Delete ${r.customerName} at ${r.bankName}`}
                               >
