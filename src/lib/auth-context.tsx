@@ -264,7 +264,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const canAccessSection = useCallback(
     (sectionId: string): boolean => {
       if (currentUser.role === "admin") return true;
-      if (currentUser.allowedSections && currentUser.allowedSections.length > 0) {
+      // The server always sends an explicit list; an empty list means "no sections",
+      // not "fall back to the permissive default".
+      if (currentUser.allowedSections) {
         return currentUser.allowedSections.includes(sectionId);
       }
       return canRoleAccessSection(currentUser.role, sectionId, currentUser.allowedSections);

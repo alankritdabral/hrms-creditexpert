@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { EmployeeLoginRecord, BankDisbursalBreakdown, CustomerDisbursalEntry, Employee } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +25,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getISTDateString, getISTMonthString } from "@/lib/attendance/ist-time";
+import {
+  EMPTY_LOGIN_FILTERS,
+  activeFilterCount,
+  distinct,
+  filterLogins,
+  type LoginFilters,
+} from "@/lib/logins-filter";
 
 const PRESET_BANKS = [
   "Axis Bank",
@@ -44,7 +51,9 @@ export default function LoginsPage() {
   const [logins, setLogins] = useState<EmployeeLoginRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(getISTMonthString());
-  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<LoginFilters>(EMPTY_LOGIN_FILTERS);
+  const setFilter = <K extends keyof LoginFilters>(key: K, value: LoginFilters[K]) =>
+    setFilters((prev) => ({ ...prev, [key]: value }));
   const [isLoading, setIsLoading] = useState(true);
 
   // Bank Disbursal Modal State
@@ -474,23 +483,21 @@ export default function LoginsPage() {
     }
   };
 
-  // Calculate Metrics
-  const totalCommitment = logins.reduce((acc, curr) => acc + (curr.commitment || 0), 0);
-  const totalLoginCommitment = logins.reduce((acc, curr) => acc + (curr.loginCommitment || 0), 0);
-  const totalDisbursal = logins.reduce((acc, curr) => acc + (curr.totalDisbursal || 0), 0);
-  const totalAxisDisbursal = logins.reduce((acc, curr) => acc + (curr.axisBankDisbursal || 0), 0);
-  const totalLoginsCount = logins.reduce((acc, curr) => acc + (curr.loginsCount || 0), 0);
-  const achievementPct = totalCommitment > 0 ? Math.round((totalDisbursal / totalCommitment) * 100) : 0;
+  // Filtered list; the summary cards below follow the filters, so they always match the table.
+  const filteredLogins = useMemo(() => filterLogins(logins, filters), [logins, filters]);
+  const filterCount = activeFilterCount(filters);
+  const hasAnyFilter = filterCount > 0 || filters.search.trim() !== "";
+  const branchOptions = useMemo(() => distinct(logins.map((l) => l.branch)), [logins]);
+  const departmentOptions = useMemo(() => distinct(logins.map((l) => l.department)), [logins]);
+  const bankOptions = useMemo(() => distinct(logins.flatMap((l) => (l.banks || []).map((b) => b.bankName))), [logins]);
 
-  const filteredLogins = logins.filter((l) => {
-    const q = search.toLowerCase();
-    return (
-      l.employeeName.toLowerCase().includes(q) ||
-      l.employeeId.toLowerCase().includes(q) ||
-      (l.department && l.department.toLowerCase().includes(q)) ||
-      (l.remarks && l.remarks.toLowerCase().includes(q))
-    );
-  });
+  // Calculate Metrics
+  const totalCommitment = filteredLogins.reduce((acc, curr) => acc + (curr.commitment || 0), 0);
+  const totalLoginCommitment = filteredLogins.reduce((acc, curr) => acc + (curr.loginCommitment || 0), 0);
+  const totalDisbursal = filteredLogins.reduce((acc, curr) => acc + (curr.totalDisbursal || 0), 0);
+  const totalAxisDisbursal = filteredLogins.reduce((acc, curr) => acc + (curr.axisBankDisbursal || 0), 0);
+  const totalLoginsCount = filteredLogins.reduce((acc, curr) => acc + (curr.loginsCount || 0), 0);
+  const achievementPct = totalCommitment > 0 ? Math.round((totalDisbursal / totalCommitment) * 100) : 0;
 
   // Calculate modal preview totals
   const modalTotalDisbursal = modalBanks.reduce((sum, b) => {
@@ -608,7 +615,7 @@ export default function LoginsPage() {
               {totalLoginsCount} Files
             </div>
             <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center justify-between gap-1">
-              <span>Across {logins.length} active employees</span>
+              <span>Across {filteredLogins.length} {hasAnyFilter ? "matching" : "active"} employees</span>
               {totalLoginCommitment > 0 && (
                 <span className="text-blue-600 font-semibold">
                   Target: {totalLoginCommitment} files ({Math.round((totalLoginsCount / totalLoginCommitment) * 100)}%)
@@ -644,29 +651,115 @@ export default function LoginsPage() {
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         {/* Table Filter Bar */}
-        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search employee, ID, branch..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/50"
-            />
+        <div className="p-5 border-b border-slate-100 space-y-3">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search employee, ID, branch, remarks..."
+                value={filters.search}
+                onChange={(e) => setFilter("search", e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/50"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              <span>Showing {filteredLogins.length} of {logins.length} records</span>
+              {canManage && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={openAddLoginModal}
+                  icon={<Plus className="w-3.5 h-3.5" />}
+                >
+                  Add Login Entry
+                </Button>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span>Showing {filteredLogins.length} of {logins.length} records</span>
-            {canManage && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={openAddLoginModal}
-                icon={<Plus className="w-3.5 h-3.5" />}
+          <div className="flex flex-wrap items-end gap-2.5">
+            {[
+              {
+                label: "Branch",
+                value: filters.branch,
+                onChange: (v: string) => setFilter("branch", v),
+                options: branchOptions.map((o) => ({ value: o, label: o })),
+                any: "All branches",
+              },
+              {
+                label: "Department",
+                value: filters.department,
+                onChange: (v: string) => setFilter("department", v),
+                options: departmentOptions.map((o) => ({ value: o, label: o })),
+                any: "All departments",
+              },
+              {
+                label: "Bank",
+                value: filters.bank,
+                onChange: (v: string) => setFilter("bank", v),
+                options: bankOptions.map((o) => ({ value: o, label: o })),
+                any: "All banks",
+              },
+              {
+                label: "Customer status",
+                value: filters.customerStatus,
+                onChange: (v: string) => setFilter("customerStatus", v as LoginFilters["customerStatus"]),
+                options: ["Disbursed", "Sanctioned", "In Process", "Rejected"].map((o) => ({ value: o, label: o })),
+                any: "Any status",
+              },
+              {
+                label: "Disbursal vs commitment",
+                value: filters.achievement,
+                onChange: (v: string) => setFilter("achievement", v as LoginFilters["achievement"]),
+                options: [
+                  { value: "met", label: "Target met (100%+)" },
+                  { value: "progress", label: "In progress (below 100%)" },
+                  { value: "none", label: "No disbursal yet" },
+                ],
+                any: "All",
+                anyValue: "all",
+              },
+              {
+                label: "Logins target",
+                value: filters.loginsTarget,
+                onChange: (v: string) => setFilter("loginsTarget", v as LoginFilters["loginsTarget"]),
+                options: [
+                  { value: "met", label: "Target met" },
+                  { value: "below", label: "Below target" },
+                ],
+                any: "All",
+                anyValue: "all",
+              },
+            ].map((f) => (
+              <label key={f.label} className="flex flex-col gap-1 min-w-[9.5rem] flex-1 sm:flex-none">
+                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{f.label}</span>
+                <select
+                  value={f.value || (f.anyValue ?? "")}
+                  onChange={(e) => f.onChange(e.target.value)}
+                  className={`w-full py-1.5 px-2.5 text-xs rounded-xl border focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
+                    f.value && f.value !== "all" ? "border-blue-300 bg-blue-50/60 text-blue-900 font-semibold" : "border-slate-200 bg-slate-50/50 text-slate-700"
+                  }`}
+                >
+                  <option value={f.anyValue ?? ""}>{f.any}</option>
+                  {f.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+
+            {hasAnyFilter && (
+              <button
+                type="button"
+                onClick={() => setFilters(EMPTY_LOGIN_FILTERS)}
+                className="py-1.5 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded-xl border border-blue-200 transition-colors cursor-pointer"
               >
-                Add Login Entry
-              </Button>
+                Clear filters{filterCount > 0 ? ` (${filterCount})` : ""}
+              </button>
             )}
           </div>
         </div>
@@ -701,8 +794,12 @@ export default function LoginsPage() {
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400">
                     <div className="space-y-3">
-                      <div>No login records found for this month.</div>
-                      {canManage && (
+                      <div>{hasAnyFilter && logins.length > 0 ? "No records match these filters." : "No login records found for this month."}</div>
+                      {hasAnyFilter && logins.length > 0 ? (
+                        <Button size="sm" variant="outline" onClick={() => setFilters(EMPTY_LOGIN_FILTERS)}>
+                          Clear filters
+                        </Button>
+                      ) : canManage && (
                         <Button
                           size="sm"
                           onClick={openAddLoginModal}

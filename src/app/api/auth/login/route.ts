@@ -6,6 +6,7 @@ import { verifyPassword, hashPassword, isHashedPassword } from "@/lib/password";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { toPublicSession } from "@/lib/api-auth";
 import { updateUserAccount } from "@/lib/db/db-adapter";
+import { resolveAllowedSections } from "@/lib/allowed-sections";
 
 export async function POST(req: NextRequest) {
   try {
@@ -91,6 +92,8 @@ export async function POST(req: NextRequest) {
     const branchScope = getBranchScope(userAccount.role, userAccount.branch);
     const permissions = getRolePermissions(userAccount.role);
 
+    const allowedSections = await resolveAllowedSections(userAccount.role);
+
     const userPayload = {
       id: userAccount.uid,
       employeeId: userAccount.employeeId,
@@ -100,6 +103,7 @@ export async function POST(req: NextRequest) {
       branch: userAccount.branch,
       department: userAccount.department,
       avatar: userAccount.avatar,
+      allowedSections,
     };
 
     const response = NextResponse.json({

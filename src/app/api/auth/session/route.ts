@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest, authFailureResponse, toPublicSession } from "@/lib/api-auth";
 import { getRolePermissions } from "@/lib/permissions";
-import { getUserAccountById, getCustomRoles } from "@/lib/db/db-adapter";
-import { APP_SECTIONS, DEFAULT_ROLES } from "@/lib/types";
+import { getUserAccountById } from "@/lib/db/db-adapter";
+import { resolveAllowedSections } from "@/lib/allowed-sections";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -23,15 +23,7 @@ export async function GET(req: NextRequest) {
   }
 
   const userAccount = await getUserAccountById(auth.session.userId);
-  const roles = await getCustomRoles();
-  const effectiveRole = (userAccount?.role || auth.session.role || "employee").toLowerCase();
-  const matchedRole = roles.find((r) => r.id.toLowerCase() === effectiveRole);
-  const allowedSections =
-    effectiveRole === "admin"
-      ? APP_SECTIONS.map((s) => s.id)
-      : matchedRole
-      ? matchedRole.sections
-      : DEFAULT_ROLES.find((r) => r.id === "employee")?.sections || [];
+  const allowedSections = await resolveAllowedSections(userAccount?.role || auth.session.role);
 
   const userPayload = userAccount
     ? {
