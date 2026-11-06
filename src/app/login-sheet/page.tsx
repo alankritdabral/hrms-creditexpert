@@ -110,16 +110,16 @@ export default function LoginSheetPage() {
     loadEntries();
   }, [loadEntries]);
 
-  // People the user may enter rows for: everyone for admin/HR, only themselves otherwise.
+  // People the user may enter rows for: everyone (name list only) with logins:view_all, only themselves otherwise.
   useEffect(() => {
     if (!canViewAll) return;
-    fetch("/api/employees")
+    fetch("/api/employee-directory")
       .then((r) => r.json())
       .then((json) => {
         if (json.success && Array.isArray(json.data)) {
           setEmployees(
             json.data
-              .map((e: any) => ({ employeeId: e.employeeId, name: e.personal?.fullName || e.employeeId, branch: e.employment?.branch }))
+              .map((e: any) => ({ employeeId: e.employeeId, name: e.name || e.employeeId, branch: e.branch }))
               .sort((a: SheetEmployee, b: SheetEmployee) => a.name.localeCompare(b.name))
           );
         }
