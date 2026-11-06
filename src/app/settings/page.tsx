@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { addMinutesToTime } from "@/lib/attendance/ist-time";
 import {
   AttendancePolicy,
+  TimingSlotId,
+  TimingProfile,
   OfficeLocation,
   Branch,
   BRANCHES,
@@ -97,15 +100,21 @@ export default function SettingsPage() {
   const [roleFormDesc, setRoleFormDesc] = useState("");
   const [roleFormColor, setRoleFormColor] = useState("indigo");
   const [roleFormSections, setRoleFormSections] = useState<string[]>([]);
+  const [roleFormTiming, setRoleFormTiming] = useState<TimingSlotId>("timing2");
   const [isSavingRole, setIsSavingRole] = useState(false);
 
   // Policy Form State
   const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
-  const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("19:00");
-  const [gracePeriod, setGracePeriod] = useState(15);
+  // Timing 1 (early) has automatic half-day rules; Timing 2 (standard) only gets Late marks.
+  const [t1Start, setT1Start] = useState("09:30");
+  const [t1Grace, setT1Grace] = useState(15);
+  const [t1Allowance, setT1Allowance] = useState(2);
+  const [t1HardCutoff, setT1HardCutoff] = useState("10:00");
+  const [t2Start, setT2Start] = useState("10:00");
+  const [t2Grace, setT2Grace] = useState(15);
   const [fullDayHours, setFullDayHours] = useState(8);
   const [halfDayHours, setHalfDayHours] = useState(4);
 
@@ -129,6 +138,13 @@ export default function SettingsPage() {
   const [firestoreSyncResult, setFirestoreSyncResult] = useState<string | null>(null);
 
   const canEdit = ["admin", "hr"].includes(currentUser.role);
+
+  const rolesOnSlot = (slot: TimingSlotId) => {
+    const names = customRoles
+      .filter((r) => (r.timingSlot === "timing1" ? "timing1" : "timing2") === slot)
+      .map((r) => r.name);
+    return names.length ? names.join(", ") : "No roles";
+  };
 
   // Load Roles & Users
   const loadRoles = async () => {
@@ -246,9 +262,20 @@ export default function SettingsPage() {
         const data = await res.json();
         if (data.success && data.data) {
           setPolicy(data.data);
-          setStartTime(data.data.officeStartTime);
           setEndTime(data.data.officeEndTime);
-          setGracePeriod(data.data.gracePeriodMinutes);
+          const profiles: TimingProfile[] = data.data.timingProfiles || [];
+          const p1 = profiles.find((p) => p.id === "timing1");
+          const p2 = profiles.find((p) => p.id === "timing2");
+          if (p1) {
+            setT1Start(p1.startTime);
+            setT1Grace(p1.graceMinutes);
+            setT1Allowance(p1.halfDayRules?.weeklyLateAllowance ?? 2);
+            setT1HardCutoff(p1.halfDayRules?.hardCutoffTime ?? "");
+          }
+          if (p2) {
+            setT2Start(p2.startTime);
+            setT2Grace(p2.graceMinutes);
+          }
           setFullDayHours(data.data.fullDayMinHours);
           setHalfDayHours(data.data.halfDayMinHours);
         }
@@ -271,9 +298,20 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           updates: {
-            officeStartTime: startTime,
             officeEndTime: endTime,
-            gracePeriodMinutes: Number(gracePeriod),
+            timingProfiles: [
+              {
+                id: "timing1",
+                label: "Timing 1",
+                startTime: t1Start,
+                graceMinutes: Number(t1Grace),
+                halfDayRules: {
+                  weeklyLateAllowance: Number(t1Allowance),
+                  ...(t1HardCutoff ? { hardCutoffTime: t1HardCutoff } : {}),
+                },
+              },
+              { id: "timing2", label: "Timing 2", startTime: t2Start, graceMinutes: Number(t2Grace) },
+            ],
             fullDayMinHours: Number(fullDayHours),
             halfDayMinHours: Number(halfDayHours),
           },
@@ -285,6 +323,8 @@ export default function SettingsPage() {
         setPolicy(data.data);
         setStatusMessage("Attendance policy successfully updated!");
         setTimeout(() => setStatusMessage(""), 4000);
+      } else {
+        alert(data.error || "Failed to update policy");
       }
     } catch (e) {
       console.error(e);
@@ -369,6 +409,7 @@ export default function SettingsPage() {
     setRoleFormDesc("");
     setRoleFormColor("indigo");
     setRoleFormSections(["dashboard", "profile"]);
+    setRoleFormTiming("timing2");
     setIsRoleModalOpen(true);
   };
 
@@ -379,6 +420,7 @@ export default function SettingsPage() {
     setRoleFormDesc(role.description);
     setRoleFormColor(role.color || "indigo");
     setRoleFormSections(role.sections || []);
+    setRoleFormTiming(role.timingSlot === "timing1" ? "timing1" : "timing2");
     setIsRoleModalOpen(true);
   };
 
@@ -421,6 +463,7 @@ export default function SettingsPage() {
           description: roleFormDesc.trim(),
           color: roleFormColor,
           sections: roleFormSections,
+          timingSlot: roleFormTiming,
         }),
       });
       const data = await res.json();
@@ -664,6 +707,9 @@ export default function SettingsPage() {
                               className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${colorMeta.badge}`}
                             >
                               {role.isSystem ? "System" : "Custom"}
+                            </span>
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border bg-white border-slate-200 text-slate-600">
+                              {role.timingSlot === "timing1" ? "Timing 1" : "Timing 2"}
                             </span>
                           </div>
                           <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
@@ -994,6 +1040,23 @@ export default function SettingsPage() {
                     className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
                   />
                 </div>
+
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">Attendance Timing</label>
+                  <select
+                    value={roleFormTiming}
+                    onChange={(e) => setRoleFormTiming(e.target.value as TimingSlotId)}
+                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
+                  >
+                    <option value="timing1">
+                      Timing 1 · starts {t1Start}, late after {addMinutesToTime(t1Start, Number(t1Grace))}, automatic half days
+                    </option>
+                    <option value="timing2">
+                      Timing 2 · starts {t2Start}, late after {addMinutesToTime(t2Start, Number(t2Grace))}
+                    </option>
+                  </select>
+                  <p className="text-[10px] text-slate-500">Everyone in this role follows this timing.</p>
+                </div>
               </div>
 
               {/* Section Access Permissions */}
@@ -1125,48 +1188,107 @@ export default function SettingsPage() {
             </div>
 
             <form onSubmit={handleSavePolicy} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Office Start Timing (HH:MM)
-                  </label>
-                  <input
-                    type="text"
-                    disabled={!canEdit}
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
-                  />
+              {/* Timing slots: each role is assigned to one of these in the Roles tab */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-xs font-bold text-white">Timing 1 · automatic half days</h4>
+                    <span className="text-[10px] text-indigo-300 text-right">{rolesOnSlot("timing1")}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Office Start (HH:MM)</label>
+                      <input
+                        type="time"
+                        disabled={!canEdit}
+                        value={t1Start}
+                        onChange={(e) => setT1Start(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Grace Period (Minutes)</label>
+                      <input
+                        type="number"
+                        disabled={!canEdit}
+                        value={t1Grace}
+                        onChange={(e) => setT1Grace(Number(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                      />
+                      <span className="text-[10px] text-slate-500 mt-1 block">
+                        Late after {addMinutesToTime(t1Start, Number(t1Grace))}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Late Arrivals Allowed / Week</label>
+                      <input
+                        type="number"
+                        disabled={!canEdit}
+                        value={t1Allowance}
+                        onChange={(e) => setT1Allowance(Number(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                      />
+                      <span className="text-[10px] text-slate-500 mt-1 block">The next late arrival is a half day</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Always Half Day After (HH:MM)</label>
+                      <input
+                        type="time"
+                        disabled={!canEdit}
+                        value={t1HardCutoff}
+                        onChange={(e) => setT1HardCutoff(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                      />
+                      <span className="text-[10px] text-slate-500 mt-1 block">Leave empty to turn this off</span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Office End Timing (HH:MM)
-                  </label>
-                  <input
-                    type="text"
-                    disabled={!canEdit}
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
-                  />
+
+                <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-xs font-bold text-white">Timing 2 · standard</h4>
+                    <span className="text-[10px] text-slate-400 text-right">{rolesOnSlot("timing2")}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Office Start (HH:MM)</label>
+                      <input
+                        type="time"
+                        disabled={!canEdit}
+                        value={t2Start}
+                        onChange={(e) => setT2Start(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Grace Period (Minutes)</label>
+                      <input
+                        type="number"
+                        disabled={!canEdit}
+                        value={t2Grace}
+                        onChange={(e) => setT2Grace(Number(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                      />
+                      <span className="text-[10px] text-slate-500 mt-1 block">
+                        Late after {addMinutesToTime(t2Start, Number(t2Grace))}, no automatic half day
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Grace Period (Minutes)
+                    Office End Timing (HH:MM)
                   </label>
                   <input
-                    type="number"
+                    type="time"
                     disabled={!canEdit}
-                    value={gracePeriod}
-                    onChange={(e) => setGracePeriod(Number(e.target.value))}
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
                   />
-                  <span className="text-[10px] text-slate-500 mt-1 block">
-                    Late marked after {startTime} + {gracePeriod} mins
-                  </span>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">
@@ -1192,7 +1314,7 @@ export default function SettingsPage() {
                     onChange={(e) => setHalfDayHours(Number(e.target.value))}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
                   />
-                  <span className="text-[10px] text-slate-500 mt-1 block">Under 4 hours flagged as half day</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">Not used: half days come from arrival time</span>
                 </div>
               </div>
 

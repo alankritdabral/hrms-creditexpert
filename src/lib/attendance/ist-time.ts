@@ -154,3 +154,22 @@ export function evaluateLateArrivalIST(
 
   return punchMinutes > cutoffMinutes;
 }
+
+/**
+ * Monday-Saturday week containing the given "YYYY-MM-DD" date (Sunday is the weekly off, so a
+ * Sunday belongs to the week that just ended). Pure calendar arithmetic, no time zone involved.
+ */
+export function weekBoundsIST(dateStr: string): { start: string; end: string } {
+  const dow = new Date(`${dateStr}T00:00:00Z`).getUTCDay(); // 0 = Sunday
+  const sinceMonday = dow === 0 ? 6 : dow - 1;
+  const start = addDaysIST(dateStr, -sinceMonday);
+  return { start, end: addDaysIST(start, 5) };
+}
+
+/** "HH:mm" plus minutes, as "HH:mm" (clamped to the same day). Returns "--:--" if the time is not valid "HH:mm". */
+export function addMinutesToTime(time: string, minutes: number): string {
+  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec((time || "").trim());
+  if (!match || !Number.isFinite(minutes)) return "--:--";
+  const total = Math.min(23 * 60 + 59, Number(match[1]) * 60 + Number(match[2]) + minutes);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}

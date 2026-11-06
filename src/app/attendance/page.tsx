@@ -29,7 +29,8 @@ import {
 } from "@/lib/attendance/client-geolocation";
 import { AttendanceDashboard } from "@/components/attendance/AttendanceDashboard";
 import { LocationHelpModal } from "@/components/attendance/LocationHelpModal";
-import { formatISTTime12, getISTDateString, lateCutoffLabel } from "@/lib/attendance/ist-time";
+import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
+import { TimingProfile } from "@/lib/types";
 import { useIsLocalhost } from "@/lib/use-is-localhost";
 
 export default function AttendancePage() {
@@ -37,6 +38,11 @@ export default function AttendancePage() {
   const isLocalhost = useIsLocalhost();
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [policy, setPolicy] = useState<AttendancePolicy | null>(null);
+  const [myTiming, setMyTiming] = useState<{
+    profile: TimingProfile;
+    lateAfter: string;
+    lateCountThisWeek: number;
+  } | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => getISTDateString());
   const [isLoading, setIsLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
@@ -57,9 +63,7 @@ export default function AttendancePage() {
 
   // Policy Modal State
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
-  const [policyStartTime, setPolicyStartTime] = useState("10:00");
   const [policyEndTime, setPolicyEndTime] = useState("19:00");
-  const [policyGrace, setPolicyGrace] = useState(15);
   const [policyMinHours, setPolicyMinHours] = useState(8);
   const [isSavingPolicy, setIsSavingPolicy] = useState(false);
 
@@ -75,9 +79,8 @@ export default function AttendancePage() {
       if (attRes.success) setAttendance(attRes.data);
       if (polRes.success) {
         setPolicy(polRes.data);
-        setPolicyStartTime(polRes.data.officeStartTime);
+        setMyTiming(polRes.myTiming || null);
         setPolicyEndTime(polRes.data.officeEndTime);
-        setPolicyGrace(polRes.data.gracePeriodMinutes);
         setPolicyMinHours(polRes.data.fullDayMinHours);
       }
     } catch (e) {
@@ -198,9 +201,7 @@ export default function AttendancePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           updates: {
-            officeStartTime: policyStartTime,
             officeEndTime: policyEndTime,
-            gracePeriodMinutes: Number(policyGrace),
             fullDayMinHours: Number(policyMinHours),
           },
           actor: { name: currentUser.name, role: currentUser.role },
@@ -404,17 +405,34 @@ export default function AttendancePage() {
 
           <div className="space-y-2 text-xs">
             <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Office Timings</span>
+              <span className="text-slate-400">Your Timing</span>
               <span className="font-semibold text-white">
-                {policy?.officeStartTime || "10:00"} AM – {policy?.officeEndTime || "19:00"} PM
+                {myTiming ? `${myTiming.profile.label} · ${formatISTTime12(myTiming.profile.startTime)} – ${formatISTTime12(policy?.officeEndTime || "19:00")}` : "—"}
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-slate-800">
-              <span className="text-slate-400">Grace Period</span>
+              <span className="text-slate-400">Late After</span>
               <span className="font-semibold text-amber-400">
-                {policy?.gracePeriodMinutes ?? 15} minutes (Late after {lateCutoffLabel(policy?.officeStartTime, policy?.gracePeriodMinutes)})
+                {myTiming ? `${formatISTTime12(myTiming.lateAfter)} (${myTiming.profile.graceMinutes} min grace)` : "—"}
               </span>
             </div>
+            {myTiming?.profile.halfDayRules && (
+              <>
+                <div className="flex justify-between py-1 border-b border-slate-800">
+                  <span className="text-slate-400">Late This Week</span>
+                  <span className={`font-semibold ${myTiming.lateCountThisWeek >= myTiming.profile.halfDayRules.weeklyLateAllowance ? "text-rose-400" : "text-slate-200"}`}>
+                    {myTiming.lateCountThisWeek} of {myTiming.profile.halfDayRules.weeklyLateAllowance} allowed
+                  </span>
+                </div>
+                <div className="py-1 border-b border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                  Late arrivals beyond {myTiming.profile.halfDayRules.weeklyLateAllowance} in a Mon–Sat week are marked Half Day
+                  {myTiming.profile.halfDayRules.hardCutoffTime
+                    ? `, and any arrival after ${formatISTTime12(myTiming.profile.halfDayRules.hardCutoffTime)} is always a Half Day`
+                    : ""}
+                  . A Half Day deducts half a day of pay.
+                </div>
+              </>
+            )}
             <div className="flex justify-between py-1 border-b border-slate-800">
               <span className="text-slate-400">Full Day Minimum</span>
               <span className="font-semibold text-slate-200">
@@ -422,8 +440,10 @@ export default function AttendancePage() {
               </span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-slate-400">Half Day Threshold</span>
-              <span className="font-semibold text-slate-200">Less than 4 hours</span>
+              <span className="text-slate-400">Half Day</span>
+              <span className="font-semibold text-slate-200">
+                {myTiming?.profile.halfDayRules ? "Automatic, from arrival time" : "Set by HR only"}
+              </span>
             </div>
           </div>
         </div>
@@ -641,23 +661,11 @@ export default function AttendancePage() {
         isOpen={isPolicyModalOpen}
         onClose={() => setIsPolicyModalOpen(false)}
         title="Attendance Policy Configuration"
-        subtitle="Configure company office timings, grace period thresholds, and full day rules without code changes."
+        subtitle="Office end time and full-day hours. Timing 1 / Timing 2 (start, grace, half-day rules) are set in Settings, and each role is assigned a timing there."
         maxWidth="md"
       >
         <form onSubmit={handleSavePolicy} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Office Start Time
-              </label>
-              <input
-                type="text"
-                value={policyStartTime}
-                onChange={(e) => setPolicyStartTime(e.target.value)}
-                placeholder="10:00"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
-              />
-            </div>
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">
                 Office End Time
@@ -667,20 +675,6 @@ export default function AttendancePage() {
                 value={policyEndTime}
                 onChange={(e) => setPolicyEndTime(e.target.value)}
                 placeholder="19:00"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Grace Period (Minutes)
-              </label>
-              <input
-                type="number"
-                value={policyGrace}
-                onChange={(e) => setPolicyGrace(Number(e.target.value))}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
               />
             </div>

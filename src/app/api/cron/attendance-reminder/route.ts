@@ -5,15 +5,18 @@ import {
   getCustomRoles,
   getHolidays,
   getLeaveRequests,
+  getPolicy,
 } from "@/lib/db/db-adapter";
-import { sendAttendanceReminderEmail } from "@/lib/email";
+import { sendAttendanceReminderEmail, type AttendanceRuleReminder } from "@/lib/email";
 import { getISTDateString } from "@/lib/attendance/ist-time";
+import { lateAfterOf, resolveTimingProfile } from "@/lib/attendance/late-policy";
 
 export const maxDuration = 60;
 
 /**
  * Vercel Cron (see vercel.json): 04:15 UTC = 09:45 IST, Mon–Sat.
- * Emails active users with the "Employee" or "Backend Team" role who haven't marked attendance today.
+ * Emails only people whose role is on Timing 1 (roles are assigned a timing in Settings) who haven't
+ * marked attendance today. The email carries the Timing 1 half-day rule.
  */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -28,12 +31,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: "Sunday" });
     }
 
-    const [accounts, roles, holidays, records, leaves] = await Promise.all([
+    const [accounts, roles, holidays, records, leaves, policy] = await Promise.all([
       getPersistedUserAccounts(),
       getCustomRoles(),
       getHolidays(),
       getAttendanceRecords({ date: today }),
       getLeaveRequests(),
+      getPolicy(),
     ]);
 
     // People on approved leave today are not reminded
@@ -43,9 +47,6 @@ export async function GET(req: NextRequest) {
         .map((l) => l.employeeId.toLowerCase())
     );
 
-    const backendRoleIds = new Set(
-      roles.filter((r) => (r.name || "").trim().toLowerCase() === "backend team").map((r) => r.id)
-    );
     const holidayBranches = new Set(
       holidays.filter((h) => h.date === today).map((h) => h.branch)
     );
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
       (u) =>
         u.status === "Active" &&
         u.email &&
-        (u.role === "employee" || backendRoleIds.has(u.role)) &&
+        resolveTimingProfile(u.role, roles, policy).id === "timing1" &&
         !marked.has(u.employeeId.toLowerCase()) &&
         !onLeave.has(u.employeeId.toLowerCase()) &&
         !allHoliday &&
@@ -70,7 +71,15 @@ export async function GET(req: NextRequest) {
     let failed = 0;
     for (const u of targets) {
       try {
-        const ok = await sendAttendanceReminderEmail(u.email, u.name, today);
+        const profile = resolveTimingProfile(u.role, roles, policy);
+        const rule: AttendanceRuleReminder | undefined = profile.halfDayRules
+          ? {
+              lateAfter: lateAfterOf(profile),
+              weeklyLateAllowance: profile.halfDayRules.weeklyLateAllowance,
+              hardCutoffTime: profile.halfDayRules.hardCutoffTime,
+            }
+          : undefined;
+        const ok = await sendAttendanceReminderEmail(u.email, u.name, today, rule);
         ok ? sent++ : failed++;
       } catch {
         failed++;

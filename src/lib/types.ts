@@ -36,6 +36,8 @@ export interface CustomRole {
   isSystem: boolean;
   color: string;
   sections: string[];
+  /** Attendance timing slot for everyone in this role. Missing means Timing 2 (the standard timing). */
+  timingSlot?: TimingSlotId;
   createdAt: string;
   updatedAt?: string;
   userCount?: number;
@@ -370,6 +372,24 @@ export interface AttendanceRecord {
   checkInOfficeName?: string;
 }
 
+export type TimingSlotId = "timing1" | "timing2";
+
+/** Rules that turn late arrivals into automatic half days. A profile without them only gets Late marks. */
+export interface HalfDayRules {
+  /** Late arrivals allowed per Monday-Saturday week; the next one (and every one after) is a Half Day. */
+  weeklyLateAllowance: number;
+  /** An arrival after this time ("HH:mm") is always a Half Day. */
+  hardCutoffTime?: string;
+}
+
+export interface TimingProfile {
+  id: TimingSlotId;
+  label: string;
+  startTime: string; // "09:30"
+  graceMinutes: number; // 15 -> late after 09:45
+  halfDayRules?: HalfDayRules;
+}
+
 export interface AttendancePolicy {
   id: string;
   department: string;
@@ -379,6 +399,8 @@ export interface AttendancePolicy {
   fullDayMinHours: number; // 8
   halfDayMinHours: number; // 4
   standardBreakHours: number; // 1
+  /** The two timing slots roles can be assigned to. Absent on old policies; defaults are derived. */
+  timingProfiles?: TimingProfile[];
 }
 
 export interface LeaveRecordSummary {
@@ -516,8 +538,15 @@ export interface PayrollItemSnapshot {
   // Deductions
   employeePf: number;
   professionalTax: number;
+  /** Total attendance-related loss: absentDays + 0.5 x halfDayCount. */
   lopDays: number;
+  /** Total attendance-related deduction: absentAmount + halfDayAmount. */
   lopAmount: number;
+  // Breakdown of the above; absent on payroll runs saved before half-day deductions existed.
+  absentDays?: number;
+  absentAmount?: number;
+  halfDayCount?: number;
+  halfDayAmount?: number;
   otherDeductions: number;
   totalDeductions: number;
   // Net

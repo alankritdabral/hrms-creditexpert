@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/lib/auth-context";
-import { numberToIndianCurrencyWords, nextPayrollStatus } from "@/lib/payroll-engine";
+import { numberToIndianCurrencyWords, nextPayrollStatus, attendanceImpact, runAttendanceImpact } from "@/lib/payroll-engine";
+import { AttendanceImpactSummary } from "@/components/payroll/AttendanceImpactSummary";
 import {
   CircleDollarSign,
   Play,
@@ -329,7 +330,7 @@ export default function PayrollPage() {
             </div>
 
             <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-              <table className="w-full text-left text-xs min-w-[760px]">
+              <table className="w-full text-left text-xs min-w-[860px]">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400">
                     <th className="pb-3 font-medium">Employee</th>
@@ -339,7 +340,8 @@ export default function PayrollPage() {
                     <th className="pb-3 font-medium">OT / Bonus</th>
                     <th className="pb-3 font-medium">PF</th>
                     <th className="pb-3 font-medium">PT</th>
-                    <th className="pb-3 font-medium">LOP</th>
+                    <th className="pb-3 font-medium">Absent</th>
+                    <th className="pb-3 font-medium">Half day</th>
                     <th className="pb-3 font-medium font-bold text-white">Net Pay</th>
                     <th className="pb-3 font-medium text-right">Payslip</th>
                   </tr>
@@ -364,7 +366,14 @@ export default function PayrollPage() {
                       <td className="py-3 text-rose-400">-₹{item.employeePf}</td>
                       <td className="py-3 text-rose-400">-₹{item.professionalTax}</td>
                       <td className="py-3 text-rose-400">
-                        {item.lopAmount > 0 ? `-₹${item.lopAmount} (${item.lopDays}d)` : "₹0"}
+                        {attendanceImpact(item).absentAmount > 0
+                          ? `-₹${attendanceImpact(item).absentAmount} (${attendanceImpact(item).absentDays}d)`
+                          : "₹0"}
+                      </td>
+                      <td className="py-3 text-rose-400">
+                        {attendanceImpact(item).halfDayAmount > 0
+                          ? `-₹${attendanceImpact(item).halfDayAmount} (${attendanceImpact(item).halfDayCount}×½d)`
+                          : "₹0"}
                       </td>
                       <td className="py-3 font-bold text-emerald-400 font-mono text-sm">
                         ₹{item.netSalary.toLocaleString("en-IN")}
@@ -385,6 +394,12 @@ export default function PayrollPage() {
                 </tbody>
               </table>
             </div>
+
+            <AttendanceImpactSummary
+              impact={runAttendanceImpact(selectedRun.items)}
+              tone="dark"
+              title={`Pay affected by attendance, all ${selectedRun.items.length} employees`}
+            />
           </div>
         </>
       )}
@@ -577,10 +592,16 @@ export default function PayrollPage() {
                   <span className="text-slate-400">Professional Tax (PT)</span>
                   <span className="font-mono text-rose-400">-₹{activePayslipItem.professionalTax}</span>
                 </div>
-                {activePayslipItem.lopAmount > 0 && (
+                {attendanceImpact(activePayslipItem).absentAmount > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Loss of Pay (LOP)</span>
-                    <span className="font-mono text-rose-400">-₹{activePayslipItem.lopAmount}</span>
+                    <span className="text-slate-400">Absent ({attendanceImpact(activePayslipItem).absentDays} days)</span>
+                    <span className="font-mono text-rose-400">-₹{attendanceImpact(activePayslipItem).absentAmount}</span>
+                  </div>
+                )}
+                {attendanceImpact(activePayslipItem).halfDayAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Half day ({attendanceImpact(activePayslipItem).halfDayCount} × 0.5 day)</span>
+                    <span className="font-mono text-rose-400">-₹{attendanceImpact(activePayslipItem).halfDayAmount}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
@@ -595,6 +616,8 @@ export default function PayrollPage() {
                 </div>
               </div>
             </div>
+
+            <AttendanceImpactSummary impact={attendanceImpact(activePayslipItem)} tone="dark" />
 
             {/* Net Salary in Words */}
             <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

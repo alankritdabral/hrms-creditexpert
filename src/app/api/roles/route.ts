@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Create or Update Custom Role
-    const { name, sections, id, description, color } = body;
+    const { name, sections, id, description, color, timingSlot } = body;
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
         { success: false, error: "Role name is required" },
@@ -121,6 +121,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (timingSlot !== undefined && timingSlot !== "timing1" && timingSlot !== "timing2") {
+      return NextResponse.json(
+        { success: false, error: "timingSlot must be timing1 or timing2" },
+        { status: 400 }
+      );
+    }
+
     const saved = await saveCustomRole(
       {
         id,
@@ -128,6 +135,7 @@ export async function POST(req: NextRequest) {
         description,
         color,
         sections,
+        timingSlot,
       },
       {
         name: auth.actor?.name || auth.session?.name || "System",

@@ -4,6 +4,8 @@ import {
   calculateSalaryFromMonthly,
   calculateEmployeePayrollSnapshot,
   numberToIndianCurrencyWords,
+  attendanceImpact,
+  runAttendanceImpact,
 } from "./payroll-engine";
 import type { Employee, AttendanceRecord, EmployeeIncentiveRecord } from "./types";
 
@@ -69,7 +71,7 @@ describe("calculateEmployeePayrollSnapshot", () => {
   const rec = (status: AttendanceRecord["status"], i: number) =>
     ({ id: `a${i}`, status, overtimeHours: 0 }) as AttendanceRecord;
 
-  it("counts only Absent days as LOP", () => {
+  it("counts Absent days as full LOP and ignores Late, Present and Leave", () => {
     const snap = calculateEmployeePayrollSnapshot({
       employee,
       attendanceRecords: [rec("Absent", 1), rec("Absent", 2), rec("Present", 3), rec("Leave", 4), rec("Late", 5)],
@@ -78,6 +80,44 @@ describe("calculateEmployeePayrollSnapshot", () => {
     expect(snap.lopDays).toBe(2);
     expect(snap.lopAmount).toBe(2000);
     expect(snap.netSalary).toBe(28000);
+    expect(snap).toMatchObject({ absentDays: 2, absentAmount: 2000, halfDayCount: 0, halfDayAmount: 0 });
+  });
+
+  it("deducts half a day for each Half Day and splits the impact from absences", () => {
+    const snap = calculateEmployeePayrollSnapshot({
+      employee,
+      attendanceRecords: [rec("Absent", 1), rec("Absent", 2), rec("Half Day", 3), rec("Half Day", 4), rec("Half Day", 5), rec("Present", 6)],
+      approvedIncentives: [],
+    });
+    expect(snap.absentDays).toBe(2);
+    expect(snap.absentAmount).toBe(2000);
+    expect(snap.halfDayCount).toBe(3);
+    expect(snap.halfDayAmount).toBe(1500); // 3 x 0.5 x 1000
+    expect(snap.lopDays).toBe(3.5);
+    expect(snap.lopAmount).toBe(3500);
+    expect(snap.totalDeductions).toBe(3500);
+    expect(snap.netSalary).toBe(26500);
+  });
+
+  it("rounds the half-day amount once, not per record", () => {
+    const odd = { ...employee, currentSalary: { grossSalary: 30030, basic: 30030, employeePf: 0, employerPf: 0 } } as unknown as Employee;
+    const snap = calculateEmployeePayrollSnapshot({
+      employee: odd,
+      attendanceRecords: [rec("Half Day", 1), rec("Half Day", 2), rec("Half Day", 3)],
+      approvedIncentives: [],
+    });
+    // per day = round(30030 / 30) = 1001; 3 x 0.5 x 1001 = 1501.5 -> 1502
+    expect(snap.halfDayAmount).toBe(1502);
+    expect(snap.lopAmount).toBe(1502);
+  });
+
+  it("never lets net pay go below zero", () => {
+    const snap = calculateEmployeePayrollSnapshot({
+      employee,
+      attendanceRecords: Array.from({ length: 40 }, (_, i) => rec("Absent", i)),
+      approvedIncentives: [],
+    });
+    expect(snap.netSalary).toBe(0);
   });
 
   it("adds approved incentives to gross and net", () => {
@@ -122,5 +162,27 @@ describe("nextPayrollStatus", () => {
   it("treats finalized runs as locked", () => {
     expect(LOCKED_PAYROLL_STATUSES).toContain("FINALIZED");
     expect(LOCKED_PAYROLL_STATUSES).not.toContain("APPROVED");
+  });
+});
+
+describe("attendanceImpact", () => {
+  const base = { lopDays: 0, lopAmount: 0 };
+
+  it("returns the stored breakdown and totals", () => {
+    const i = attendanceImpact({ ...base, lopDays: 3.5, lopAmount: 3500, absentDays: 2, absentAmount: 2000, halfDayCount: 3, halfDayAmount: 1500 });
+    expect(i).toEqual({ absentDays: 2, absentAmount: 2000, halfDayCount: 3, halfDayAmount: 1500, totalAmount: 3500, totalDays: 3.5 });
+  });
+
+  it("treats old payroll items without a breakdown as all absence", () => {
+    const i = attendanceImpact({ lopDays: 2, lopAmount: 2000 });
+    expect(i).toMatchObject({ absentDays: 2, absentAmount: 2000, halfDayCount: 0, halfDayAmount: 0, totalAmount: 2000 });
+  });
+
+  it("sums a run", () => {
+    const run = runAttendanceImpact([
+      { lopDays: 1.5, lopAmount: 1500, absentDays: 1, absentAmount: 1000, halfDayCount: 1, halfDayAmount: 500 },
+      { lopDays: 2, lopAmount: 2000 },
+    ]);
+    expect(run).toMatchObject({ absentAmount: 3000, halfDayAmount: 500, totalAmount: 3500, totalDays: 3.5 });
   });
 });

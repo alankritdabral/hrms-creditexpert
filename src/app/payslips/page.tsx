@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/lib/auth-context";
-import { numberToIndianCurrencyWords } from "@/lib/payroll-engine";
+import { numberToIndianCurrencyWords, attendanceImpact } from "@/lib/payroll-engine";
+import { AttendanceImpactSummary } from "@/components/payroll/AttendanceImpactSummary";
 import { FileSpreadsheet, Printer, Eye, Search } from "lucide-react";
 import { getISTMonthString } from "@/lib/attendance/ist-time";
 
@@ -295,10 +296,16 @@ export default function PayslipsPage() {
                     <span className="font-mono text-rose-600 font-medium">-₹{activeItem.professionalTax}</span>
                   </div>
                 )}
-                {activeItem.lopAmount > 0 && (
+                {attendanceImpact(activeItem).absentAmount > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-slate-600">Loss of Pay (LOP)</span>
-                    <span className="font-mono text-rose-600 font-medium">-₹{activeItem.lopAmount}</span>
+                    <span className="text-slate-600">Absent ({attendanceImpact(activeItem).absentDays} days)</span>
+                    <span className="font-mono text-rose-600 font-medium">-₹{attendanceImpact(activeItem).absentAmount}</span>
+                  </div>
+                )}
+                {attendanceImpact(activeItem).halfDayAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Half day ({attendanceImpact(activeItem).halfDayCount} × 0.5 day)</span>
+                    <span className="font-mono text-rose-600 font-medium">-₹{attendanceImpact(activeItem).halfDayAmount}</span>
                   </div>
                 )}
                 {activeItem.otherDeductions > 0 && (
@@ -315,6 +322,8 @@ export default function PayslipsPage() {
                 </div>
               </div>
             </div>
+
+            <AttendanceImpactSummary impact={attendanceImpact(activeItem)} />
 
             {/* Net Salary in Words */}
             <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

@@ -19,7 +19,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Employee, AttendanceRecord, LeaveRequest, PayrollRun, EmployeeRequestItem, Holiday, EmployeeDocument, AttendancePolicy } from "@/lib/types";
 import { TeamProgress } from "@/components/dashboard/TeamProgress";
-import { formatISTTime12, getISTDateString, lateCutoffLabel } from "@/lib/attendance/ist-time";
+import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
+import { timingSummary } from "@/lib/attendance/late-policy";
 
 export function AdminDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -249,7 +250,7 @@ export function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-900 text-base">Today&apos;s Attendance Logs</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Grace period: {policy?.gracePeriodMinutes ?? 15} mins (Late after {lateCutoffLabel(policy?.officeStartTime, policy?.gracePeriodMinutes)})</p>
+              <p className="text-xs text-slate-500 mt-0.5">{policy ? timingSummary(policy) : ""}</p>
             </div>
             <Link href="/attendance" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
               Full Logs <ArrowRight className="w-3.5 h-3.5" />

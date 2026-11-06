@@ -33,6 +33,7 @@ import {
   AnnouncementItem,
   AuditLogItem,
   AttendancePolicy,
+  TimingProfile,
   User,
   UserAccount,
   UserSession,
@@ -82,9 +83,10 @@ import { calculateHaversineDistance } from "../attendance/geolocation";
 import {
   getISTDateString,
   getIST24HourTime,
-  evaluateLateArrivalIST,
   leaveWorkingDates,
+  weekBoundsIST,
 } from "../attendance/ist-time";
+import { decideArrivalStatus, resolveTimingProfile } from "../attendance/late-policy";
 import { isLocalEnvironment } from "../env";
 import { hashPassword, generateTempPassword } from "../password";
 import { randomBytes } from "node:crypto";
@@ -794,7 +796,10 @@ export async function updateAttendanceRecord(
 
   const updated: AttendanceRecord = { ...current, ...updates };
   if (updates.status !== undefined) {
-    updated.lateArrival = updates.status === "Late";
+    // lateArrival feeds the weekly late count. Late sets it; a Half Day keeps whatever it already was
+    // (an automatic late half day stays counted, a manual one does not start counting); anything else
+    // (Present, Leave, ...) clears it, which is how HR excuses a late arrival.
+    updated.lateArrival = updates.status === "Late" || (updates.status === "Half Day" && current.lateArrival);
   }
   upsertMemory(memory.attendance, (a) => a.id === recordId, updated);
 
@@ -905,6 +910,42 @@ export async function deleteOffice(
   return true;
 }
 
+/** The login account of an employee (the role, and so the timing slot, lives on the account). */
+export async function getUserAccountByEmployeeId(employeeId: string): Promise<UserAccount | null> {
+  if (isFirestoreConfigured()) {
+    try {
+      const fresh = await queryFreshFromFirestore<UserAccount>("users", "employeeId", employeeId);
+      if (fresh.length > 0) return fresh[0];
+    } catch (e) {
+      console.warn("Firestore account lookup by employee id failed:", e);
+    }
+  }
+  const wanted = employeeId.toLowerCase();
+  return (memory.userAccounts || []).find((u) => (u.employeeId || "").toLowerCase() === wanted) || null;
+}
+
+/**
+ * The timing profile an employee follows (from their role's slot) and, for profiles with
+ * automatic half-day rules, how many late arrivals they already have in the Monday-Saturday week of `date`.
+ */
+export async function getEmployeeTiming(
+  employeeId: string,
+  date: string = getISTDateString(),
+  policyOverride?: AttendancePolicy
+): Promise<{ profile: TimingProfile; lateCountThisWeek: number; weekStart: string; weekEnd: string }> {
+  const policy = policyOverride || (await getPolicy());
+  const account = await getUserAccountByEmployeeId(employeeId);
+  const profile = resolveTimingProfile(account?.role, await getCustomRoles(), policy);
+  const { start, end } = weekBoundsIST(date);
+
+  let lateCountThisWeek = 0;
+  if (profile.halfDayRules) {
+    const week = await getAttendanceRecords({ from: start, to: end, employeeId });
+    lateCountThisWeek = week.filter((r) => r.date < date && r.lateArrival).length;
+  }
+  return { profile, lateCountThisWeek, weekStart: start, weekEnd: end };
+}
+
 export async function punchAttendance(
   employeeId: string,
   type: "checkIn" | "checkOut",
@@ -980,26 +1021,31 @@ export async function punchAttendance(
     verificationStatus = "VERIFIED";
   }
 
-  // Calculate Late vs Present status per policy in IST
-  const startTime = policy.officeStartTime || "10:00";
-  const grace = policy.gracePeriodMinutes ?? 15;
-  const isLate = evaluateLateArrivalIST(nowTime, startTime, grace);
+  // Late / Present / auto Half Day per the employee's role timing slot, in IST
+  const resolvedEmployeeId = emp?.employeeId || employeeId;
+  const timing = await getEmployeeTiming(resolvedEmployeeId, today, policy);
+  const decision = decideArrivalStatus({
+    punchTimeIST: nowTime,
+    profile: timing.profile,
+    priorLateCountThisWeek: timing.lateCountThisWeek,
+  });
 
   const newRec: AttendanceRecord = {
     id: `att-${Date.now()}`,
-    employeeId: emp?.employeeId || employeeId,
+    employeeId: resolvedEmployeeId,
     employeeName,
     date: today,
     checkIn: nowTime,
     totalWorkingHours: policy.fullDayMinHours || 8,
     breakDurationMinutes: (policy.standardBreakHours || 1) * 60,
-    status: isLate ? "Late" : "Present",
-    lateArrival: isLate,
+    status: decision.status,
+    lateArrival: decision.lateArrival,
     earlyDeparture: false,
     overtimeHours: 0,
-    remarks: locationData
-      ? `GPS Clock-In (${distanceMeters}m from ${matchedOffice?.name || "Office"})`
-      : "Manual / Admin Check-In",
+    remarks:
+      (locationData
+        ? `GPS Clock-In (${distanceMeters}m from ${matchedOffice?.name || "Office"})`
+        : "Manual / Admin Check-In") + (decision.reason ? ` · ${decision.reason}` : ""),
     checkInLatitude: locationData?.latitude,
     checkInLongitude: locationData?.longitude,
     checkInAccuracy: locationData ? Math.round(locationData.accuracy) : undefined,
@@ -2116,6 +2162,7 @@ export async function saveCustomRole(
     isSystem: role.isSystem || (existingIdx !== -1 ? memory.customRoles[existingIdx].isSystem : false),
     color: role.color || "indigo",
     sections: role.sections,
+    timingSlot: role.timingSlot ?? (existingIdx !== -1 ? memory.customRoles[existingIdx].timingSlot : undefined),
     createdAt: existingIdx !== -1 ? memory.customRoles[existingIdx].createdAt : new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

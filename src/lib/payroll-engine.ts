@@ -200,10 +200,14 @@ export function calculateEmployeePayrollSnapshot({
 }): PayrollItemSnapshot {
   const salary = employee.currentSalary;
   
-  // Count unexcused absences (LOP)
-  const lopDays = attendanceRecords.filter((a) => a.status === "Absent").length;
+  // Attendance-related loss of pay: a full day for each absence, half a day for each (automatic or manual) Half Day
+  const absentDays = attendanceRecords.filter((a) => a.status === "Absent").length;
+  const halfDayCount = attendanceRecords.filter((a) => a.status === "Half Day").length;
   const perDayGross = Math.round((salary.grossSalary || salary.basic) / 30);
-  const lopAmount = lopDays * perDayGross;
+  const absentAmount = absentDays * perDayGross;
+  const halfDayAmount = Math.round(halfDayCount * 0.5 * perDayGross);
+  const lopDays = absentDays + halfDayCount * 0.5;
+  const lopAmount = absentAmount + halfDayAmount;
 
   // Calculate Overtime hours
   const totalOvertimeHours = attendanceRecords.reduce((acc, curr) => acc + (curr.overtimeHours || 0), 0);
@@ -216,7 +220,7 @@ export function calculateEmployeePayrollSnapshot({
   // Gross earnings: Basic pay + any earned overtime/incentives/bonus
   const grossEarnings = (salary.grossSalary || salary.basic) + overtimeAmount + incentiveAmount + bonus;
 
-  // Deductions: Strictly ONLY employee PF (+ unexcused absence LOP if any)
+  // Deductions: Strictly ONLY employee PF (+ absence and half-day LOP if any)
   const totalDeductions = (salary.employeePf || 0) + lopAmount;
 
   // Net Take Home Pay: Basic Pay is the Net Pay apart from PF
@@ -250,6 +254,10 @@ export function calculateEmployeePayrollSnapshot({
     professionalTax: 0,
     lopDays,
     lopAmount,
+    absentDays,
+    absentAmount,
+    halfDayCount,
+    halfDayAmount,
     otherDeductions: 0,
     totalDeductions,
     netSalary,
@@ -312,4 +320,52 @@ export function numberToIndianCurrencyWords(num: number): string {
   }
 
   return (str.trim() + " Rupees Only").replace(/\s+/g, " ");
+}
+
+export interface AttendanceImpact {
+  absentDays: number;
+  absentAmount: number;
+  halfDayCount: number;
+  halfDayAmount: number;
+  /** absentAmount + halfDayAmount: how much the pay was reduced by attendance. */
+  totalAmount: number;
+  /** Equivalent full days lost: absentDays + 0.5 x halfDayCount. */
+  totalDays: number;
+}
+
+/**
+ * Splits a payroll item's attendance deduction into absences and half days. Items saved before
+ * half-day deductions existed have no breakdown, so their whole LOP is treated as absence.
+ */
+export function attendanceImpact(
+  item: Pick<PayrollItemSnapshot, "lopDays" | "lopAmount" | "absentDays" | "absentAmount" | "halfDayCount" | "halfDayAmount">
+): AttendanceImpact {
+  const hasBreakdown = item.absentAmount !== undefined || item.halfDayAmount !== undefined;
+  const absentDays = hasBreakdown ? item.absentDays ?? 0 : item.lopDays || 0;
+  const absentAmount = hasBreakdown ? item.absentAmount ?? 0 : item.lopAmount || 0;
+  const halfDayCount = hasBreakdown ? item.halfDayCount ?? 0 : 0;
+  const halfDayAmount = hasBreakdown ? item.halfDayAmount ?? 0 : 0;
+  return {
+    absentDays,
+    absentAmount,
+    halfDayCount,
+    halfDayAmount,
+    totalAmount: absentAmount + halfDayAmount,
+    totalDays: absentDays + halfDayCount * 0.5,
+  };
+}
+
+/** Run-level totals of the same breakdown, for the payroll run summary. */
+export function runAttendanceImpact(items: Parameters<typeof attendanceImpact>[0][]): AttendanceImpact {
+  return items.map(attendanceImpact).reduce(
+    (acc, i) => ({
+      absentDays: acc.absentDays + i.absentDays,
+      absentAmount: acc.absentAmount + i.absentAmount,
+      halfDayCount: acc.halfDayCount + i.halfDayCount,
+      halfDayAmount: acc.halfDayAmount + i.halfDayAmount,
+      totalAmount: acc.totalAmount + i.totalAmount,
+      totalDays: acc.totalDays + i.totalDays,
+    }),
+    { absentDays: 0, absentAmount: 0, halfDayCount: 0, halfDayAmount: 0, totalAmount: 0, totalDays: 0 }
+  );
 }

@@ -4,7 +4,9 @@ import React, { useState, useEffect } from "react";
 import { Employee, AttendanceRecord, PayrollRun, AttendancePolicy } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { formatISTTime12, getISTDateString, lateCutoffLabel } from "@/lib/attendance/ist-time";
+import { formatISTTime12, getISTDateString } from "@/lib/attendance/ist-time";
+import { timingSummary } from "@/lib/attendance/late-policy";
+import { attendanceImpact } from "@/lib/payroll-engine";
 import { useAuth } from "@/lib/auth-context";
 import {
   BarChart3,
@@ -108,7 +110,11 @@ export default function ReportsPage() {
       GrossEarnings: i.grossEarnings,
       EmployeePF: i.employeePf,
       ProfessionalTax: i.professionalTax,
-      LOPAmount: i.lopAmount,
+      AbsentDays: attendanceImpact(i).absentDays,
+      AbsentAmount: attendanceImpact(i).absentAmount,
+      HalfDayCount: attendanceImpact(i).halfDayCount,
+      HalfDayAmount: attendanceImpact(i).halfDayAmount,
+      AttendanceDeductionTotal: attendanceImpact(i).totalAmount,
       TotalDeductions: i.totalDeductions,
       NetSalary: i.netSalary,
       EmployerPF: i.employerPf,
@@ -333,7 +339,8 @@ export default function ReportsPage() {
                     <th className="pb-3 font-medium">Employee PF</th>
                     <th className="pb-3 font-medium">Employer PF</th>
                     <th className="pb-3 font-medium">Professional Tax</th>
-                    <th className="pb-3 font-medium">LOP</th>
+                    <th className="pb-3 font-medium">Absent</th>
+                    <th className="pb-3 font-medium">Half day</th>
                     <th className="pb-3 font-medium text-right font-bold text-white">Net Payout</th>
                   </tr>
                 </thead>
@@ -345,7 +352,8 @@ export default function ReportsPage() {
                       <td className="py-2.5 text-rose-400">₹{i.employeePf}</td>
                       <td className="py-2.5 text-indigo-400">₹{i.employerPf}</td>
                       <td className="py-2.5 text-rose-400">₹{i.professionalTax}</td>
-                      <td className="py-2.5 text-rose-400">₹{i.lopAmount}</td>
+                      <td className="py-2.5 text-rose-400">₹{attendanceImpact(i).absentAmount}</td>
+                      <td className="py-2.5 text-rose-400">₹{attendanceImpact(i).halfDayAmount}</td>
                       <td className="py-2.5 text-right font-bold text-emerald-400 font-mono">
                         ₹{i.netSalary.toLocaleString("en-IN")}
                       </td>
@@ -363,7 +371,7 @@ export default function ReportsPage() {
         <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-white text-base">Attendance Regularization & Overtime Report</h3>
-            <span className="text-xs text-slate-400">Grace period: {policy?.gracePeriodMinutes ?? 15} mins (Cutoff {lateCutoffLabel(policy?.officeStartTime, policy?.gracePeriodMinutes)})</span>
+            <span className="text-xs text-slate-400">{policy ? timingSummary(policy) : ""}</span>
           </div>
 
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">

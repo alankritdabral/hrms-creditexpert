@@ -7,6 +7,7 @@ import {
 } from "./firestore-service";
 import { isLocalEnvironment } from "./env";
 import { generateOtpCode, hashOtp, otpMatches } from "./otp";
+import { ordinal } from "./attendance/late-policy";
 
 // OTP records live in Firestore (collection "otps") so they survive restarts and work across
 // serverless instances; the memory maps are only a read-through cache. Only a hash of the code is stored.
@@ -504,17 +505,61 @@ export async function sendPasswordChangedEmail(
   return true;
 }
 
+/** The automatic half-day rule shown in the attendance reminder. Times are "HH:mm" (IST). */
+export interface AttendanceRuleReminder {
+  /** Arrivals after this time are late. */
+  lateAfter: string;
+  weeklyLateAllowance: number;
+  /** An arrival after this time is always a Half Day. */
+  hardCutoffTime?: string;
+}
+
+function clock12(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+}
+
+/** Public base URL of the portal: NEXT_PUBLIC_APP_URL, else the Vercel production domain, else localhost. */
+function appBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  return vercel ? `https://${vercel}` : "http://localhost:3000";
+}
+
+export function attendanceLink(): string {
+  return `${appBaseUrl()}/attendance`;
+}
+
+export function ruleReminderHtml(rule: AttendanceRuleReminder): string {
+  const late = clock12(rule.lateAfter);
+  const allowed = rule.weeklyLateAllowance;
+  const items = [
+    `Clock in by ${late}; arrivals after ${late.replace(" AM", "").replace(" PM", "")} are Late.`,
+    `You can be late ${allowed} time${allowed === 1 ? "" : "s"} a week (Mon–Sat). From the ${ordinal(allowed + 1)} late arrival in a week, every arrival after ${late.replace(" AM", "").replace(" PM", "")} is an automatic Half Day.`,
+  ];
+  if (rule.hardCutoffTime) items.push(`Arriving after ${clock12(rule.hardCutoffTime)} is always a Half Day.`);
+  items.push("A Half Day deducts half a day of salary.");
+  return `
+      <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; margin: 16px 0;">
+        <ul style="margin: 0; padding-left: 18px; color: #475569; font-size: 13px; line-height: 1.7;">
+          ${items.map((i) => `<li>${i}</li>`).join("\n          ")}
+        </ul>
+      </div>`;
+}
+
 /**
- * Daily reminder: attendance has not been marked yet.
+ * Daily reminder: attendance has not been marked yet. Includes the employee's timing rule when given.
  */
 export async function sendAttendanceReminderEmail(
   email: string,
   name: string,
-  date: string
+  date: string,
+  rule?: AttendanceRuleReminder
 ): Promise<boolean> {
   const transporter = getTransporter();
   const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS" <no-reply@creditexpertindia.com>`;
-  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/attendance`;
+  const portalUrl = attendanceLink();
   const safeName = name.replace(/[<>&"]/g, "");
 
   const html = `
@@ -523,9 +568,12 @@ export async function sendAttendanceReminderEmail(
       <p style="color: #334155; font-size: 15px;">Dear <strong>${safeName}</strong>,</p>
       <p style="color: #475569; font-size: 14px;">
         Your attendance for <strong>${date}</strong> has not been marked yet. Please clock in on the HRMS portal as soon as possible.
-      </p>
+      </p>${rule ? ruleReminderHtml(rule) : ""}
       <div style="text-align: center; margin: 24px 0;">
         <a href="${portalUrl}" style="background-color: #4f46e5; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Mark Attendance</a>
+        <p style="color: #64748b; font-size: 12px; margin: 12px 0 0 0;">
+          Or open this link: <a href="${portalUrl}" style="color: #4f46e5;">${portalUrl}</a>
+        </p>
       </div>
       <p style="color: #94a3b8; font-size: 12px; text-align: center;">&copy; ${new Date().getFullYear()} Credit Expert India</p>
     </div>
