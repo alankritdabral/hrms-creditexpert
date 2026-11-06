@@ -18,6 +18,7 @@ export const APP_SECTIONS: AppSection[] = [
   { id: "holidays", name: "Holiday Calendar", description: "Company and branch holiday schedule", path: "/holidays", category: "Human Resources" },
   { id: "payroll", name: "Payroll Engine", description: "Monthly payroll processing & salary computation", path: "/payroll", category: "Finance & Operations" },
   { id: "logins", name: "Logins & Disbursals", description: "Loan applications, commitments & bank disbursals", path: "/logins", category: "Finance & Operations" },
+  { id: "login_sheet", name: "Login Sheet", description: "Daily file-wise login sheet: customer, bank, DSA, status & amounts", path: "/login-sheet", category: "Finance & Operations" },
   { id: "incentives", name: "Incentives Hub", description: "Monthly sales incentive calculation & slabs", path: "/incentives", category: "Finance & Operations" },
   { id: "payslips", name: "Payslips", description: "Monthly payslips view and PDF download", path: "/payslips", category: "Finance & Operations" },
   { id: "documents", name: "Documents Vault", description: "Employee verification documents & expiry alerts", path: "/documents", category: "Human Resources" },
@@ -75,6 +76,7 @@ export const DEFAULT_ROLES: CustomRole[] = [
       "leaves",
       "holidays",
       "logins",
+      "login_sheet",
       "incentives",
       "payslips",
       "requests",
@@ -96,6 +98,7 @@ export const DEFAULT_ROLES: CustomRole[] = [
       "leaves",
       "holidays",
       "logins",
+      "login_sheet",
       "incentives",
       "payslips",
       "assets",
@@ -118,6 +121,7 @@ export const DEFAULT_ROLES: CustomRole[] = [
       "leaves",
       "holidays",
       "logins",
+      "login_sheet",
       "incentives",
       "payslips",
       "requests",
@@ -451,6 +455,8 @@ export interface CustomerDisbursalEntry {
   status: "Disbursed" | "Sanctioned" | "In Process" | "Rejected";
   remarks?: string;
   date: string; // YYYY-MM-DD
+  /** Set on entries pulled automatically from the Login Sheet; they are read-only and never saved here. */
+  source?: "login-sheet";
 }
 
 export interface BankDisbursalBreakdown {
@@ -479,6 +485,35 @@ export interface EmployeeLoginRecord {
   banks: BankDisbursalBreakdown[];
   remarks?: string;
   lastUpdatedAt: string;
+  updatedBy?: string;
+  /** Number of Login Sheet rows this month that feed the record (0/absent = nothing pulled in). Computed, never stored. */
+  sheetRows?: number;
+}
+
+/** One row of the daily Login Sheet: a single file (customer + bank) as tracked in the Excel sheet. */
+export interface LoginSheetEntry {
+  id: string;
+  employeeId: string; // owner of the row (who submitted the file)
+  empName: string;
+  customerName: string;
+  panNo?: string;
+  phone?: string;
+  location?: string;
+  date: string; // YYYY-MM-DD
+  time?: string; // HH:mm (24h, IST)
+  bankName: string;
+  dsaName?: string;
+  loginId?: string;
+  product?: string;
+  branch?: Branch;
+  file?: string;
+  amount: number;
+  status: string; // SENT / LOGIN / APPROVED / DISBURSED / REJECT ...
+  remarks?: string;
+  insuranceDetails?: string;
+  amount2?: number;
+  createdAt: string;
+  updatedAt: string;
   updatedBy?: string;
 }
 

@@ -24,6 +24,7 @@ import {
   BarChart3,
   ScrollText,
   Sliders,
+  Table2,
   ShieldCheck,
   User,
   X,
@@ -113,6 +114,12 @@ export function Sidebar() {
       icon: <TrendingUp className="w-4 h-4" />,
       badge: counts.loginsCount > 0 ? `${counts.loginsCount} Files` : undefined,
       badgeColor: "bg-blue-50 text-blue-700 border border-blue-200",
+    },
+    {
+      name: "Login Sheet",
+      href: "/login-sheet",
+      sectionId: "login_sheet",
+      icon: <Table2 className="w-4 h-4" />,
     },
     {
       name: "Incentives",

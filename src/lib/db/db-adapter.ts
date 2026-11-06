@@ -52,6 +52,7 @@ import {
   OfficeLocation,
   LocationVerificationStatus,
   EmployeeLoginRecord,
+  LoginSheetEntry,
   BankDisbursalBreakdown,
   CustomerDisbursalEntry,
   IncentiveCalculationBreakdown,
@@ -60,6 +61,8 @@ import {
   AppSection,
   APP_SECTIONS,
 } from "../types";
+import type { LoginSheetInput } from "../login-sheet";
+import { applySheetRows, groupByEmployee, stripSheetEntries, totalsFromBanks } from "../login-sheet-sync";
 import { calculateDisbursalIncentive, resolveIncentiveSalary } from "../incentive-calculator";
 import { calculateSalaryBreakdown, calculateSalaryFromMonthly } from "../payroll-engine";
 import { sendAccountApprovedEmail } from "../email";
@@ -78,6 +81,7 @@ import {
   withTransaction,
   toFirestoreData,
   queryFreshFromFirestore,
+  invalidateFirestoreCache,
 } from "../firestore-service";
 import { calculateHaversineDistance } from "../attendance/geolocation";
 import {
@@ -117,6 +121,7 @@ class MemoryStore {
   onboardingRecords: OnboardingRecord[] = isLocalEnvironment() ? [...INITIAL_ONBOARDING_RECORDS] : [];
   registrationDrafts: Map<string, RegistrationDraft> = new Map();
   employeeLogins: EmployeeLoginRecord[] = isLocalEnvironment() ? [...INITIAL_EMPLOYEE_LOGINS] : [];
+  loginSheet: LoginSheetEntry[] = [];
   customRoles: CustomRole[] = [...DEFAULT_ROLES];
 }
 
@@ -130,6 +135,7 @@ if ((!memory.employeeLogins || memory.employeeLogins.length === 0) && isLocalEnv
   memory.employeeLogins = [...INITIAL_EMPLOYEE_LOGINS];
 }
 memory.customRoles ??= [...DEFAULT_ROLES];
+memory.loginSheet ??= [];
 memory.userAccounts ??= isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : [];
 
 /** A copy of the list sorted newest first by a string key (ISO dates sort correctly as text). */
@@ -1434,6 +1440,127 @@ export async function updateIncentiveScheme(
   return scheme;
 }
 
+// ----------------- LOGIN SHEET (daily Excel-style file tracker) -----------------
+
+const LOGIN_SHEET_COLLECTION = "login_sheet";
+
+export async function getLoginSheetEntryById(id: string): Promise<LoginSheetEntry | null> {
+  return loadForUpdate<LoginSheetEntry>(LOGIN_SHEET_COLLECTION, id, memory.loginSheet, (e) => e.id === id);
+}
+
+/** Rows whose date falls in [from, to] (inclusive, "YYYY-MM-DD"). Newest first. */
+export async function getLoginSheetEntries(from: string, to: string): Promise<LoginSheetEntry[]> {
+  let rows: LoginSheetEntry[];
+  if (isFirestoreConfigured()) {
+    rows = await queryCollectionFromFirestore<LoginSheetEntry>(LOGIN_SHEET_COLLECTION, [
+      { field: "date", op: ">=", value: from },
+      { field: "date", op: "<=", value: to },
+    ]);
+  } else {
+    rows = memory.loginSheet.filter((e) => e.date >= from && e.date <= to);
+  }
+  return [...rows].sort(
+    (a, b) =>
+      b.date.localeCompare(a.date) ||
+      (b.time || "").localeCompare(a.time || "") ||
+      (b.createdAt || "").localeCompare(a.createdAt || "")
+  );
+}
+
+export async function createLoginSheetEntries(
+  owner: { employeeId: string; empName: string },
+  inputs: LoginSheetInput[],
+  actor: { name: string; role: string }
+): Promise<LoginSheetEntry[]> {
+  const now = new Date().toISOString();
+  const created: LoginSheetEntry[] = [];
+  for (const input of inputs) {
+    const entry: LoginSheetEntry = {
+      ...input,
+      id: `ls-${globalThis.crypto.randomUUID()}`,
+      employeeId: owner.employeeId,
+      empName: owner.empName,
+      createdAt: now,
+      updatedAt: now,
+      updatedBy: actor.name,
+    };
+    upsertMemory(memory.loginSheet, (e) => e.id === entry.id, entry);
+    await persist(LOGIN_SHEET_COLLECTION, entry.id, entry);
+    created.push(entry);
+  }
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "LOGIN_SHEET_ADDED",
+    employeeId: owner.employeeId,
+    employeeName: owner.empName,
+    details: `Added ${created.length} login sheet ${created.length === 1 ? "row" : "rows"}: ${created
+      .map((e) => `${e.customerName} / ${e.bankName} (${e.status})`)
+      .join(", ")}`,
+  });
+  return created;
+}
+
+/** Replaces the editable fields of a row. `owner` (admin/HR only) reassigns it to another employee. */
+export async function updateLoginSheetEntry(
+  id: string,
+  input: LoginSheetInput,
+  owner: { employeeId: string; empName: string } | null,
+  actor: { name: string; role: string }
+): Promise<LoginSheetEntry | null> {
+  const existing = await loadForUpdate<LoginSheetEntry>(LOGIN_SHEET_COLLECTION, id, memory.loginSheet, (e) => e.id === id);
+  if (!existing) return null;
+
+  // Optional fields the caller cleared must be removed, so start from the row without them.
+  const {
+    panNo: _p, phone: _ph, location: _l, time: _t, dsaName: _d, loginId: _li, product: _pr, branch: _b,
+    file: _f, remarks: _r, insuranceDetails: _i, amount2: _a2, ...kept
+  } = existing;
+  void _p; void _ph; void _l; void _t; void _d; void _li; void _pr; void _b; void _f; void _r; void _i; void _a2;
+
+  const record: LoginSheetEntry = {
+    ...kept,
+    ...input,
+    employeeId: owner?.employeeId ?? existing.employeeId,
+    empName: owner?.empName ?? existing.empName,
+    updatedAt: new Date().toISOString(),
+    updatedBy: actor.name,
+  };
+  upsertMemory(memory.loginSheet, (e) => e.id === id, record);
+  await persist(LOGIN_SHEET_COLLECTION, id, record);
+  // The query cache merges writes into cached rows, which would bring back a field the user just cleared.
+  invalidateFirestoreCache(LOGIN_SHEET_COLLECTION);
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "LOGIN_SHEET_UPDATED",
+    employeeId: record.employeeId,
+    employeeName: record.empName,
+    details: `Updated login sheet row: ${record.customerName} / ${record.bankName} (${existing.status} → ${record.status})`,
+  });
+  return record;
+}
+
+export async function deleteLoginSheetEntry(id: string, actor: { name: string; role: string }): Promise<boolean> {
+  const removed = await getLoginSheetEntryById(id);
+  if (!removed) return false;
+
+  memory.loginSheet = memory.loginSheet.filter((e) => e.id !== id);
+  await persistDelete(LOGIN_SHEET_COLLECTION, id);
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "LOGIN_SHEET_DELETED",
+    employeeId: removed.employeeId,
+    employeeName: removed.empName,
+    details: `Deleted login sheet row: ${removed.customerName} / ${removed.bankName}`,
+  });
+  return true;
+}
+
 export async function getEmployeeLoginById(id: string): Promise<EmployeeLoginRecord | null> {
   try {
     const stored = await getDocumentFromFirestore<EmployeeLoginRecord>("employee_logins", id);
@@ -1515,9 +1642,38 @@ export async function getEmployeeLogins(month?: string): Promise<EmployeeLoginRe
     });
   }
 
+  // Login Sheet rows feed the record automatically (files count, banks, customers, disbursals).
+  const rowsByEmployee = groupByEmployee(await getLoginSheetEntries(`${targetMonth}-01`, `${targetMonth}-31`));
+  for (const [employeeId, rows] of rowsByEmployee) {
+    if ([...byId.values()].some((l) => l.employeeId === employeeId)) continue;
+    // Someone with sheet rows but no record yet (e.g. left the company, or not in the directory).
+    const emp = employees.find((e) => e.employeeId === employeeId);
+    const id = `login-${employeeId}-${targetMonth}`;
+    byId.set(id, {
+      id,
+      employeeId,
+      employeeName: emp?.personal.fullName || rows[0].empName,
+      department: emp?.employment.department,
+      branch: emp?.employment.branch ?? rows[0].branch,
+      month: targetMonth,
+      commitment: 0,
+      loginCommitment: 0,
+      loginsCount: 0,
+      totalDisbursal: 0,
+      axisBankDisbursal: 0,
+      otherBanksDisbursal: 0,
+      banks: [],
+      remarks: "",
+      lastUpdatedAt: "",
+    });
+  }
+
   // Never invent targets: a missing/invalid login target is simply 0 ("not set").
   return [...byId.values()].map((l) =>
-    typeof l.loginCommitment === "number" && l.loginCommitment > 0 ? l : { ...l, loginCommitment: 0 }
+    applySheetRows(
+      typeof l.loginCommitment === "number" && l.loginCommitment > 0 ? l : { ...l, loginCommitment: 0 },
+      rowsByEmployee.get(l.employeeId) ?? []
+    )
   );
 }
 
@@ -1531,34 +1687,28 @@ export async function saveEmployeeLogin(
   // Deterministic id → one record per employee per month (no duplicates on repeated saves)
   const id = data.id || `login-${data.employeeId}-${targetMonth}`;
 
-  // Recalculate totals from banks
-  let banks = data.banks || [];
-  let axisBankDisbursal = 0;
-  let otherBanksDisbursal = 0;
-
-  banks = banks.map((bank) => {
-    const isAxis = bank.isAxisBank || bank.bankName.toLowerCase().includes("axis");
-    const totalAmount = (bank.customers || []).reduce((sum, cust) => {
-      return sum + (cust.status === "Disbursed" ? Number(cust.amount) || 0 : 0);
-    }, 0);
-
-    if (isAxis) {
-      axisBankDisbursal += totalAmount;
-    } else {
-      otherBanksDisbursal += totalAmount;
-    }
-
-    return {
-      ...bank,
-      isAxisBank: isAxis,
-      totalAmount,
-    };
-  });
-
-  const totalDisbursal = axisBankDisbursal + otherBanksDisbursal;
+  // Only the hand-entered part is stored. Cases pulled from the Login Sheet are added again on every read,
+  // so they are stripped here (the page sends back the combined record it received).
+  const manual = totalsFromBanks(stripSheetEntries(data.banks || []));
+  const banks = manual.banks;
+  const { axisBankDisbursal, otherBanksDisbursal, totalDisbursal } = manual;
 
   // Merge with the stored record (Firestore-first) so fields the caller did not send are kept.
   const existing = await getEmployeeLoginById(id);
+
+  // With sheet rows present the files count and totals shown on screen are computed, not typed:
+  // keep the stored values instead of saving the computed ones as if someone had entered them.
+  const sheetRows = (await getLoginSheetEntries(`${targetMonth}-01`, `${targetMonth}-31`)).filter(
+    (r) => r.employeeId === data.employeeId
+  );
+  const fromSheet = sheetRows.length > 0;
+
+  // Totals come from the hand-entered banks when there are any, or when the caller deleted the last one.
+  // A record that only ever had typed totals (no banks) keeps them, unless the totals on screen were computed.
+  const clearedAllBanks = Array.isArray(data.banks) && banks.length === 0 && (existing?.banks?.length ?? 0) > 0;
+  const manualTotals = banks.length > 0 || clearedAllBanks;
+  const legacyTotal = (key: "totalDisbursal" | "axisBankDisbursal" | "otherBanksDisbursal") =>
+    Number((fromSheet ? undefined : data[key]) ?? existing?.[key] ?? 0);
 
   const record: EmployeeLoginRecord = {
     id: existing?.id || id,
@@ -1569,13 +1719,15 @@ export async function saveEmployeeLogin(
     month: targetMonth,
     commitment: Number(data.commitment ?? existing?.commitment ?? 0),
     loginCommitment: Number(data.loginCommitment ?? existing?.loginCommitment ?? 0),
-    loginsCount: Number(data.loginsCount ?? existing?.loginsCount ?? 0),
+    loginsCount: Number((fromSheet ? existing?.loginsCount : data.loginsCount ?? existing?.loginsCount) ?? 0),
     submissionDate: data.submissionDate ?? existing?.submissionDate ?? getISTDateString(),
-    lastLoginDate: data.lastLoginDate ?? existing?.lastLoginDate ?? getISTDateString(),
-    totalDisbursal: banks.length > 0 ? totalDisbursal : Number(data.totalDisbursal ?? existing?.totalDisbursal ?? 0),
-    axisBankDisbursal: banks.length > 0 ? axisBankDisbursal : Number(data.axisBankDisbursal ?? existing?.axisBankDisbursal ?? 0),
-    otherBanksDisbursal: banks.length > 0 ? otherBanksDisbursal : Number(data.otherBanksDisbursal ?? existing?.otherBanksDisbursal ?? 0),
-    banks: banks.length > 0 ? banks : (existing?.banks || []),
+    lastLoginDate: fromSheet
+      ? existing?.lastLoginDate ?? getISTDateString()
+      : data.lastLoginDate ?? existing?.lastLoginDate ?? getISTDateString(),
+    totalDisbursal: manualTotals ? totalDisbursal : legacyTotal("totalDisbursal"),
+    axisBankDisbursal: manualTotals ? axisBankDisbursal : legacyTotal("axisBankDisbursal"),
+    otherBanksDisbursal: manualTotals ? otherBanksDisbursal : legacyTotal("otherBanksDisbursal"),
+    banks: manualTotals ? banks : existing?.banks || [],
     remarks: data.remarks ?? existing?.remarks ?? "",
     lastUpdatedAt: new Date().toISOString(),
     updatedBy: actor.name,
@@ -1593,7 +1745,8 @@ export async function saveEmployeeLogin(
     details: `Updated logins record for ${record.month} (Total Disbursal: ₹${record.totalDisbursal.toLocaleString("en-IN")}, Axis: ₹${record.axisBankDisbursal.toLocaleString("en-IN")})`,
   });
 
-  return record;
+  // Hand back the same combined view the page loads, with the Login Sheet rows folded in.
+  return applySheetRows(record, sheetRows);
 }
 
 export async function calculateAndSyncIncentivesFromLogins(

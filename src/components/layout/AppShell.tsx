@@ -57,8 +57,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const sectionKey = (() => {
     const segment = pathname.split("/").filter(Boolean)[0];
     if (!segment) return "dashboard";
-    if (segment === "audit-logs") return "audit_logs";
-    return segment;
+    // Section ids use underscores, URLs use hyphens (audit-logs -> audit_logs, login-sheet -> login_sheet).
+    return segment.replace(/-/g, "_");
   })();
 
   const isKnownSection = APP_SECTIONS.some((s) => s.id === sectionKey);

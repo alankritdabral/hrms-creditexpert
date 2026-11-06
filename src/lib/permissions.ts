@@ -157,6 +157,7 @@ export function canRoleAccessSection(
       "leaves",
       "holidays",
       "logins",
+      "login_sheet",
       "incentives",
       "payslips",
       "requests",

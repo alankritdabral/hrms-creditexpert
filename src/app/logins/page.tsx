@@ -523,6 +523,13 @@ export default function LoginsPage() {
               <p className="text-xs text-slate-500 mt-0.5">
                 Manage monthly loan file logins, commitments, bank-wise disbursals, and customer pipeline.
               </p>
+              <p className="text-[11px] text-blue-700 mt-1">
+                Files, banks and disbursals are pulled automatically from the{" "}
+                <Link href="/login-sheet" className="font-semibold underline underline-offset-2">
+                  Login Sheet
+                </Link>
+                .
+              </p>
             </div>
           </div>
         </div>
@@ -858,6 +865,11 @@ export default function LoginsPage() {
                             {record.loginsCount} Files
                           </span>
                         </div>
+                        {(record.sheetRows ?? 0) > 0 && (
+                          <div className="text-[10px] text-blue-600 font-semibold mt-1">
+                            Auto from Login Sheet · {record.sheetRows} {record.sheetRows === 1 ? "row" : "rows"}
+                          </div>
+                        )}
                         {(() => {
                           const target = record.loginCommitment ?? (record.commitment >= 10000000 ? 15 : record.commitment >= 5000000 ? 10 : 5);
                           return (
@@ -1103,6 +1115,7 @@ export default function LoginsPage() {
                           >
                             {isAddingCustomerToThis ? "Close" : "Add Customer"}
                           </Button>
+                          {!bank.customers.some((c) => c.source === "login-sheet") && (
                           <button
                             type="button"
                             onClick={() => handleDeleteBank(bank.id)}
@@ -1111,6 +1124,7 @@ export default function LoginsPage() {
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1369,6 +1383,14 @@ export default function LoginsPage() {
                               <tr key={cust.id} className="hover:bg-slate-50/40">
                                 <td className="py-2 px-3 font-medium text-slate-900">
                                   {cust.customerName}
+                                  {cust.source === "login-sheet" && (
+                                    <span
+                                      className="ml-2 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 text-[9px] font-bold align-middle"
+                                      title="Pulled automatically from the Login Sheet. Change it there."
+                                    >
+                                      LOGIN SHEET
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-2 px-3 font-semibold font-mono text-slate-900">
                                   ₹{cust.amount.toLocaleString("en-IN")}
@@ -1395,6 +1417,11 @@ export default function LoginsPage() {
                                 </td>
                                 {canManage && (
                                   <td className="py-2 px-3 text-right">
+                                    {cust.source === "login-sheet" ? (
+                                      <Link href="/login-sheet" className="text-[10px] font-semibold text-blue-600 hover:underline">
+                                        Edit in sheet
+                                      </Link>
+                                    ) : (
                                     <div className="flex items-center justify-end gap-1">
                                       <button
                                         type="button"
@@ -1418,6 +1445,7 @@ export default function LoginsPage() {
                                         <Trash2 className="w-3 h-3" />
                                       </button>
                                     </div>
+                                    )}
                                   </td>
                                 )}
                               </tr>
@@ -1534,9 +1562,15 @@ export default function LoginsPage() {
                   onChange={(e) =>
                     setEditingRecord({ ...editingRecord, loginsCount: Number(e.target.value) })
                   }
-                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                  readOnly={(editingRecord.sheetRows ?? 0) > 0}
+                  className={`w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500 ${
+                    (editingRecord.sheetRows ?? 0) > 0 ? "bg-slate-50 text-slate-500" : ""
+                  }`}
                   placeholder="e.g. 5"
                 />
+                {(editingRecord.sheetRows ?? 0) > 0 && (
+                  <p className="text-[10px] text-blue-600 mt-1">Counted automatically from the Login Sheet: each customer logged in counts once, however many banks.</p>
+                )}
               </div>
 
               <div>
