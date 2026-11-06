@@ -56,6 +56,6 @@ export async function GET(req: NextRequest) {
     branchScope: auth.branchScope,
     employeeId: auth.employeeId,
     allowedSections,
-    permissions: getRolePermissions(auth.role),
+    permissions: getRolePermissions(auth),
   });
 }

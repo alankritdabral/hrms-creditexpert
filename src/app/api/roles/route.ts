@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/db-adapter";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
 import { APP_SECTIONS } from "@/lib/types";
+import { sanitizeGrantedPermissions } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Create or Update Custom Role
-    const { name, sections, id, description, color, timingSlot } = body;
+    const { name, sections, id, description, color, timingSlot, permissions } = body;
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
         { success: false, error: "Role name is required" },
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
         color,
         sections,
         timingSlot,
+        permissions: permissions === undefined ? undefined : sanitizeGrantedPermissions(permissions),
       },
       {
         name: auth.actor?.name || auth.session?.name || "System",

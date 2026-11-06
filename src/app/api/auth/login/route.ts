@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserAccountByEmail, createSession, recordAuditLog } from "@/lib/db/db-adapter";
+import { getUserAccountByEmail, createSession, recordAuditLog, getCustomRoleGrants } from "@/lib/db/db-adapter";
 import { getRolePermissions, getBranchScope } from "@/lib/permissions";
 import { isLocalEnvironment } from "@/lib/env";
 import { verifyPassword, hashPassword, isHashedPassword } from "@/lib/password";
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     });
 
     const branchScope = getBranchScope(userAccount.role, userAccount.branch);
-    const permissions = getRolePermissions(userAccount.role);
+    const permissions = getRolePermissions({ role: userAccount.role, permissions: await getCustomRoleGrants(userAccount.role) });
 
     const allowedSections = await resolveAllowedSections(userAccount.role);
 

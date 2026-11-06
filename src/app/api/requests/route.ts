@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     let requests = await getRequests();
 
     requests = ownOrScoped(callerOf(auth), "requests:view_all", requests, (r) => r.employeeId);
-    if (requestedEmpId && hasPermission(auth.role, "requests:view_all")) {
+    if (requestedEmpId && hasPermission(auth, "requests:view_all")) {
       requests = requests.filter((r) => r.employeeId === requestedEmpId);
     }
 

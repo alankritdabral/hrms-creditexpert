@@ -116,19 +116,63 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 };
 
 /**
- * Permissions for any role. Admin and HR use their lists; every other role, including the
- * "employee" role and any custom role created in Settings, gets self-service access only.
- * (Custom roles control which sidebar sections are visible, not which people's data the API returns.)
+ * Extra permissions an administrator may grant to a custom role in Settings. Deliberately a short
+ * allow-list: salary, statutory data, payroll and settings are never grantable this way.
  */
-export function getRolePermissions(role: UserRole): Permission[] {
-  if (role === "admin") return ROLE_PERMISSIONS.admin;
-  if (role === "hr") return ROLE_PERMISSIONS.hr;
-  return ROLE_PERMISSIONS.employee;
+export const GRANTABLE_PERMISSIONS: { permission: Permission; label: string; description: string }[] = [
+  {
+    permission: "logins:view_all",
+    label: "View and delete everyone's logins",
+    description: "See, edit and delete Logins & Disbursals records and Login Sheet rows of all employees, not just their own.",
+  },
+  {
+    permission: "incentives:view_all",
+    label: "View everyone's incentives",
+    description: "See incentive records of all employees. Needed to edit them.",
+  },
+  {
+    permission: "incentives:manage",
+    label: "Edit and delete incentives",
+    description: "Add, edit, delete and re-sync incentive records for any employee.",
+  },
+];
+
+const GRANTABLE_SET = new Set<string>(GRANTABLE_PERMISSIONS.map((g) => g.permission));
+
+/** Keeps only permissions that may be granted to a custom role; drops anything else. */
+export function sanitizeGrantedPermissions(input: unknown): Permission[] {
+  if (!Array.isArray(input)) return [];
+  return Array.from(new Set(input.filter((p): p is Permission => typeof p === "string" && GRANTABLE_SET.has(p))));
 }
 
-export function hasPermission(role: UserRole, permission: Permission): boolean {
-  if (role === "admin") return true;
-  const permissions = getRolePermissions(role);
+/**
+ * Who a permission check is for: a bare role id, or a role plus the extra permissions its custom
+ * role grants (the shape of an authenticated request or a Caller).
+ */
+export type PermissionSubject = UserRole | { role: UserRole; permissions?: Permission[] };
+
+function splitSubject(subject: PermissionSubject): { role: UserRole; granted: Permission[] } {
+  return typeof subject === "string"
+    ? { role: subject, granted: [] }
+    : { role: subject.role, granted: sanitizeGrantedPermissions(subject.permissions) };
+}
+
+/**
+ * Permissions for any role. Admin and HR use their lists; every other role, including the
+ * "employee" role and any custom role created in Settings, gets self-service access plus whatever
+ * extra (grantable) permissions its custom role carries.
+ * (Custom roles otherwise control which sidebar sections are visible, not which people's data the API returns.)
+ */
+export function getRolePermissions(subject: PermissionSubject): Permission[] {
+  const { role, granted } = splitSubject(subject);
+  if (role === "admin") return ROLE_PERMISSIONS.admin;
+  if (role === "hr") return ROLE_PERMISSIONS.hr;
+  return Array.from(new Set([...ROLE_PERMISSIONS.employee, ...granted]));
+}
+
+export function hasPermission(subject: PermissionSubject, permission: Permission): boolean {
+  if (splitSubject(subject).role === "admin") return true;
+  const permissions = getRolePermissions(subject);
   return permissions.includes("all:manage") || permissions.includes(permission);
 }
 

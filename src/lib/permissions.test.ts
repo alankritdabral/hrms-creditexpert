@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasPermission, getRolePermissions, getBranchScope, canRoleAccessSection } from "./permissions";
+import { hasPermission, getRolePermissions, getBranchScope, canRoleAccessSection, sanitizeGrantedPermissions } from "./permissions";
 
 describe("permissions (current behaviour)", () => {
   it("gives admin and hr every permission", () => {
@@ -50,5 +50,29 @@ describe("canRoleAccessSection", () => {
   it("hides admin sections from employees", () => {
     expect(canRoleAccessSection("employee", "payroll")).toBe(false);
     expect(canRoleAccessSection("employee", "attendance")).toBe(true);
+  });
+});
+
+describe("granted permissions on custom roles", () => {
+  const backend = { role: "role-backend-team-1234", permissions: ["logins:view_all", "incentives:view_all", "incentives:manage"] as const };
+
+  it("adds the granted permissions on top of self-service", () => {
+    const subject = { role: backend.role, permissions: [...backend.permissions] };
+    expect(hasPermission(subject, "logins:view_all")).toBe(true);
+    expect(hasPermission(subject, "incentives:manage")).toBe(true);
+    expect(hasPermission(subject, "logins:manage")).toBe(true);
+  });
+
+  it("never grants anything outside the allow-list", () => {
+    const subject = { role: backend.role, permissions: ["salary:view_all", "all:manage", "settings:manage", "payroll:finalize"] as never };
+    expect(hasPermission(subject, "salary:view_all")).toBe(false);
+    expect(hasPermission(subject, "all:manage")).toBe(false);
+    expect(hasPermission(subject, "settings:manage")).toBe(false);
+    expect(sanitizeGrantedPermissions(["salary:view_all", "logins:view_all", "logins:view_all", 5])).toEqual(["logins:view_all"]);
+  });
+
+  it("does not change what a bare role id gets", () => {
+    expect(hasPermission(backend.role, "logins:view_all")).toBe(false);
+    expect(getRolePermissions({ role: "employee", permissions: ["incentives:manage"] })).toContain("incentives:manage");
   });
 });

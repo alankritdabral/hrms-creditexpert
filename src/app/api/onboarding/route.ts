@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Callers without onboarding:view_all (employees, custom roles) only see their own record
-  if (!hasPermission(auth.role, "onboarding:view_all")) {
+  if (!hasPermission(auth, "onboarding:view_all")) {
     const all = await getOnboardingRecords();
     const self = all.filter((r) => r.employeeId === auth.employeeId || r.email === auth.actor.email);
     return NextResponse.json({ success: true, data: self });

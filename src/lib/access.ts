@@ -7,6 +7,8 @@ import type { Branch, Employee, SalaryComponent, UserRole } from "./types";
  */
 export interface Caller {
   role: UserRole;
+  /** Extra permissions granted by the caller's custom role (see GRANTABLE_PERMISSIONS). */
+  permissions?: Permission[];
   employeeId: string;
   branchScope: Branch[];
 }
@@ -15,7 +17,7 @@ export interface Caller {
 export function isOwnOrPermitted(caller: Caller, targetEmployeeId: string | undefined, permission: Permission): boolean {
   if (!targetEmployeeId) return true;
   if (targetEmployeeId === caller.employeeId) return true;
-  return hasPermission(caller.role, permission);
+  return hasPermission(caller, permission);
 }
 
 /**
@@ -29,7 +31,7 @@ export function ownOrScoped<T>(
   getEmployeeId: (item: T) => string | undefined,
   getBranch?: (item: T) => Branch | undefined
 ): T[] {
-  if (!hasPermission(caller.role, viewAllPermission)) {
+  if (!hasPermission(caller, viewAllPermission)) {
     return items.filter((i) => getEmployeeId(i) === caller.employeeId);
   }
   if (!getBranch) return items;
@@ -45,7 +47,7 @@ export function resolveTargetEmployeeId(
   requestedEmployeeId: string | undefined,
   managePermission: Permission
 ): string {
-  if (requestedEmployeeId && requestedEmployeeId !== caller.employeeId && hasPermission(caller.role, managePermission)) {
+  if (requestedEmployeeId && requestedEmployeeId !== caller.employeeId && hasPermission(caller, managePermission)) {
     return requestedEmployeeId;
   }
   return caller.employeeId;
@@ -67,13 +69,13 @@ const MASKED_STATUTORY = {
 export function redactEmployee(emp: Employee, caller: Caller): Employee {
   if (emp.employeeId === caller.employeeId) return emp;
   let out = emp;
-  if (!hasPermission(caller.role, "sensitive_data:unmask")) {
+  if (!hasPermission(caller, "sensitive_data:unmask")) {
     out = {
       ...out,
       statutory: { ...MASKED_STATUTORY, bankName: emp.statutory?.bankName || "Confidential" },
     };
   }
-  if (!hasPermission(caller.role, "salary:view_all")) {
+  if (!hasPermission(caller, "salary:view_all")) {
     out = { ...out, currentSalary: undefined as unknown as SalaryComponent, salaryHistory: [] };
   }
   return out;

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     let logins = await getEmployeeLogins(month);
 
     // Callers without logins:view_all may only ever see their own records (enforced server-side, not by a client hint).
-    if (!hasPermission(auth.role, "logins:view_all") || searchParams.get("scope") === "mine") {
+    if (!hasPermission(auth, "logins:view_all") || searchParams.get("scope") === "mine") {
       logins = logins.filter((l) => l.employeeId === auth.employeeId);
     } else {
       // Managers/HR are limited to their branch scope.
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Callers without logins:view_all (employees, custom roles) can only save their OWN records.
-    const canManageOthers = hasPermission(auth.role, "logins:view_all");
+    const canManageOthers = hasPermission(auth, "logins:view_all");
     if (!canManageOthers && employeeId !== auth.employeeId) {
       return NextResponse.json(
         { success: false, error: "Forbidden: you can only update your own login records." },
@@ -130,7 +130,7 @@ export async function DELETE(req: NextRequest) {
     const { deleteEmployeeLogin } = await import("@/lib/db/db-adapter");
 
     // Callers without logins:view_all may delete only their own records.
-    if (!hasPermission(auth.role, "logins:view_all")) {
+    if (!hasPermission(auth, "logins:view_all")) {
       const existing = await getEmployeeLoginById(id);
       if (!existing || existing.employeeId !== auth.employeeId) {
         return NextResponse.json(

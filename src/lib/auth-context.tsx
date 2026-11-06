@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
 
       if (res.ok && data.success && data.user) {
-        setCurrentUser(data.user);
+        setCurrentUser({ ...data.user, grantedPermissions: data.permissions });
         setSession(data.session);
         setIsAuthenticated(true);
         setSessionRevokedError(null);
@@ -226,7 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: data.error || "Login failed" };
       }
 
-      setCurrentUser(data.user);
+      setCurrentUser({ ...data.user, grantedPermissions: data.permissions });
       setSession(data.session);
       setIsAuthenticated(true);
       setSessionRevokedError(null);
@@ -275,7 +275,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const checkPermission = (permission: Permission) => {
-    return checkPerm(currentUser.role, permission);
+    return checkPerm(
+      { role: currentUser.role, permissions: currentUser.grantedPermissions as Permission[] | undefined },
+      permission
+    );
   };
 
   const updateCurrentUserAvatar = useCallback((avatarUrl: string) => {

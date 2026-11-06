@@ -37,6 +37,8 @@ export interface CustomRole {
   isSystem: boolean;
   color: string;
   sections: string[];
+  /** Extra API permissions for this role beyond self-service (an allow-list; see GRANTABLE_PERMISSIONS). */
+  permissions?: string[];
   /** Attendance timing slot for everyone in this role. Missing means Timing 2 (the standard timing). */
   timingSlot?: TimingSlotId;
   createdAt: string;
@@ -188,6 +190,8 @@ export interface User {
   department?: string;
   avatar?: string;
   allowedSections?: string[];
+  /** Extra permissions granted by the user's custom role. */
+  grantedPermissions?: string[];
 }
 
 export interface UserAccount {

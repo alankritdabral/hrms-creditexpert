@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
         uploadedBy: auth.actor.name,
         uploadDate: new Date().toISOString(),
         expiryDate,
-        status: hasPermission(auth.role, "documents:manage") ? "Verified" : "Pending",
+        status: hasPermission(auth, "documents:manage") ? "Verified" : "Pending",
         notes,
       },
       auth.actor

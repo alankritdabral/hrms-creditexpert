@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     let runs = await getPayrollRuns();
 
     // Callers without payroll:view (employees and custom roles) only ever get their own payslip lines
-    if (!hasPermission(auth.role, "payroll:view")) {
+    if (!hasPermission(auth, "payroll:view")) {
       runs = runs
         .map((r) => {
           const myItems = r.items.filter((i) => i.employeeId === auth.employeeId);

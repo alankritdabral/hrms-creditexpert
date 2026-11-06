@@ -34,7 +34,7 @@ export async function GET(
 
   // Self-service check: callers without onboarding:view_all may only read their own record
   if (
-    !hasPermission(auth.role, "onboarding:view_all") &&
+    !hasPermission(auth, "onboarding:view_all") &&
     record.employeeId !== auth.employeeId &&
     record.email !== auth.actor.email
   ) {

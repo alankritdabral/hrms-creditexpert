@@ -32,7 +32,7 @@ import Link from "next/link";
 import { getISTMonthString } from "@/lib/attendance/ist-time";
 
 export default function IncentivesPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, hasPermission } = useAuth();
   const [schemes, setSchemes] = useState<IncentiveScheme[]>([]);
   const [incentives, setIncentives] = useState<EmployeeIncentiveRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -68,7 +68,7 @@ export default function IncentivesPage() {
   // Calculation Breakdown Viewer Modal
   const [breakdownModalRecord, setBreakdownModalRecord] = useState<EmployeeIncentiveRecord | null>(null);
 
-  const canManage = ["admin", "hr"].includes(currentUser.role);
+  const canManage = hasPermission("incentives:manage");
 
   const loadData = async () => {
     setIsLoading(true);

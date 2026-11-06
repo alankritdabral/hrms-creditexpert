@@ -1,6 +1,6 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, touchSession, getUserAccountById } from "./db/db-adapter";
+import { getSession, touchSession, getUserAccountById, getCustomRoleGrants } from "./db/db-adapter";
 import { UserRole, Branch, UserSession, PublicSession } from "./types";
 import { Permission, hasPermission, getBranchScope } from "./permissions";
 import type { Caller } from "./access";
@@ -21,6 +21,8 @@ export type AuthSuccess = {
   session: UserSession;
   actor: AuthenticatedActor;
   role: UserRole;
+  /** Extra permissions granted by the caller's custom role. Admin and HR already hold everything. */
+  permissions: Permission[];
   branch: Branch;
   branchScope: Branch[];
   employeeId: string;
@@ -111,6 +113,7 @@ function createLocalDevAuth(sid?: string): AuthSuccess {
     session: fallbackSession,
     actor: fallbackActor,
     role: "admin",
+    permissions: [],
     branch: "Delhi",
     branchScope: ["Delhi", "Dehradun", "Rudrapur"],
     employeeId: "EMP-001",
@@ -210,6 +213,7 @@ export async function authenticateRequest(req: Request | NextRequest): Promise<A
   };
 
   const branchScope = getBranchScope(account.role, account.branch);
+  const permissions = await getCustomRoleGrants(account.role).catch(() => []);
 
   return {
     authenticated: true,
@@ -223,6 +227,7 @@ export async function authenticateRequest(req: Request | NextRequest): Promise<A
     },
     actor,
     role: account.role,
+    permissions,
     branch: account.branch,
     branchScope,
     employeeId: account.employeeId,
@@ -266,7 +271,7 @@ export function authFailureResponse(failure: AuthFailure): NextResponse {
  * Validates whether the authenticated user holds a specific Permission.
  */
 export function requirePermission(auth: AuthSuccess, permission: Permission): NextResponse | null {
-  if (!hasPermission(auth.role, permission)) {
+  if (!hasPermission(auth, permission)) {
     return NextResponse.json(
       {
         success: false,
@@ -317,7 +322,7 @@ export function requireOwnOrPermission(
 ): NextResponse | null {
   if (!targetEmployeeId) return null;
   if (targetEmployeeId === auth.employeeId) return null;
-  if (hasPermission(auth.role, permission)) return null;
+  if (hasPermission(auth, permission)) return null;
   return NextResponse.json(
     {
       success: false,
@@ -330,5 +335,5 @@ export function requireOwnOrPermission(
 
 /** The caller shape used by the pure helpers in lib/access.ts. */
 export function callerOf(auth: AuthSuccess): Caller {
-  return { role: auth.role, employeeId: auth.employeeId, branchScope: auth.branchScope };
+  return { role: auth.role, permissions: auth.permissions, employeeId: auth.employeeId, branchScope: auth.branchScope };
 }

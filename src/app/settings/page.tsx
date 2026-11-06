@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
+import { GRANTABLE_PERMISSIONS } from "@/lib/permissions";
 import { useIsLocalhost } from "@/lib/use-is-localhost";
 import {
   Sliders,
@@ -101,6 +102,7 @@ export default function SettingsPage() {
   const [roleFormColor, setRoleFormColor] = useState("indigo");
   const [roleFormSections, setRoleFormSections] = useState<string[]>([]);
   const [roleFormTiming, setRoleFormTiming] = useState<TimingSlotId>("timing2");
+  const [roleFormPermissions, setRoleFormPermissions] = useState<string[]>([]);
   const [isSavingRole, setIsSavingRole] = useState(false);
 
   // Policy Form State
@@ -410,6 +412,7 @@ export default function SettingsPage() {
     setRoleFormColor("indigo");
     setRoleFormSections(["dashboard", "profile"]);
     setRoleFormTiming("timing2");
+    setRoleFormPermissions([]);
     setIsRoleModalOpen(true);
   };
 
@@ -421,6 +424,7 @@ export default function SettingsPage() {
     setRoleFormColor(role.color || "indigo");
     setRoleFormSections(role.sections || []);
     setRoleFormTiming(role.timingSlot === "timing1" ? "timing1" : "timing2");
+    setRoleFormPermissions(role.permissions || []);
     setIsRoleModalOpen(true);
   };
 
@@ -464,6 +468,7 @@ export default function SettingsPage() {
           color: roleFormColor,
           sections: roleFormSections,
           timingSlot: roleFormTiming,
+          permissions: roleFormPermissions,
         }),
       });
       const data = await res.json();
@@ -1056,6 +1061,42 @@ export default function SettingsPage() {
                     </option>
                   </select>
                   <p className="text-[10px] text-slate-500">Everyone in this role follows this timing.</p>
+                </div>
+              </div>
+
+              {/* Extra data permissions (beyond sidebar visibility) */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-blue-600" />
+                    Extra Data Permissions
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    By default a custom role can only read and change its own records. Tick what this role may also do for other employees.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {GRANTABLE_PERMISSIONS.map((g) => (
+                    <label
+                      key={g.permission}
+                      className="flex items-start gap-2.5 rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={roleFormPermissions.includes(g.permission)}
+                        onChange={() =>
+                          setRoleFormPermissions((prev) =>
+                            prev.includes(g.permission) ? prev.filter((p) => p !== g.permission) : [...prev, g.permission]
+                          )
+                        }
+                        className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
+                      />
+                      <span>
+                        <span className="block text-xs font-semibold text-slate-800">{g.label}</span>
+                        <span className="block text-[11px] text-slate-500">{g.description}</span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
               </div>
 

@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     // Callers without leaves:view_all (employees, custom roles) only ever see their own leave records
     leaves = ownOrScoped(callerOf(auth), "leaves:view_all", leaves, (l) => l.employeeId);
-    if (requestedEmpId && hasPermission(auth.role, "leaves:view_all")) {
+    if (requestedEmpId && hasPermission(auth, "leaves:view_all")) {
       leaves = leaves.filter((l) => l.employeeId === requestedEmpId);
     }
 

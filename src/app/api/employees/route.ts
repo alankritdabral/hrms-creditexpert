@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     // Callers who may view everyone (admin/HR) get the full directory, optionally filtered by branch.
     // Everyone else (employees and custom roles) gets their own record plus same-branch colleagues.
-    if (hasPermission(auth.role, "employees:view_all")) {
+    if (hasPermission(auth, "employees:view_all")) {
       if (branchFilter) employees = employees.filter((e) => e.employment.branch === branchFilter);
     } else {
       employees = employees.filter(

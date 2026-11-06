@@ -46,7 +46,7 @@ export async function GET(
     if (segments[0] === "kyc") {
       const owner = segments[1] || "";
       const mine = [auth.employeeId, auth.actor.email].filter(Boolean).map(folderName);
-      if (!hasPermission(auth.role, "documents:view_all") && !mine.includes(owner)) {
+      if (!hasPermission(auth, "documents:view_all") && !mine.includes(owner)) {
         return new NextResponse("Forbidden", { status: 403 });
       }
     }

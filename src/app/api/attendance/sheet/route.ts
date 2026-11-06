@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "month must be YYYY-MM" }, { status: 400 });
     }
 
-    const viewAll = hasPermission(auth.role, "attendance:view_all");
+    const viewAll = hasPermission(auth, "attendance:view_all");
 
     const [allEmployees, allRecords, allLeaves, allHolidays] = await Promise.all([
       getEmployees(),
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
       data: {
         month,
         viewAll,
-        canEdit: viewAll && hasPermission(auth.role, "attendance:manage"),
+        canEdit: viewAll && hasPermission(auth, "attendance:manage"),
         roster,
         records,
         leaves,

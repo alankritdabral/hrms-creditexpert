@@ -19,6 +19,7 @@ import {
   SEED_USERS,
   SEED_USER_ACCOUNTS,
 } from "./seed-data";
+import { sanitizeGrantedPermissions, type Permission } from "../permissions";
 import {
   Employee,
   StatutoryInfo,
@@ -2270,6 +2271,26 @@ async function syncCustomRoles(): Promise<CustomRole[]> {
   return memory.customRoles;
 }
 
+const ROLE_GRANTS_TTL_MS = 15_000;
+let roleGrantsCache: { at: number; byRole: Map<string, Permission[]> } | null = null;
+
+/**
+ * Extra permissions the custom role carries. System roles (admin, hr, employee) have none here:
+ * admin and HR hold everything already and the employee role is self-service only.
+ * Cached briefly so authenticated requests do not each read the roles collection.
+ */
+export async function getCustomRoleGrants(roleId: string | undefined | null): Promise<Permission[]> {
+  const id = (roleId || "").toString().toLowerCase().trim();
+  if (!id || id === "admin" || id === "hr" || id === "employee") return [];
+  if (!roleGrantsCache || Date.now() - roleGrantsCache.at > ROLE_GRANTS_TTL_MS) {
+    const roles = await syncCustomRoles();
+    const byRole = new Map<string, Permission[]>();
+    for (const r of roles) byRole.set(r.id.toLowerCase().trim(), sanitizeGrantedPermissions(r.permissions));
+    roleGrantsCache = { at: Date.now(), byRole };
+  }
+  return roleGrantsCache.byRole.get(id) ?? [];
+}
+
 export async function getCustomRoles(): Promise<CustomRole[]> {
   await syncCustomRoles();
 
@@ -2315,6 +2336,12 @@ export async function saveCustomRole(
     isSystem: role.isSystem || (existingIdx !== -1 ? memory.customRoles[existingIdx].isSystem : false),
     color: role.color || "indigo",
     sections: role.sections,
+    permissions:
+      role.permissions !== undefined
+        ? sanitizeGrantedPermissions(role.permissions)
+        : existingIdx !== -1
+          ? memory.customRoles[existingIdx].permissions
+          : undefined,
     timingSlot: role.timingSlot ?? (existingIdx !== -1 ? memory.customRoles[existingIdx].timingSlot : undefined),
     createdAt: existingIdx !== -1 ? memory.customRoles[existingIdx].createdAt : new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -2327,6 +2354,7 @@ export async function saveCustomRole(
   }
 
   await persist("custom_roles", fullRole.id, fullRole);
+  roleGrantsCache = null;
 
   if (actor) {
     await recordAuditLog({
@@ -2353,6 +2381,7 @@ export async function deleteCustomRole(
 
   memory.customRoles = memory.customRoles.filter((r) => r.id !== roleId);
   await persistDelete("custom_roles", roleId);
+  roleGrantsCache = null;
 
   // Reassign any users who had this role to employee
   for (const u of await getAllUserAccounts()) {

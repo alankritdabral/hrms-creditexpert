@@ -37,7 +37,7 @@ async function resolveOwner(
   if (typeof requestedEmployeeId !== "string" || !requestedEmployeeId || requestedEmployeeId === auth.employeeId) {
     return { owner: own, error: null };
   }
-  if (!hasPermission(auth.role, "logins:view_all")) {
+  if (!hasPermission(auth, "logins:view_all")) {
     return { owner: null, error: fail("Forbidden: you can only add or change your own login sheet rows.", 403) };
   }
   const emp = (await getEmployees()).find((e) => e.employeeId === requestedEmployeeId);
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     let rows = await getLoginSheetEntries(from, to);
 
     // Callers without logins:view_all only ever see their own rows (enforced here, not by a client hint).
-    if (!hasPermission(auth.role, "logins:view_all")) {
+    if (!hasPermission(auth, "logins:view_all")) {
       rows = rows.filter((r) => r.employeeId === auth.employeeId);
     } else {
       rows = rows.filter((r) => !r.branch || auth.branchScope.includes(r.branch));
@@ -115,7 +115,7 @@ export async function PUT(req: NextRequest) {
 
     const existing = await getLoginSheetEntryById(id);
     if (!existing) return fail("Row not found.", 404);
-    const canManageOthers = hasPermission(auth.role, "logins:view_all");
+    const canManageOthers = hasPermission(auth, "logins:view_all");
     if (!canManageOthers && existing.employeeId !== auth.employeeId) {
       return fail("Forbidden: you can only change your own login sheet rows.", 403);
     }
@@ -151,7 +151,7 @@ export async function DELETE(req: NextRequest) {
 
     const existing = await getLoginSheetEntryById(id);
     if (!existing) return fail("Row not found.", 404);
-    if (!hasPermission(auth.role, "logins:view_all") && existing.employeeId !== auth.employeeId) {
+    if (!hasPermission(auth, "logins:view_all") && existing.employeeId !== auth.employeeId) {
       return fail("Forbidden: you can only delete your own login sheet rows.", 403);
     }
 

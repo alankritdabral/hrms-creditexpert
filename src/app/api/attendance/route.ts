@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     const month = searchParams.get("month");
     const from = searchParams.get("from") || (month ? `${month}-01` : undefined);
     const to = searchParams.get("to") || (month ? `${month}-31` : undefined);
-    const own = !hasPermission(auth.role, "attendance:view_all");
+    const own = !hasPermission(auth, "attendance:view_all");
     const targetEmp = own ? auth.employeeId : requestedEmpId;
 
     // Always scope the database read; with no filter at all, default to the current month
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
         longitude: Number(longitude),
         accuracy: Number(accuracy ?? 0),
       };
-    } else if (!hasPermission(auth.role, "attendance:manage")) {
+    } else if (!hasPermission(auth, "attendance:manage")) {
       // Everyone except attendance managers (admin/HR) must provide GPS location
       return NextResponse.json(
         {
