@@ -10,6 +10,8 @@ import { entriesToXlsx } from "@/lib/login-sheet-excel";
 import { downloadBlob, XLSX_MIME } from "@/lib/download";
 import { EntryFormModal, type EntryPayload, type SheetEmployee } from "@/components/login-sheet/EntryFormModal";
 import { useAuth } from "@/lib/auth-context";
+import { useLenderBanks } from "@/lib/use-lender-banks";
+import { mergeBankLists } from "@/lib/lender-banks";
 import { getISTDateString } from "@/lib/attendance/ist-time";
 import { distinct } from "@/lib/logins-filter";
 import {
@@ -26,20 +28,6 @@ import {
 import { BRANCHES, type LoginSheetEntry } from "@/lib/types";
 
 const PAGE_SIZE = 50;
-
-const PRESET_BANKS = [
-  "AXIS BANK",
-  "HDFC BANK",
-  "ICICI BANK",
-  "SBI",
-  "KOTAK MAHINDRA BANK",
-  "BAJAJ FINSERV",
-  "TATA CAPITAL",
-  "PIRAMAL FINANCE",
-  "IDFC FIRST BANK",
-  "INDUS BANK",
-  "POONAWALA",
-];
 
 const STATUS_STYLE: Record<string, string> = {
   SENT: "bg-slate-100 text-slate-700 border-slate-200",
@@ -70,6 +58,7 @@ export default function LoginSheetPage() {
   const { currentUser, hasPermission } = useAuth();
   const canViewAll = hasPermission("logins:view_all");
   const canManage = hasPermission("logins:manage");
+  const { banks: savedBanks, refresh: refreshBanks } = useLenderBanks();
 
   const [filters, setFilters] = useState<LoginSheetFilters>(() => ({ ...EMPTY_LOGIN_SHEET_FILTERS, ...rangeFilters() }));
   const [entries, setEntries] = useState<LoginSheetEntry[]>([]);
@@ -179,7 +168,7 @@ export default function LoginSheetPage() {
     }),
     [entries]
   );
-  const bankSuggestions = useMemo(() => distinct([...PRESET_BANKS, ...options.banks]), [options.banks]);
+  const bankSuggestions = useMemo(() => mergeBankLists(savedBanks, options.banks), [savedBanks, options.banks]);
 
   const canEdit = (row: LoginSheetEntry) => canManage && (canViewAll || row.employeeId === currentUser.employeeId);
 
@@ -210,6 +199,7 @@ export default function LoginSheetPage() {
       const widened = lo !== dateFrom || hi !== dateTo;
       setFormOpen(false);
       setEditing(null);
+      refreshBanks(); // a new bank name typed here is remembered by the server
       setNotice(editingId ? "Row updated." : `${rows.length} ${rows.length === 1 ? "row" : "rows"} added.`);
       if (widened) setFilters((p) => ({ ...p, dateFrom: lo, dateTo: hi }));
       else await loadEntries();
@@ -267,6 +257,7 @@ export default function LoginSheetPage() {
   };
 
   const handleImported = (dates: string[], count: number) => {
+    refreshBanks(); // bank names found in the file are remembered automatically
     setNotice(`${count} ${count === 1 ? "row" : "rows"} imported from Excel.`);
     const lo = dates.reduce((a, b) => (b < a ? b : a), dateFrom);
     const hi = dates.reduce((a, b) => (b > a ? b : a), dateTo);

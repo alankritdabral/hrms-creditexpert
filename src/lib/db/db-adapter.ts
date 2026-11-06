@@ -20,6 +20,7 @@ import {
   SEED_USER_ACCOUNTS,
 } from "./seed-data";
 import { sanitizeGrantedPermissions, type Permission } from "../permissions";
+import { PRESET_LENDER_BANKS, MAX_SAVED_BANKS, bankKey, cleanBankName, mergeBankLists } from "../lender-banks";
 import {
   Employee,
   StatutoryInfo,
@@ -123,6 +124,7 @@ class MemoryStore {
   registrationDrafts: Map<string, RegistrationDraft> = new Map();
   employeeLogins: EmployeeLoginRecord[] = isLocalEnvironment() ? [...INITIAL_EMPLOYEE_LOGINS] : [];
   loginSheet: LoginSheetEntry[] = [];
+  lenderBanks: { id: string; name: string; createdAt: string; addedBy: string }[] = [];
   customRoles: CustomRole[] = [...DEFAULT_ROLES];
 }
 
@@ -137,6 +139,7 @@ if ((!memory.employeeLogins || memory.employeeLogins.length === 0) && isLocalEnv
 }
 memory.customRoles ??= [...DEFAULT_ROLES];
 memory.loginSheet ??= [];
+memory.lenderBanks ??= [];
 memory.userAccounts ??= isLocalEnvironment() ? [...SEED_USER_ACCOUNTS] : [];
 
 /** A copy of the list sorted newest first by a string key (ISO dates sort correctly as text). */
@@ -1443,6 +1446,60 @@ export async function updateIncentiveScheme(
 
 // ----------------- LOGIN SHEET (daily Excel-style file tracker) -----------------
 
+// ----------------- LENDER BANKS (remembered names) -----------------
+const LENDER_BANKS_COLLECTION = "lender_banks";
+
+type LenderBankDoc = { id: string; name: string; createdAt: string; addedBy: string };
+
+async function readSavedLenderBanks(): Promise<LenderBankDoc[]> {
+  if (isFirestoreConfigured()) {
+    return (await getCollectionFromFirestore<LenderBankDoc>(LENDER_BANKS_COLLECTION)) ?? [];
+  }
+  return memory.lenderBanks;
+}
+
+/** Built-in banks followed by every name saved before, without duplicates. */
+export async function getLenderBanks(): Promise<string[]> {
+  let saved: LenderBankDoc[] = [];
+  try {
+    saved = await readSavedLenderBanks();
+  } catch (e) {
+    console.warn("getLenderBanks fallback:", e);
+  }
+  const names = [...saved].sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || "")).map((b) => b.name);
+  return mergeBankLists(PRESET_LENDER_BANKS, names.sort((a, b) => a.localeCompare(b)));
+}
+
+/**
+ * Remembers bank names so they are offered next time. Names already known (built-in or saved) are
+ * skipped. Never throws: a failure here must not fail the login or import that triggered it.
+ * Returns the names that were newly saved.
+ */
+export async function rememberLenderBanks(names: unknown[], addedBy: string): Promise<string[]> {
+  try {
+    const known = new Set(mergeBankLists(PRESET_LENDER_BANKS).map(bankKey));
+    const saved = await readSavedLenderBanks();
+    for (const b of saved) known.add(bankKey(b.name));
+
+    const added: string[] = [];
+    for (const raw of names) {
+      const name = cleanBankName(raw);
+      const key = bankKey(name);
+      if (!key || known.has(key)) continue;
+      if (saved.length + added.length >= MAX_SAVED_BANKS) break;
+      known.add(key);
+      const doc: LenderBankDoc = { id: key, name, createdAt: new Date().toISOString(), addedBy };
+      if (!isFirestoreConfigured()) memory.lenderBanks.push(doc);
+      await persist(LENDER_BANKS_COLLECTION, doc.id, doc);
+      added.push(name);
+    }
+    return added;
+  } catch (e) {
+    console.warn("rememberLenderBanks failed:", e);
+    return [];
+  }
+}
+
 const LOGIN_SHEET_COLLECTION = "login_sheet";
 
 export async function getLoginSheetEntryById(id: string): Promise<LoginSheetEntry | null> {
@@ -1490,6 +1547,8 @@ export async function createLoginSheetEntries(
     created.push(entry);
   }
 
+  await rememberLenderBanks(inputs.map((i) => i.bankName), actor.name);
+
   await recordAuditLog({
     who: actor.name,
     role: actor.role,
@@ -1532,6 +1591,7 @@ export async function updateLoginSheetEntry(
   await persist(LOGIN_SHEET_COLLECTION, id, record);
   // The query cache merges writes into cached rows, which would bring back a field the user just cleared.
   invalidateFirestoreCache(LOGIN_SHEET_COLLECTION);
+  await rememberLenderBanks([record.bankName], actor.name);
 
   await recordAuditLog({
     who: actor.name,
@@ -1736,6 +1796,7 @@ export async function saveEmployeeLogin(
 
   upsertMemory(memory.employeeLogins, (l) => l.id === record.id, record);
   await persist("employee_logins", record.id, record);
+  await rememberLenderBanks(banks.map((b) => b.bankName), actor?.name || "User");
 
   await recordAuditLog({
     who: actor.name,

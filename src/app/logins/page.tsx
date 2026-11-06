@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/lib/auth-context";
+import { useLenderBanks } from "@/lib/use-lender-banks";
+import { cleanBankName } from "@/lib/lender-banks";
 import {
   TrendingUp,
   Building2,
@@ -33,21 +35,10 @@ import {
   type LoginFilters,
 } from "@/lib/logins-filter";
 
-const PRESET_BANKS = [
-  "Axis Bank",
-  "HDFC Bank",
-  "ICICI Bank",
-  "State Bank of India (SBI)",
-  "Kotak Mahindra Bank",
-  "Bajaj Finserv",
-  "Tata Capital",
-  "Piramal Finance",
-  "IDFC First Bank",
-  "Other Bank / NBFC",
-];
-
 export default function LoginsPage() {
   const { currentUser } = useAuth();
+  const { banks: lenderBanks, isKnown: isKnownBank, save: saveLenderBank, refresh: refreshLenderBanks } = useLenderBanks();
+  const [bankSaveMsg, setBankSaveMsg] = useState<string | null>(null);
   const [logins, setLogins] = useState<EmployeeLoginRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(getISTMonthString());
@@ -378,15 +369,22 @@ export default function LoginsPage() {
       ? (addBranch || "Delhi")
       : (selectedEmp?.employment.branch || addBranch || "Delhi");
 
+    const lenderName = cleanBankName(addInitialBank);
+    if ((Number(addInitialDisbursal) || 0) > 0 && !lenderName) {
+      alert("Enter the lender bank for the initial disbursal.");
+      setIsAddingLogin(false);
+      return;
+    }
+
     try {
       const initialAmount = Number(addInitialDisbursal) || 0;
       const initialBanks: BankDisbursalBreakdown[] = [];
 
       if (initialAmount > 0) {
-        const isAxis = addInitialBank.toLowerCase().includes("axis");
+        const isAxis = lenderName.toLowerCase().includes("axis");
         initialBanks.push({
           id: `bank-${Date.now()}`,
-          bankName: addInitialBank,
+          bankName: lenderName,
           isAxisBank: isAxis,
           totalAmount: initialAmount,
           customers: [
@@ -444,6 +442,9 @@ export default function LoginsPage() {
         setAddRemarks("");
         setAddInitialDisbursal("");
         setAddInitialCustomerName("");
+        // A bank typed here is remembered for next time, even when no disbursal was entered with it.
+        if (lenderName && !isKnownBank(lenderName)) await saveLenderBank(lenderName);
+        else refreshLenderBanks();
         if (isCustomEmployee) {
           setAddEmpName("");
           setAddEmpId("");
@@ -1045,7 +1046,7 @@ export default function LoginsPage() {
                 onChange={(e) => setNewBankName(e.target.value)}
                 className="flex-1 text-xs rounded-lg border border-slate-200 px-3 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
               >
-                {PRESET_BANKS.map((b) => (
+                {lenderBanks.map((b) => (
                   <option key={b} value={b}>
                     {b} {b === "Axis Bank" ? "★ (Incentive Partner)" : ""}
                   </option>
@@ -1765,17 +1766,45 @@ export default function LoginsPage() {
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                   Lender Bank
                 </label>
-                <select
-                  value={addInitialBank}
-                  onChange={(e) => setAddInitialBank(e.target.value)}
-                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 bg-white focus:outline-none focus:border-blue-500"
-                >
-                  {PRESET_BANKS.map((b) => (
-                    <option key={b} value={b}>
-                      {b} {b === "Axis Bank" ? "★ (Axis Incentive Rate)" : ""}
-                    </option>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    list="logins-lender-banks"
+                    value={addInitialBank}
+                    onChange={(e) => {
+                      setAddInitialBank(e.target.value);
+                      setBankSaveMsg(null);
+                    }}
+                    maxLength={80}
+                    placeholder="Pick or type a bank / NBFC"
+                    className="w-full min-w-0 text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                  {addInitialBank.trim() && !isKnownBank(addInitialBank) && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const r = await saveLenderBank(addInitialBank);
+                        if (r.ok) {
+                          setAddInitialBank(r.name);
+                          setBankSaveMsg(`"${r.name}" saved. It will be offered next time.`);
+                        } else setBankSaveMsg(r.error);
+                      }}
+                      className="shrink-0 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 px-2.5 rounded-xl border border-blue-200 transition-colors cursor-pointer"
+                    >
+                      Save bank
+                    </button>
+                  )}
+                </div>
+                <datalist id="logins-lender-banks">
+                  {lenderBanks.map((b) => (
+                    <option key={b} value={b} />
                   ))}
-                </select>
+                </datalist>
+                {bankSaveMsg ? (
+                  <span className="text-[10px] text-blue-600 mt-0.5 block">{bankSaveMsg}</span>
+                ) : addInitialBank.trim() && !isKnownBank(addInitialBank) ? (
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">New bank. It is saved when you add the entry, or press Save bank now.</span>
+                ) : null}
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
