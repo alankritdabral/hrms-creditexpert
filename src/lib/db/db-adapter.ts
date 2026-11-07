@@ -85,7 +85,7 @@ import {
   queryFreshFromFirestore,
   invalidateFirestoreCache,
 } from "../firestore-service";
-import { calculateHaversineDistance } from "../attendance/geolocation";
+import { calculateHaversineDistance, resolveAttendanceOffice } from "../attendance/geolocation";
 import {
   getISTDateString,
   getIST24HourTime,
@@ -1231,14 +1231,11 @@ export async function punchAttendance(
   // Perform Server-Side GPS & Geofence Validation if location is supplied
   if (locationData) {
     const offices = await getOffices();
-    const activeOffices = offices.filter((o) => o.isActive);
-
-    const empBranch = emp?.employment?.branch;
-    matchedOffice = activeOffices.find((o) => o.branch === empBranch) || activeOffices[0];
-
-    if (!matchedOffice) {
-      throw new Error("No active office location is assigned to your branch. Please contact HR.");
+    const resolved = resolveAttendanceOffice(offices, emp?.employment?.branch);
+    if (!resolved.office) {
+      throw new Error(resolved.error || "No active office location is assigned to your branch. Please contact HR.");
     }
+    matchedOffice = resolved.office;
 
     // Check accuracy limit
     const maxAccuracy = matchedOffice.maxAccuracyMeters || 100;

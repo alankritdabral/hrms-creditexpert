@@ -597,3 +597,26 @@ export async function sendAttendanceReminderEmail(
   console.log(`[DEV EMAIL] Attendance reminder -> ${email} (${date})`);
   return true;
 }
+
+/**
+ * Sends a ready-made report email (the evening login progress mail). Returns false when sending fails.
+ * With no SMTP configured (local development) it only logs, like the other emails.
+ */
+export async function sendReportEmail(
+  to: string,
+  mail: { subject: string; html: string; text?: string }
+): Promise<boolean> {
+  const transporter = getTransporter();
+  const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS" <no-reply@creditexpertindia.com>`;
+  if (transporter) {
+    try {
+      await transporter.sendMail({ from: fromAddress, to: to.toLowerCase().trim(), subject: mail.subject, html: mail.html, text: mail.text });
+      return true;
+    } catch (e) {
+      console.error("Failed to send report email:", e);
+      return false;
+    }
+  }
+  console.log(`[DEV EMAIL] ${mail.subject} -> ${to}`);
+  return true;
+}

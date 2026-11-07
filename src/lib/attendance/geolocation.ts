@@ -64,3 +64,28 @@ export function validateCoordinates(
 
   return { valid: true };
 }
+
+/**
+ * Picks the active office an employee must be near to clock in: the one whose
+ * branch matches the employee's branch. Never falls back to another branch's
+ * office, because that would measure the employee against the wrong city.
+ */
+export function resolveAttendanceOffice<T extends { branch: string; isActive: boolean }>(
+  offices: T[],
+  employeeBranch: string | undefined | null
+): { office?: T; error?: string } {
+  if (!employeeBranch) {
+    return {
+      error:
+        "Your employee record has no branch set, so your office location can't be determined. Please contact HR.",
+    };
+  }
+  const normalized = employeeBranch.trim().toLowerCase();
+  const office = offices.find((o) => o.isActive && o.branch.trim().toLowerCase() === normalized);
+  if (!office) {
+    return {
+      error: `No active office location is configured for the ${employeeBranch} branch. Please contact HR.`,
+    };
+  }
+  return { office };
+}

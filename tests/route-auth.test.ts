@@ -16,6 +16,7 @@ const PUBLIC_BY_DESIGN = new Set([
   "src/app/api/auth/register/verify-otp/route.ts POST",
   "src/app/api/auth/register/submit/route.ts POST",
   "src/app/api/cron/attendance-reminder/route.ts GET", // protected by CRON_SECRET
+  "src/app/api/cron/daily-login-report/route.ts GET", // protected by CRON_SECRET
 ]);
 
 const KNOWN_GAPS = new Set<string>([]);
