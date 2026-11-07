@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Edit2, FileSpreadsheet, Plus, Search, Table2, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Pagination } from "@/components/ui/Pagination";
@@ -9,6 +9,18 @@ import { ImportModal } from "@/components/login-sheet/ImportModal";
 import { entriesToXlsx } from "@/lib/login-sheet-excel";
 import { downloadBlob, XLSX_MIME } from "@/lib/download";
 import { EntryFormModal, type EntryPayload, type SheetEmployee } from "@/components/login-sheet/EntryFormModal";
+import { CellEditor, type CellMove, type Choice } from "@/components/login-sheet/CellEditor";
+import {
+  SHEET_COLUMNS,
+  applyEdits,
+  applyPatch,
+  cellCopyText,
+  cellDraft,
+  diffRow,
+  formatSheetDate as formatDate,
+  type EditOutcome,
+  type SheetColumnKey,
+} from "@/lib/login-sheet-edit";
 import { useAuth } from "@/lib/auth-context";
 import { useLenderBanks } from "@/lib/use-lender-banks";
 import { mergeBankLists } from "@/lib/lender-banks";
@@ -19,6 +31,7 @@ import {
   FILE_BLANKS,
   LOGIN_SHEET_FILE_OPTIONS,
   LOGIN_SHEET_COLUMNS,
+  LOGIN_SHEET_PRODUCTS,
   LOGIN_SHEET_STATUSES,
   activeSheetFilterCount,
   filterLoginSheet,
@@ -41,10 +54,26 @@ const STATUS_STYLE: Record<string, string> = {
 const statusStyle = (s: string) => STATUS_STYLE[s] || "bg-purple-50 text-purple-700 border-purple-200";
 
 const money = (n: number | undefined) => (n === undefined ? "" : n.toLocaleString("en-IN"));
-const formatDate = (d: string) => {
-  const [y, m, day] = d.split("-");
-  return y && m && day ? `${day}-${m}-${y}` : d;
+
+/** Extra classes per column for the read-only look of a cell. */
+const NOWRAP = "whitespace-nowrap";
+const CELL_STYLE: Partial<Record<SheetColumnKey, string>> = {
+  customerName: "font-semibold text-slate-900",
+  panNo: `${NOWRAP} font-mono text-[10px] text-slate-700`,
+  phone: `${NOWRAP} font-mono text-[10px] text-slate-700`,
+  date: `${NOWRAP} font-mono text-[10px]`,
+  bankName: "font-medium",
+  loginId: "font-mono break-all",
+  amount: `${NOWRAP} text-right font-mono text-[10px]`,
+  time: `${NOWRAP} font-mono text-[10px]`,
+  remarks: "text-slate-600",
+  insuranceDetails: "text-slate-600",
+  amount2: `${NOWRAP} text-right font-mono text-[10px]`,
 };
+
+type CellPos = { id: string; col: number };
+type Editing = CellPos & { draft: string; error: string | null };
+type SaveableEdit = Extract<EditOutcome, { ok: true }>;
 
 function defaultRange() {
   const today = getISTDateString();
@@ -119,7 +148,8 @@ export default function LoginSheetPage() {
     try {
       const res = await fetch(`/api/login-sheet?from=${dateFrom}&to=${dateTo}`);
       const json = await res.json();
-      if (json.success && Array.isArray(json.data)) setEntries(json.data);
+      // Sorted once here, not on every render: an edited date or time must not make the row jump away from the cursor.
+      if (json.success && Array.isArray(json.data)) setEntries(sortLoginSheet(json.data));
       else {
         setEntries([]);
         setLoadError(json.error || "Could not load the login sheet.");
@@ -165,13 +195,12 @@ export default function LoginSheetPage() {
     [canViewAll, employees, self]
   );
 
-  const sorted = useMemo(() => sortLoginSheet(entries), [entries]);
-  const filtered = useMemo(() => filterLoginSheet(sorted, filters), [sorted, filters]);
+  const filtered = useMemo(() => filterLoginSheet(entries, filters), [entries, filters]);
   const summary = useMemo(() => summarizeLoginSheet(filtered), [filtered]);
   // Chip counts ignore the status filter itself, so every status stays available to tick.
   const statusCounts = useMemo(
-    () => summarizeLoginSheet(filterLoginSheet(sorted, { ...filters, status: [] })).byStatus,
-    [sorted, filters]
+    () => summarizeLoginSheet(filterLoginSheet(entries, { ...filters, status: [] })).byStatus,
+    [entries, filters]
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -250,22 +279,246 @@ export default function LoginSheetPage() {
     }
   };
 
-  const changeStatus = async (row: LoginSheetEntry, status: string) => {
-    if (status === row.status) return;
-    const previous = entries;
-    setEntries((list) => list.map((e) => (e.id === row.id ? { ...e, status } : e)));
-    try {
-      const res = await fetch("/api/login-sheet", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...row, status }),
+  // ---------------------------- Excel-style cell editing ----------------------------
+  // The selected cell and the cell being edited are identified by row id + column index, so they stay put when rows are re-filtered.
+  const [active, setActive] = useState<CellPos | null>(null);
+  const [cellEdit, setCellEdit] = useState<Editing | null>(null);
+  // Handlers read the live edit from this ref: a key press and the blur it causes can run before React re-renders.
+  const editingRef = useRef<Editing | null>(null);
+  const cellRefs = useRef(new Map<string, HTMLTableCellElement>());
+  // Saves for one row run one after another, so an older edit can never land after a newer one.
+  const saveQueue = useRef(new Map<string, Promise<void>>());
+  const [pendingSaves, setPendingSaves] = useState(0);
+
+  const setEdit = (next: Editing | null) => {
+    editingRef.current = next;
+    setCellEdit(next);
+  };
+  const cellKey = (id: string, col: number) => `${id}|${col}`;
+
+  const owners = useMemo(() => formEmployees.map((e) => ({ employeeId: e.employeeId, name: e.name })), [formEmployees]);
+  const ownerChoices: Choice[] = useMemo(() => owners.map((o) => ({ value: o.employeeId, label: o.name })), [owners]);
+  const columnChoices = (key: SheetColumnKey): Choice[] => {
+    switch (key) {
+      case "empName":
+        return ownerChoices;
+      case "branch":
+        return [{ value: "", label: "—" }, ...BRANCHES.map((b) => ({ value: b, label: b }))];
+      case "file":
+        return [{ value: "", label: "—" }, ...options.files.filter((f) => f !== FILE_BLANKS).map((f) => ({ value: f, label: f }))];
+      case "status":
+        return options.statuses.map((s) => ({ value: s, label: s }));
+      default:
+        return [];
+    }
+  };
+
+  const cellEditable = (row: LoginSheetEntry, col: number) => canEdit(row) && (SHEET_COLUMNS[col].key !== "empName" || canViewAll);
+
+  /** Saves one edited row: the screen updates at once, the server follows, and a refusal puts the old values back. */
+  const saveRow = (row: LoginSheetEntry, edit: SaveableEdit) => {
+    const change = diffRow(row, edit.value, edit.owner);
+    if (!change) return;
+    const { patch, inverse } = change;
+    setEntries((list) => list.map((e) => (e.id === row.id ? applyPatch(e, patch) : e)));
+    // The body is built from the row as it was when edited plus this edit, so it carries earlier queued edits too.
+    const body = JSON.stringify({ id: row.id, employeeId: edit.owner?.employeeId ?? row.employeeId, ...edit.value });
+    setPendingSaves((n) => n + 1);
+    const task = (saveQueue.current.get(row.id) ?? Promise.resolve()).then(async () => {
+      try {
+        const res = await fetch("/api/login-sheet", { method: "PUT", headers: { "Content-Type": "application/json" }, body });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || "Please try again.");
+      } catch (e: any) {
+        setEntries((list) => list.map((x) => (x.id === row.id ? applyPatch(x, inverse) : x)));
+        setNotice(`Change to ${row.customerName} (${row.bankName}) was not saved: ${e?.message || "Check your connection and try again."}`);
+      } finally {
+        setPendingSaves((n) => n - 1);
+      }
+    });
+    saveQueue.current.set(row.id, task);
+  };
+
+  const moveActive = (from: CellPos, move: CellMove) => {
+    const r = pageRows.findIndex((x) => x.id === from.id);
+    if (r < 0 || move === "none") return;
+    let row = r;
+    let col = from.col;
+    if (move === "down") row = Math.min(pageRows.length - 1, r + 1);
+    else if (move === "up") row = Math.max(0, r - 1);
+    else if (move === "right") {
+      if (col < SHEET_COLUMNS.length - 1) col += 1;
+      else if (r < pageRows.length - 1) {
+        row = r + 1;
+        col = 0;
+      }
+    } else if (move === "left") {
+      if (col > 0) col -= 1;
+      else if (r > 0) {
+        row = r - 1;
+        col = SHEET_COLUMNS.length - 1;
+      }
+    }
+    setActive({ id: pageRows[row].id, col });
+  };
+
+  const beginEdit = (pos: CellPos, typed?: string) => {
+    const row = pageRows.find((x) => x.id === pos.id);
+    if (!row || !cellEditable(row, pos.col)) return;
+    setActive(pos);
+    setEdit({ ...pos, draft: typed ?? cellDraft(row, SHEET_COLUMNS[pos.col].key), error: null });
+  };
+
+  /**
+   * Saves the open edit. `from` ties a blur to the editor that raised it: a blur from an editor that was already
+   * closed (or replaced) must not save the new one.
+   */
+  const commitEdit = (move: CellMove | "blur", override?: string, from?: CellPos) => {
+    const ed = editingRef.current;
+    if (!ed || (from && (from.id !== ed.id || from.col !== ed.col))) return;
+    const row = entries.find((x) => x.id === ed.id);
+    const key = SHEET_COLUMNS[ed.col].key;
+    if (!row) {
+      setEdit(null);
+      return;
+    }
+    const result = applyEdits(row, { [key]: override ?? ed.draft }, owners);
+    if (!result.ok) {
+      if (move === "blur") {
+        setEdit(null);
+        setNotice(result.error);
+      } else {
+        setEdit({ ...ed, error: result.error }); // stay in the cell, like Excel's invalid-entry alert
+      }
+      return;
+    }
+    setEdit(null);
+    saveRow(row, result);
+    if (move !== "blur") moveActive(ed, move);
+  };
+
+  const cancelEdit = () => setEdit(null);
+
+  /** Empties the selected cell (Delete / Backspace). Required cells refuse with the usual message. */
+  const clearCell = (pos: CellPos) => {
+    const row = pageRows.find((x) => x.id === pos.id);
+    if (!row || !cellEditable(row, pos.col)) return;
+    const { key, editor } = SHEET_COLUMNS[pos.col];
+    // Dropdown cells that must hold a value (owner, status) cannot be emptied.
+    if (editor === "select" && key !== "branch" && key !== "file") return;
+    const result = applyEdits(row, { [key]: "" }, owners);
+    if (!result.ok) setNotice(result.error);
+    else saveRow(row, result);
+  };
+
+  /** Pastes text copied from Excel (tab-separated columns, one line per row) starting at the selected cell. */
+  const pasteBlock = (text: string, start: CellPos) => {
+    const r0 = pageRows.findIndex((x) => x.id === start.id);
+    if (r0 < 0) return;
+    const grid = text.replace(/\r/g, "").replace(/\n$/, "").split("\n").map((line) => line.split("\t"));
+    const plan: { row: LoginSheetEntry; edit: SaveableEdit }[] = [];
+    let skipped = 0;
+    for (let i = 0; i < grid.length; i++) {
+      const row = pageRows[r0 + i];
+      if (!row) break;
+      const edits: Partial<Record<SheetColumnKey, string>> = {};
+      grid[i].forEach((value, j) => {
+        const col = start.col + j;
+        if (col < SHEET_COLUMNS.length && cellEditable(row, col)) edits[SHEET_COLUMNS[col].key] = value;
       });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Could not update status.");
-      setEntries((list) => list.map((e) => (e.id === row.id ? json.data : e)));
-    } catch (e: any) {
-      setEntries(previous);
-      setNotice(e?.message || "Could not update status.");
+      if (Object.keys(edits).length === 0) {
+        skipped++;
+        continue;
+      }
+      const result = applyEdits(row, edits, owners);
+      if (!result.ok) {
+        // Nothing is saved unless every pasted row is valid.
+        setNotice(`Paste cancelled. ${row.customerName} (${row.bankName}): ${result.error}`);
+        return;
+      }
+      plan.push({ row, edit: result });
+    }
+    plan.forEach(({ row, edit }) => saveRow(row, edit));
+    if (skipped > 0 && plan.length === 0) setNotice("Those cells cannot be changed.");
+    else if (skipped > 0) setNotice(`Pasted into ${plan.length} ${plan.length === 1 ? "row" : "rows"}; ${skipped} could not be changed.`);
+  };
+
+  // Keep the browser focus on the selected cell, so the arrow keys keep working after every move or edit.
+  useEffect(() => {
+    if (active && !cellEdit) cellRefs.current.get(cellKey(active.id, active.col))?.focus({ preventScroll: false });
+  }, [active, cellEdit]);
+
+  const onGridKeyDown = (e: React.KeyboardEvent<HTMLTableSectionElement>) => {
+    if (!active || editingRef.current) return;
+    const mod = e.ctrlKey || e.metaKey || e.altKey;
+    const go = (move: CellMove) => {
+      e.preventDefault();
+      moveActive(active, move);
+    };
+    switch (e.key) {
+      case "ArrowDown":
+        return go("down");
+      case "ArrowUp":
+        return go("up");
+      case "ArrowRight":
+        return go("right");
+      case "ArrowLeft":
+        return go("left");
+      case "Tab": {
+        const r = pageRows.findIndex((x) => x.id === active.id);
+        const atEnd = e.shiftKey ? r === 0 && active.col === 0 : r === pageRows.length - 1 && active.col === SHEET_COLUMNS.length - 1;
+        if (atEnd) return; // let Tab leave the sheet
+        return go(e.shiftKey ? "left" : "right");
+      }
+      case "Home":
+        e.preventDefault();
+        return setActive({ id: active.id, col: 0 });
+      case "End":
+        e.preventDefault();
+        return setActive({ id: active.id, col: SHEET_COLUMNS.length - 1 });
+      case "Enter":
+      case "F2":
+        e.preventDefault();
+        return beginEdit(active);
+      case "Delete":
+      case "Backspace":
+        e.preventDefault();
+        return clearCell(active);
+      default:
+        // Typing on a selected cell replaces its content, like Excel.
+        if (!mod && e.key.length === 1 && SHEET_COLUMNS[active.col].editor !== "select") {
+          e.preventDefault();
+          beginEdit(active, e.key);
+        }
+    }
+  };
+
+  const onGridCopy = (e: React.ClipboardEvent) => {
+    if (!active || editingRef.current) return;
+    const row = pageRows.find((x) => x.id === active.id);
+    if (!row) return;
+    e.preventDefault();
+    e.clipboardData.setData("text/plain", cellCopyText(row, SHEET_COLUMNS[active.col].key));
+  };
+
+  const onGridPaste = (e: React.ClipboardEvent) => {
+    if (!active || editingRef.current) return;
+    e.preventDefault();
+    pasteBlock(e.clipboardData.getData("text/plain"), active);
+  };
+
+  const renderValue = (r: LoginSheetEntry, key: SheetColumnKey): React.ReactNode => {
+    switch (key) {
+      case "date":
+        return formatDate(r.date);
+      case "amount":
+        return money(r.amount);
+      case "amount2":
+        return money(r.amount2);
+      case "status":
+        return <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusStyle(r.status)}`}>{r.status}</span>;
+      default:
+        return r[key] ?? "";
     }
   };
 
@@ -396,8 +649,14 @@ export default function LoginSheetPage() {
             </div>
             <div className="text-xs text-slate-500">
               Showing {filtered.length.toLocaleString("en-IN")} of {entries.length.toLocaleString("en-IN")} rows
+              {pendingSaves > 0 && <span className="ml-2 font-semibold text-blue-600" role="status">Saving…</span>}
             </div>
           </div>
+          {canManage && (
+            <p className="text-[11px] text-slate-400">
+              Edit cells like Excel: click to select, double-click, Enter or F2 to edit (or just type), Tab and Enter to move, Esc to cancel, Delete to clear, Ctrl+C / Ctrl+V to copy and paste (also from Excel).
+            </p>
+          )}
 
           <div className="flex flex-wrap items-end gap-2.5">
             <label className="flex flex-col gap-1 min-w-[8.5rem] flex-1 sm:flex-none">
@@ -474,7 +733,7 @@ export default function LoginSheetPage() {
         {/* Fixed layout: the 18 columns share the page width (long text wraps) instead of scrolling sideways.
             Only very narrow screens fall back to a minimum width and scroll. */}
         <div className="overflow-x-auto overflow-y-auto max-h-[70vh]">
-          <table className="w-full table-fixed text-left text-[11px] leading-snug border-separate border-spacing-0 min-w-[1040px]">
+          <table role="grid" aria-label="Login sheet" className="w-full table-fixed text-left text-[11px] leading-snug border-separate border-spacing-0 min-w-[1040px]">
             <colgroup>
               <col style={{ width: pct(NUM_COL) }} />
               {LOGIN_SHEET_COLUMNS.map((c) => (
@@ -493,7 +752,15 @@ export default function LoginSheetPage() {
                 {canManage && <th className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200 py-2 px-1 text-right"><span className="sr-only">Actions</span></th>}
               </tr>
             </thead>
-            <tbody>
+            <tbody
+              onKeyDown={onGridKeyDown}
+              onCopy={onGridCopy}
+              onPaste={onGridPaste}
+              onBlur={(e) => {
+                // Clicking away from the sheet drops the selection.
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActive(null);
+              }}
+            >
               {isLoading ? (
                 <tr>
                   <td colSpan={LOGIN_SHEET_COLUMNS.length + 2} className="py-14 text-center text-slate-400">
@@ -536,50 +803,58 @@ export default function LoginSheetPage() {
               ) : (
                 pageRows.map((r, i) => {
                   const cell = "border-b border-r border-slate-100 py-1.5 px-1 align-top break-words";
-                  const nowrap = "whitespace-nowrap";
                   const editable = canEdit(r);
                   return (
                     <tr key={r.id} className="hover:bg-blue-50/30 transition-colors">
                       <td className={`${cell} px-1 text-center text-slate-400 bg-slate-50/60 font-mono`}>{(safePage - 1) * PAGE_SIZE + i + 1}</td>
-                      <td className={`${cell} font-semibold text-slate-900`}>{r.customerName}</td>
-                      <td className={`${cell} ${nowrap} font-mono text-[10px] text-slate-700`}>{r.panNo}</td>
-                      <td className={`${cell} ${nowrap} font-mono text-[10px] text-slate-700`}>{r.phone}</td>
-                      <td className={cell}>{r.location}</td>
-                      <td className={`${cell} ${nowrap} font-mono text-[10px]`}>{formatDate(r.date)}</td>
-                      <td className={cell}>{r.empName}</td>
-                      <td className={`${cell} font-medium`}>{r.bankName}</td>
-                      <td className={cell}>{r.dsaName}</td>
-                      <td className={`${cell} font-mono break-all`}>{r.loginId}</td>
-                      <td className={cell}>{r.product}</td>
-                      <td className={cell}>{r.branch}</td>
-                      <td className={cell}>{r.file}</td>
-                      <td className={`${cell} ${nowrap} text-right font-mono text-[10px]`}>{money(r.amount)}</td>
-                      <td className={`${cell} ${nowrap} font-mono text-[10px]`}>{r.time}</td>
-                      <td className={cell}>
-                        {editable ? (
-                          <select
-                            value={r.status}
-                            onChange={(e) => changeStatus(r, e.target.value)}
-                            aria-label={`Status for ${r.customerName} at ${r.bankName}`}
-                            title="Change status"
-                            className={`w-full max-w-full appearance-none text-center rounded-full border px-1 py-0.5 text-[10px] font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${statusStyle(r.status)}`}
+                      {SHEET_COLUMNS.map((c, ci) => {
+                        const isActive = active?.id === r.id && active.col === ci;
+                        const isEditing = cellEdit?.id === r.id && cellEdit.col === ci;
+                        const writable = cellEditable(r, ci);
+                        return (
+                          <td
+                            key={c.key}
+                            ref={(el) => {
+                              if (el) cellRefs.current.set(cellKey(r.id, ci), el);
+                              else cellRefs.current.delete(cellKey(r.id, ci));
+                            }}
+                            role="gridcell"
+                            tabIndex={isActive ? 0 : -1}
+                            aria-selected={isActive}
+                            aria-readonly={!writable}
+                            title={c.key === "remarks" ? r.remarks : undefined}
+                            onClick={() => {
+                              setActive({ id: r.id, col: ci });
+                              // Dropdown cells open on a single click, so changing a status stays one click.
+                              if (c.editor === "select" && !isEditing) beginEdit({ id: r.id, col: ci });
+                            }}
+                            onDoubleClick={() => {
+                              if (!isEditing) beginEdit({ id: r.id, col: ci });
+                            }}
+                            className={`${cell} ${CELL_STYLE[c.key] ?? ""} relative outline-none ${writable ? "cursor-cell" : ""} ${
+                              isActive ? "bg-blue-50/60 shadow-[inset_0_0_0_2px_rgb(59,130,246)]" : ""
+                            }`}
                           >
-                            {!(LOGIN_SHEET_STATUSES as readonly string[]).includes(r.status) && <option value={r.status}>{r.status}</option>}
-                            {LOGIN_SHEET_STATUSES.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusStyle(r.status)}`}>{r.status}</span>
-                        )}
-                      </td>
-                      <td className={`${cell} text-slate-600`} title={r.remarks}>
-                        {r.remarks}
-                      </td>
-                      <td className={`${cell} text-slate-600`}>{r.insuranceDetails}</td>
-                      <td className={`${cell} ${nowrap} text-right font-mono text-[10px]`}>{money(r.amount2)}</td>
+                            <span className={isEditing ? "invisible" : undefined}>{renderValue(r, c.key)}</span>
+                            {isEditing && cellEdit && (
+                              <CellEditor
+                                editor={c.editor}
+                                draft={cellEdit.draft}
+                                error={cellEdit.error}
+                                choices={columnChoices(c.key)}
+                                listId={`login-sheet-${c.key}-list`}
+                                alignRight={ci >= SHEET_COLUMNS.length / 2}
+                                ariaLabel={`${c.label} for ${r.customerName} at ${r.bankName}`}
+                                onDraft={(v) => setEdit({ ...cellEdit, draft: v, error: null })}
+                                onCommit={(move) => commitEdit(move)}
+                                onPick={(v) => commitEdit("none", v)}
+                                onCancel={cancelEdit}
+                                onBlur={() => commitEdit("blur", undefined, { id: r.id, col: ci })}
+                              />
+                            )}
+                          </td>
+                        );
+                      })}
                       {canManage && (
                         <td className="border-b border-slate-100 py-1.5 px-1 text-right align-top">
                           {editable && (
@@ -618,6 +893,23 @@ export default function LoginSheetPage() {
           <Pagination page={safePage} totalPages={totalPages} total={filtered.length} onPageChange={setPage} disabled={isLoading} />
         </div>
       </div>
+
+      {/* Suggestions for the cells that take free text. */}
+      <datalist id="login-sheet-bankName-list">
+        {bankSuggestions.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
+      <datalist id="login-sheet-dsaName-list">
+        {options.dsas.map((d) => (
+          <option key={d} value={d} />
+        ))}
+      </datalist>
+      <datalist id="login-sheet-product-list">
+        {distinct([...LOGIN_SHEET_PRODUCTS, ...options.products]).map((p) => (
+          <option key={p} value={p} />
+        ))}
+      </datalist>
 
       <ImportModal
         isOpen={importOpen}

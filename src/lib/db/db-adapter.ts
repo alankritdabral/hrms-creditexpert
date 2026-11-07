@@ -501,13 +501,16 @@ export interface AttachTemporaryResult {
   loginSheetRows: number;
   loginRecords: number;
   incentives: number;
+  /** True when the temporary record's login account was moved onto the registered employee. */
+  accountMoved: boolean;
 }
 
 /**
  * Merges a temporary employee into a registered one: their Login Sheet rows, monthly login records and
  * manual incentives move to the registered employee, and the temporary record is then removed.
- * Refuses (ConflictError / ValidationError) when the source is not temporary, is a login account's own
- * record, or has an incentive already paid in a payroll run.
+ * A login account on the temporary record is moved to the registered employee. Refuses
+ * (ConflictError / ValidationError) when the source is not temporary, both records have a login
+ * account, or the source has an incentive already paid in a payroll run.
  */
 export async function attachTemporaryEmployee(
   temporaryId: string,
@@ -521,8 +524,15 @@ export async function attachTemporaryEmployee(
   if (!target) throw new ValidationError("The employee to attach to was not found.");
   if (target.isTemporary) throw new ValidationError("Choose a registered employee, not another temporary one.");
   if (target.employeeId === temp.employeeId) throw new ValidationError("Choose a different employee.");
-  if (await getUserAccountByEmployeeId(temp.employeeId)) {
-    throw new ConflictError("This temporary record belongs to a login account, so it cannot be merged into another employee.");
+  // A login account on the temporary record moves to the registered employee, so the person keeps their
+  // login. Two accounts for one person is a decision for a human, so that case stays blocked.
+  // Only accounts that are really stored count: getAllUserAccounts() invents in-memory placeholder accounts for
+  // employees with none, and one of those must not block a merge.
+  const tempAccount = await getStoredUserAccountByEmployeeId(temp.employeeId);
+  if (tempAccount && (await getStoredUserAccountByEmployeeId(target.employeeId))) {
+    throw new ConflictError(
+      `Both ${temp.employeeId} and ${target.employeeId} have their own login account, so they cannot be merged automatically. Remove one account first.`
+    );
   }
 
   const tempId = temp.employeeId;
@@ -539,6 +549,9 @@ export async function attachTemporaryEmployee(
   }
   const sheetRows = await query<LoginSheetEntry>(LOGIN_SHEET_COLLECTION, memory.loginSheet);
   const loginRecords = await query<EmployeeLoginRecord>("employee_logins", memory.employeeLogins);
+
+  // 0. The login account follows the person (checks above all passed, so nothing is left half-done).
+  if (tempAccount) await updateUserAccount(tempAccount.uid, { employeeId: target.employeeId });
 
   // 1. Login Sheet rows keep everything but their owner.
   const now = new Date().toISOString();
@@ -600,7 +613,8 @@ export async function attachTemporaryEmployee(
     }
   }
 
-  // 4. The temporary record is no longer needed.
+  // 4. The temporary record is no longer needed (nor any placeholder account that was made up for it).
+  memory.userAccounts = (memory.userAccounts || []).filter((u) => u.employeeId !== tempId);
   memory.employees = memory.employees.filter((e) => e.employeeId !== tempId);
   await persistDelete("employees", temp.employeeId);
   invalidateFirestoreCache("employees");
@@ -611,10 +625,16 @@ export async function attachTemporaryEmployee(
     action: "EMPLOYEE_UPDATED",
     employeeId: target.employeeId,
     employeeName: targetName,
-    details: `Attached temporary employee ${temp.personal.fullName} (${tempId}) to ${targetName} (${target.employeeId}): moved ${sheetRows.length} login sheet rows, ${loginRecords.length} monthly login records and ${incentives.filter((i) => !i.sourceLoginRecordId).length} incentives.`,
+    details: `Attached temporary employee ${temp.personal.fullName} (${tempId}) to ${targetName} (${target.employeeId}): moved ${sheetRows.length} login sheet rows, ${loginRecords.length} monthly login records and ${incentives.filter((i) => !i.sourceLoginRecordId).length} incentives${tempAccount ? `, and moved the login account (${tempAccount.email}) onto ${target.employeeId}` : ""}.`,
   });
 
-  return { target, loginSheetRows: sheetRows.length, loginRecords: loginRecords.length, incentives: incentives.length };
+  return {
+    target,
+    loginSheetRows: sheetRows.length,
+    loginRecords: loginRecords.length,
+    incentives: incentives.length,
+    accountMoved: Boolean(tempAccount),
+  };
 }
 
 /**
@@ -1164,6 +1184,15 @@ export async function getUserAccountByEmployeeId(employeeId: string): Promise<Us
     } catch (e) {
       console.warn("Firestore account lookup by employee id failed:", e);
     }
+  }
+  const wanted = employeeId.toLowerCase();
+  return (memory.userAccounts || []).find((u) => (u.employeeId || "").toLowerCase() === wanted) || null;
+}
+
+/** Like getUserAccountByEmployeeId, but only a stored account counts, never an in-memory placeholder. */
+async function getStoredUserAccountByEmployeeId(employeeId: string): Promise<UserAccount | null> {
+  if (isFirestoreConfigured()) {
+    return (await queryFreshFromFirestore<UserAccount>("users", "employeeId", employeeId))[0] ?? null;
   }
   const wanted = employeeId.toLowerCase();
   return (memory.userAccounts || []).find((u) => (u.employeeId || "").toLowerCase() === wanted) || null;
@@ -1884,6 +1913,46 @@ export async function deleteEmployeeLogin(
   });
 
   return true;
+}
+
+export interface DeleteAllLoginDataResult {
+  loginRecords: number;
+  loginSheetRows: number;
+}
+
+/**
+ * Deletes ALL login data of one employee, across every month: the saved Logins & Disbursals records and every
+ * Login Sheet row. Both go because the hub re-adds Login Sheet rows to each record on every read, so deleting
+ * only the saved record would bring the row straight back. Incentives are left alone.
+ */
+export async function deleteAllEmployeeLoginData(
+  employeeId: string,
+  actor: { name: string; role: string }
+): Promise<DeleteAllLoginDataResult> {
+  const query = async <T extends { employeeId: string }>(collection: string, memoryRows: T[]): Promise<T[]> =>
+    isFirestoreConfigured()
+      ? await queryCollectionFromFirestore<T>(collection, [{ field: "employeeId", op: "==", value: employeeId }])
+      : memoryRows.filter((r) => r.employeeId === employeeId);
+
+  const records = await query<EmployeeLoginRecord>("employee_logins", memory.employeeLogins);
+  const rows = await query<LoginSheetEntry>(LOGIN_SHEET_COLLECTION, memory.loginSheet);
+
+  for (const r of records) await persistDelete("employee_logins", r.id);
+  for (const r of rows) await persistDelete(LOGIN_SHEET_COLLECTION, r.id);
+  memory.employeeLogins = memory.employeeLogins.filter((l) => l.employeeId !== employeeId);
+  memory.loginSheet = memory.loginSheet.filter((e) => e.employeeId !== employeeId);
+
+  const emp = await getEmployeeById(employeeId);
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "LOGIN_DELETED",
+    employeeId,
+    employeeName: emp?.personal.fullName || records[0]?.employeeName || rows[0]?.empName || employeeId,
+    details: `Deleted all login data: ${records.length} monthly login records and ${rows.length} login sheet rows.`,
+  });
+
+  return { loginRecords: records.length, loginSheetRows: rows.length };
 }
 
 export async function getEmployeeLogins(month?: string): Promise<EmployeeLoginRecord[]> {

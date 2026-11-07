@@ -476,25 +476,29 @@ export default function LoginsPage() {
     }
   };
 
-  // Delete Login Record
-  const handleDeleteLoginRecord = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete the login record for ${name}?`)) {
+  // Delete all login data of an employee (every month's record and every Login Sheet row).
+  const handleDeleteLoginRecord = async (employeeId: string, name: string) => {
+    if (
+      !confirm(
+        `Delete ALL login data for ${name} (${employeeId})?\n\nThis removes every monthly login record and every Login Sheet row for this employee, across all months. It cannot be undone.`
+      )
+    ) {
       return;
     }
 
     try {
-      const res = await fetch(`/api/logins?id=${id}`, {
+      const res = await fetch(`/api/logins?employeeId=${encodeURIComponent(employeeId)}`, {
         method: "DELETE",
       });
       const data = await res.json();
       if (data.success) {
         loadData();
       } else {
-        alert(data.error || "Failed to delete login record");
+        alert(data.error || "Failed to delete login data");
       }
     } catch (e) {
       console.error(e);
-      alert("Error deleting login record");
+      alert("Error deleting login data");
     }
   };
 
@@ -997,9 +1001,9 @@ export default function LoginsPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDeleteLoginRecord(record.id, record.employeeName)}
+                              onClick={() => handleDeleteLoginRecord(record.employeeId, record.employeeName)}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                              title="Delete login record"
+                              title="Delete all login data for this employee"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

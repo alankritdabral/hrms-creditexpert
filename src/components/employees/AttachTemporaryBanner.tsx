@@ -67,7 +67,7 @@ export function AttachTemporaryBanner({ employee }: Props) {
         <div className="text-sm font-bold text-amber-900">Temporary employee</div>
         <p className="text-xs text-amber-800 mt-0.5">
           This record was created automatically so entries had an owner. Once the real person is registered, attach it to them:
-          their Login Sheet rows, login records and incentives move across and this record is removed.
+          their Login Sheet rows, login records and incentives move across and this record is removed. If this record has a login account, the account moves to them too.
         </p>
       </div>
 

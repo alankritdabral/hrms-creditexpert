@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEmployeeLogins, saveEmployeeLogin, getEmployeeLoginById } from "@/lib/db/db-adapter";
+import { getEmployeeLogins, saveEmployeeLogin, getEmployeeLoginById, deleteAllEmployeeLoginData, getEmployeeById } from "@/lib/db/db-adapter";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/permissions";
 import { ensureCallerEmployee } from "@/lib/temp-employee";
@@ -126,9 +126,34 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
+    const actor = {
+      name: auth.actor?.name || auth.session?.name || "User",
+      role: auth.actor?.role || auth.session?.role || auth.role || "employee",
+    };
+
+    // ?employeeId=: delete everything this employee has (every month's record and every Login Sheet row).
+    const wholeEmployee = searchParams.get("employeeId");
+    if (wholeEmployee) {
+      if (!hasPermission(auth, "logins:view_all") && wholeEmployee !== auth.employeeId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden: you can only delete your own login data." },
+          { status: 403 }
+        );
+      }
+      const emp = await getEmployeeById(wholeEmployee);
+      if (emp && !auth.branchScope.includes(emp.employment.branch)) {
+        return NextResponse.json(
+          { success: false, error: `Forbidden: ${wholeEmployee} is outside your branch scope.`, code: "BRANCH_RESTRICTED" },
+          { status: 403 }
+        );
+      }
+      const data = await deleteAllEmployeeLoginData(wholeEmployee, actor);
+      return NextResponse.json({ success: true, data });
+    }
+
     const id = searchParams.get("id");
     if (!id) {
-      return NextResponse.json({ success: false, error: "Record ID is required" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Record ID or employeeId is required" }, { status: 400 });
     }
 
     const { deleteEmployeeLogin } = await import("@/lib/db/db-adapter");
@@ -143,10 +168,7 @@ export async function DELETE(req: NextRequest) {
         );
       }
     }
-    const success = await deleteEmployeeLogin(id, {
-      name: auth.actor?.name || auth.session?.name || "User",
-      role: auth.actor?.role || auth.session?.role || auth.role || "employee",
-    });
+    const success = await deleteEmployeeLogin(id, actor);
 
     return NextResponse.json({ success });
   } catch (error: any) {
