@@ -244,15 +244,21 @@ export interface LoginSheetSummary {
 
 export function summarizeLoginSheet(entries: LoginSheetEntry[]): LoginSheetSummary {
   const byStatus: Record<string, number> = {};
-  let totalAmount = 0;
-  let totalAmount2 = 0;
+  // A customer with several logins is disbursed by one bank only, so each customer
+  // counts once in the totals (the highest amount across their rows).
   const customers = new Set<string>();
+  const amountByCustomer = new Map<string, number>();
+  const amount2ByCustomer = new Map<string, number>();
   for (const e of entries) {
     byStatus[e.status] = (byStatus[e.status] || 0) + 1;
-    totalAmount += e.amount || 0;
-    totalAmount2 += e.amount2 || 0;
-    customers.add(customerKey(e));
+    const key = customerKey(e);
+    customers.add(key);
+    amountByCustomer.set(key, Math.max(amountByCustomer.get(key) ?? 0, e.amount || 0));
+    amount2ByCustomer.set(key, Math.max(amount2ByCustomer.get(key) ?? 0, e.amount2 || 0));
   }
+  const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+  const totalAmount = sum(amountByCustomer);
+  const totalAmount2 = sum(amount2ByCustomer);
   return { files: entries.length, customers: customers.size, totalAmount, totalAmount2, byStatus };
 }
 

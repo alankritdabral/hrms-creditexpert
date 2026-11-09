@@ -154,10 +154,20 @@ describe("summarizeLoginSheet", () => {
     expect(summarizeLoginSheet(data)).toEqual({
       files: 3,
       customers: 2,
-      totalAmount: 600,
+      totalAmount: 500,
       totalAmount2: 250,
       byStatus: { SENT: 1, LOGIN: 1, DISBURSED: 1 },
     });
+  });
+});
+
+describe("summarizeLoginSheet repeated customers", () => {
+  it("counts a customer once in Amount and Amount 2 however many logins they have", () => {
+    const rows = [1, 2, 3, 4].map((i) => row({ id: `r${i}`, amount: 100, amount2: 1 }));
+    const s = summarizeLoginSheet(rows);
+    expect(s.files).toBe(4);
+    expect(s.totalAmount).toBe(100);
+    expect(s.totalAmount2).toBe(1);
   });
 });
 
