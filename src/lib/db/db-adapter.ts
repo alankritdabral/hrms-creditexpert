@@ -2666,25 +2666,45 @@ export async function deleteHoliday(
 // USER ACCOUNT & SINGLE ACTIVE SESSION ENGINE (FIRESTORE POWERED)
 // ============================================================================
 
+// Whether any stored account email is not lower-case/trimmed. Only then can a case-insensitive
+// match be missed by the exact-spelling queries, so the (expensive) full-collection scan below is
+// skipped while the last scan found none. Re-checked periodically because other apps share "users".
+const LEGACY_EMAIL_RECHECK_MS = 10 * 60 * 1000;
+let legacyEmailCheck: { at: number; hasLegacy: boolean } | null = null;
+
 export async function getUserAccountByEmail(email: string): Promise<UserAccount | null> {
   const normalized = email.toLowerCase().trim();
+  const rawTrimmed = email.trim();
 
   // Uncached lookup first: login, registration and activation must see the latest account state.
   if (isFirestoreConfigured()) {
     try {
-      const fresh = await queryFreshFromFirestore<UserAccount>("users", "email", normalized);
+      let fresh = await queryFreshFromFirestore<UserAccount>("users", "email", normalized);
+      // An account stored with mixed-case spelling that the caller typed exactly (1 read, not a scan).
+      if (fresh.length === 0 && rawTrimmed !== normalized) {
+        fresh = await queryFreshFromFirestore<UserAccount>("users", "email", rawTrimmed);
+      }
       if (fresh.length > 0) return fresh[0];
     } catch (e) {
       console.warn("Firestore fresh account lookup failed:", e);
     }
   }
 
-  try {
-    const firestoreUsers = await getCollectionFromFirestore<UserAccount>("users");
-    const found = firestoreUsers.find((u) => u.email.toLowerCase() === normalized);
-    if (found) return found;
-  } catch (e) {
-    console.warn("Firestore getUserAccountByEmail fallback:", e);
+  const scanIsNeeded =
+    !legacyEmailCheck || legacyEmailCheck.hasLegacy || Date.now() - legacyEmailCheck.at > LEGACY_EMAIL_RECHECK_MS;
+  if (scanIsNeeded) {
+    try {
+      const firestoreUsers = await getCollectionFromFirestore<UserAccount>("users");
+      // An empty result may be a failed/quota-blocked read, so it never counts as "no legacy emails".
+      legacyEmailCheck =
+        firestoreUsers.length > 0
+          ? { at: Date.now(), hasLegacy: firestoreUsers.some((u) => !!u.email && u.email !== u.email.toLowerCase().trim()) }
+          : null;
+      const found = firestoreUsers.find((u) => u.email.toLowerCase() === normalized);
+      if (found) return found;
+    } catch (e) {
+      console.warn("Firestore getUserAccountByEmail fallback:", e);
+    }
   }
 
   // Only allow demo/seed account fallback on local host
@@ -2724,6 +2744,7 @@ export async function createUserAccount(user: UserAccount): Promise<UserAccount>
 
   upsertMemory(memory.userAccounts, (u) => u.email.toLowerCase() === normalized, { ...(existing || {}), ...user }, false);
   await persist("users", user.uid, user);
+  legacyEmailCheck = null;
   return user;
 }
 
@@ -2737,6 +2758,7 @@ export async function updateUserAccount(
   const updated: UserAccount = { ...current, ...updates };
   upsertMemory(memory.userAccounts, (u) => u.uid === uid, updated, false);
   await persist("users", uid, updated);
+  legacyEmailCheck = null;
   return updated;
 }
 

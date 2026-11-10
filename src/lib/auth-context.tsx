@@ -179,12 +179,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Heartbeat every 15 seconds to catch if user logged in on another device
+    // Heartbeat every 60 seconds (the server caches sessions for 60 s, so polling faster cannot
+    // detect a revoked session sooner) to catch if user logged in on another device
     const interval = setInterval(() => {
       if (!isNavigatingRef.current && !isCheckingRef.current) {
         checkSession();
       }
-    }, 15000);
+    }, 60000);
 
     // Also check when window / tab regains focus
     const onFocus = () => {
