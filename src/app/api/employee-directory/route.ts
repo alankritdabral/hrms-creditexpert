@@ -20,11 +20,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const people: { employeeId: string; name: string; department?: string; branch?: string }[] = (await getEmployees()).map((e) => ({
+    const people: { employeeId: string; name: string; department?: string; branch?: string; isTemporary?: boolean }[] = (await getEmployees()).map((e) => ({
       employeeId: e.employeeId,
       name: e.personal?.fullName || e.employeeId,
       department: e.employment?.department,
       branch: e.employment?.branch,
+      ...(e.isTemporary ? { isTemporary: true } : {}),
     }));
     // A signed-in user with no employee record (for example a login-only account) must still be able to pick themselves.
     if (!people.some((p) => p.employeeId === auth.employeeId)) {

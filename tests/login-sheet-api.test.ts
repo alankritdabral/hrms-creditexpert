@@ -47,6 +47,26 @@ beforeEach(() => {
 });
 
 describe("login sheet API", () => {
+  it("skips rows that are already stored when an import asks for it, whatever range the page had loaded", async () => {
+    currentAuth = admin;
+    const dup = row({ date: "2099-03-10", customerName: "Dup Customer", panNo: "DUPLI1111A" });
+    const first = await (await POST(send("POST", { newEmployeeName: "Dupcheck Person", entries: [dup], skipDuplicates: true }))).json();
+    expect(first.data).toHaveLength(1);
+    expect(first.skipped).toBe(0);
+
+    // The same file again, now also containing one new row: only the new row is saved.
+    const again = await (
+      await POST(send("POST", { newEmployeeName: "Dupcheck Person", entries: [dup, row({ date: "2099-03-10", customerName: "New Customer", panNo: "NEWCU2222B" })], skipDuplicates: true }))
+    ).json();
+    expect(again.success).toBe(true);
+    expect(again.data).toHaveLength(1);
+    expect(again.skipped).toBe(1);
+
+    const stored = (await (await GET(send("GET", undefined, "?from=2099-03-10&to=2099-03-10"))).json()).data as any[];
+    expect(stored.filter((r) => r.empName === "DUPCHECK PERSON" || r.empName === "Dupcheck Person")).toHaveLength(2);
+    for (const r of stored) await DELETE(send("DELETE", undefined, `?id=${r.id}`));
+  });
+
   it("creates one row per bank for the caller and lists them newest first", async () => {
     currentAuth = alice;
     const res = await POST(send("POST", { entries: [row(), row({ bankName: "HDFC Bank", status: "DISBURSED", amount2: 1200000 })] }));

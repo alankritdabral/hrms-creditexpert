@@ -13,6 +13,7 @@ import { hasPermission } from "@/lib/permissions";
 import { ensureCallerEmployee } from "@/lib/temp-employee";
 import { getISTDateString, getISTMonthString } from "@/lib/attendance/ist-time";
 import { MAX_ENTRIES_PER_REQUEST, normalizeEntryInput, type LoginSheetInput } from "@/lib/login-sheet";
+import { duplicateKey } from "@/lib/login-sheet-import";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_RANGE_DAYS = 366;
@@ -83,9 +84,9 @@ export async function GET(req: NextRequest) {
     // Callers without logins:view_all only ever see their own rows (enforced here, not by a client hint).
     if (!hasPermission(auth, "logins:view_all")) {
       rows = rows.filter((r) => r.employeeId === auth.employeeId);
-    } else {
-      rows = rows.filter((r) => !r.branch || auth.branchScope.includes(r.branch));
     }
+    // logins:view_all sees every branch: the sheet's Branch filter lists all of them, and the people who
+    // hold it (e.g. Backend Team) enter rows for every branch. Branch scope would hide all but their own.
     return NextResponse.json({ success: true, data: rows });
   } catch (error: any) {
     return fail(error.message, 500);
@@ -114,8 +115,24 @@ export async function POST(req: NextRequest) {
     const resolved = await resolveOwner(auth, body?.employeeId, body?.newEmployeeName, inputs[0]?.branch);
     if (resolved.error) return resolved.error;
 
-    const created = await createLoginSheetEntries(resolved.owner, inputs, actorOf(auth));
-    return NextResponse.json({ success: true, data: created });
+    // An import sends skipDuplicates so that loading the same sheet again never doubles its rows. The check is made
+    // here, against everything stored for those dates, not against whatever range the page happened to have loaded.
+    let toCreate = inputs;
+    let skipped = 0;
+    if (body?.skipDuplicates === true) {
+      const dates = inputs.map((i) => i.date).sort();
+      const stored = await getLoginSheetEntries(dates[0], dates[dates.length - 1]);
+      const seen = new Set(stored.filter((r) => r.employeeId === resolved.owner.employeeId).map(duplicateKey));
+      toCreate = inputs.filter((i) => {
+        const key = duplicateKey(i);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      skipped = inputs.length - toCreate.length;
+    }
+    const created = toCreate.length > 0 ? await createLoginSheetEntries(resolved.owner, toCreate, actorOf(auth)) : [];
+    return NextResponse.json({ success: true, data: created, skipped });
   } catch (error: any) {
     return fail(error.message, 500);
   }

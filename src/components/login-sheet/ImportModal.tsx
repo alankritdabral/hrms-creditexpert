@@ -21,7 +21,7 @@ interface Props {
   employees: SheetEmployee[];
   /** Rows already loaded on the page, used to skip duplicates. */
   existing: LoginSheetEntry[];
-  onImported: (dates: string[], count: number) => void;
+  onImported: (dates: string[], count: number, skipped: number) => void;
 }
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -37,6 +37,25 @@ interface PlannedRow {
   tempName?: string;
   problem?: string;
   duplicate?: boolean;
+}
+
+/** Every saved row dated between the earliest and latest date in the file, fetched in windows the API accepts. Best effort: the server skips duplicates again when saving. */
+async function fetchStoredRows(dates: string[]): Promise<LoginSheetEntry[]> {
+  if (dates.length === 0) return [];
+  const sorted = [...dates].sort();
+  const DAY = 86400000;
+  const out: LoginSheetEntry[] = [];
+  try {
+    for (let from = Date.parse(`${sorted[0]}T00:00:00Z`); from <= Date.parse(`${sorted[sorted.length - 1]}T00:00:00Z`); from += 360 * DAY) {
+      const to = Math.min(from + 359 * DAY, Date.parse(`${sorted[sorted.length - 1]}T00:00:00Z`));
+      const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
+      const json = await (await fetch(`/api/login-sheet?from=${iso(from)}&to=${iso(to)}`)).json();
+      if (json.success && Array.isArray(json.data)) out.push(...json.data);
+    }
+  } catch {
+    /* the server still skips duplicates */
+  }
+  return out;
 }
 
 /** Who a batch of rows goes to: an employee ID, or a typed name that becomes a temporary employee. */
@@ -59,8 +78,11 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
   const [error, setError] = useState<string | null>(null);
   /** What to do with each sheet name that matches no employee, by normalised name. */
   const [choices, setChoices] = useState<Record<string, string>>({});
+  /** Rows already saved for the dates in the file. The page only holds one date range, so this is fetched per file. */
+  const [stored, setStored] = useState<LoginSheetEntry[]>([]);
 
   const reset = () => {
+    setStored([]);
     setChoices({});
     setFileName("");
     setParsed(null);
@@ -79,7 +101,7 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
     if (!parsed) return [];
     // A name matches an employee when it is the same ignoring case, spacing, titles and word order.
     const matchEmployee = (name: string) => employees.find((e) => norm(e.name) === norm(name) || nameSimilarity(e.name, name) === 1)?.employeeId;
-    const seen = new Set(existing.map((e) => `${e.employeeId}|${duplicateKey(e)}`));
+    const seen = new Set([...existing, ...stored].map((e) => `${e.employeeId}|${duplicateKey(e)}`));
     return parsed.map((row) => {
       if (row.error || !row.input) return { row, problem: row.error };
       let employeeId = self.employeeId;
@@ -103,7 +125,7 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
       seen.add(key);
       return { row, employeeId };
     });
-  }, [parsed, employees, existing, self.employeeId, canPickEmployee, choices]);
+  }, [parsed, employees, existing, stored, self.employeeId, canPickEmployee, choices]);
 
   // Sheet names that match no employee, with the registered people they look like.
   const unmatched: UnmatchedName[] = useMemo(() => {
@@ -141,7 +163,10 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
     try {
       const result = parseSheetRows(await xlsxToGrid(await file.arrayBuffer()));
       if (result.fatal) setFatal(result.fatal);
-      else setParsed(result.rows);
+      else {
+        setStored(await fetchStoredRows(result.rows.flatMap((r) => (r.input ? [r.input.date] : []))));
+        setParsed(result.rows);
+      }
     } catch {
       setFatal("Could not read that file. Make sure it is a valid .xlsx workbook.");
     } finally {
@@ -165,6 +190,7 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
     }
     const total = ready.length;
     let done = 0;
+    let skipped = 0;
     const dates: string[] = [];
     setProgress({ done, total });
     try {
@@ -176,17 +202,21 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
           const res = await fetch("/api/login-sheet", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(employeeId ? { employeeId, entries: chunk } : { newEmployeeName: group.tempName, entries: chunk }),
+            body: JSON.stringify(
+              employeeId ? { employeeId, entries: chunk, skipDuplicates: true } : { newEmployeeName: group.tempName, entries: chunk, skipDuplicates: true }
+            ),
           });
           const json = await res.json();
           if (!json.success) throw new Error(json.error || "The server rejected some rows.");
           if (!employeeId && json.data?.[0]?.employeeId) employeeId = json.data[0].employeeId;
-          done += chunk.length;
+          const skippedHere = Number(json.skipped) || 0;
+          skipped += skippedHere;
+          done += chunk.length - skippedHere;
           dates.push(...chunk.map((c) => c.date));
           setProgress({ done, total });
         }
       }
-      onImported(dates, done);
+      onImported(dates, done, skipped);
       reset();
       onClose();
     } catch (e: any) {
@@ -194,7 +224,7 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
       setError(
         `${e?.message || "Import failed."}${done > 0 ? ` ${done} of ${total} rows were already saved before this happened; they were not rolled back.` : " Nothing was saved."}`
       );
-      if (done > 0) onImported(dates, done);
+      if (done > 0) onImported(dates, done, skipped);
     }
   };
 

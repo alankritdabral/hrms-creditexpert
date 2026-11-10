@@ -13,6 +13,8 @@ export interface SheetEmployee {
   employeeId: string;
   name: string;
   branch?: string;
+  /** A placeholder record that has not been matched to a registered employee yet. */
+  isTemporary?: boolean;
 }
 
 interface Line {

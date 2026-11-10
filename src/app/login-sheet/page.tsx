@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, Edit2, FileSpreadsheet, Plus, Search, Table2, Trash2, Upload } from "lucide-react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Download, Edit2, FileSpreadsheet, Pencil, Plus, Search, Table2, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Pagination } from "@/components/ui/Pagination";
 import { MultiSelect } from "@/components/login-sheet/MultiSelect";
 import { ImportModal } from "@/components/login-sheet/ImportModal";
+import { RenameEmployeeModal } from "@/components/login-sheet/RenameEmployeeModal";
 import { entriesToXlsx } from "@/lib/login-sheet-excel";
 import { downloadBlob, XLSX_MIME } from "@/lib/download";
 import { EntryFormModal, type EntryPayload, type SheetEmployee } from "@/components/login-sheet/EntryFormModal";
@@ -71,6 +72,40 @@ const CELL_STYLE: Partial<Record<SheetColumnKey, string>> = {
   amount2: `${NOWRAP} text-right font-mono text-[10px]`,
 };
 
+/** Text that stops at 3 lines with "..." and opens in full when clicked (click again to fold it back). */
+function ClampedText({ text }: { text: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [clipped, setClipped] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || expanded) return;
+    const measure = () => setClipped(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text, expanded]);
+
+  const toggle = clipped || expanded;
+  return (
+    <span
+      ref={ref}
+      className={toggle ? "cursor-pointer" : undefined}
+      style={
+        expanded
+          ? { display: "block" }
+          : { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 3, overflow: "hidden" }
+      }
+      title={toggle ? (expanded ? "Click to collapse" : "Click to see the full text") : undefined}
+      onClick={toggle ? () => setExpanded((v) => !v) : undefined}
+    >
+      {text}
+    </span>
+  );
+}
+
 type CellPos = { id: string; col: number };
 type Editing = CellPos & { draft: string; error: string | null };
 type SaveableEdit = Extract<EditOutcome, { ok: true }>;
@@ -106,6 +141,7 @@ const COLUMN_WIDTHS: Record<(typeof LOGIN_SHEET_COLUMNS)[number], number> = {
   "Insurance Details": 56,
   "Amount 2": 62,
 };
+const RANGE_STORAGE_KEY = "login-sheet-date-range";
 const NUM_COL = 22;
 const ACTIONS_COL = 52;
 
@@ -125,6 +161,7 @@ export default function LoginSheetPage() {
   const [editing, setEditing] = useState<LoginSheetEntry | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [renaming, setRenaming] = useState<{ employeeId: string; name: string } | null>(null);
   const [exporting, setExporting] = useState(false);
 
   function rangeFilters() {
@@ -141,8 +178,33 @@ export default function LoginSheetPage() {
   const { dateFrom, dateTo } = filters;
   const rangeValid = Boolean(dateFrom) && Boolean(dateTo) && dateFrom <= dateTo;
 
+  // The chosen range survives a refresh (this tab only). Importing older rows widens the range to show them;
+  // without this a refresh went back to "this month" and the imported rows seemed to have vanished.
+  const [rangeReady, setRangeReady] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(RANGE_STORAGE_KEY) || "null");
+      if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved.dateFrom) && /^\d{4}-\d{2}-\d{2}$/.test(saved.dateTo) && saved.dateFrom <= saved.dateTo) {
+        setFilters((p) => ({ ...p, dateFrom: saved.dateFrom, dateTo: saved.dateTo }));
+      }
+    } catch {
+      /* storage unavailable: use the default range */
+    }
+    setRangeReady(true);
+  }, []);
+  useEffect(() => {
+    if (!rangeReady || !rangeValid) return;
+    try {
+      const d = defaultRange();
+      if (dateFrom === d.from && dateTo === d.to) sessionStorage.removeItem(RANGE_STORAGE_KEY);
+      else sessionStorage.setItem(RANGE_STORAGE_KEY, JSON.stringify({ dateFrom, dateTo }));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [rangeReady, rangeValid, dateFrom, dateTo]);
+
   const loadEntries = useCallback(async () => {
-    if (!rangeValid) return;
+    if (!rangeValid || !rangeReady) return;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -160,7 +222,7 @@ export default function LoginSheetPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [dateFrom, dateTo, rangeValid]);
+  }, [dateFrom, dateTo, rangeValid, rangeReady]);
 
   useEffect(() => {
     loadEntries();
@@ -175,7 +237,7 @@ export default function LoginSheetPage() {
         if (json.success && Array.isArray(json.data)) {
           setEmployees(
             json.data
-              .map((e: any) => ({ employeeId: e.employeeId, name: e.name || e.employeeId, branch: e.branch }))
+              .map((e: any) => ({ employeeId: e.employeeId, name: e.name || e.employeeId, branch: e.branch, isTemporary: !!e.isTemporary }))
               .sort((a: SheetEmployee, b: SheetEmployee) => a.name.localeCompare(b.name))
           );
         }
@@ -517,8 +579,10 @@ export default function LoginSheetPage() {
         return money(r.amount2);
       case "status":
         return <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusStyle(r.status)}`}>{r.status}</span>;
-      default:
-        return r[key] ?? "";
+      default: {
+        const v = r[key];
+        return typeof v === "string" && v !== "" ? <ClampedText text={v} /> : (v ?? "");
+      }
     }
   };
 
@@ -550,9 +614,12 @@ export default function LoginSheetPage() {
     }
   };
 
-  const handleImported = (dates: string[], count: number) => {
+  const handleImported = (dates: string[], count: number, skipped: number) => {
     refreshBanks(); // bank names found in the file are remembered automatically
-    setNotice(`${count} ${count === 1 ? "row" : "rows"} imported from Excel.`);
+    setNotice(
+      `${count} ${count === 1 ? "row" : "rows"} imported from Excel.` +
+        (skipped > 0 ? ` ${skipped} already in the sheet ${skipped === 1 ? "was" : "were"} skipped.` : "")
+    );
     const lo = dates.reduce((a, b) => (b < a ? b : a), dateFrom);
     const hi = dates.reduce((a, b) => (b > a ? b : a), dateTo);
     if (lo !== dateFrom || hi !== dateTo) setFilters((p) => ({ ...p, dateFrom: lo, dateTo: hi }));
@@ -835,7 +902,25 @@ export default function LoginSheetPage() {
                               isActive ? "bg-blue-50/60 shadow-[inset_0_0_0_2px_rgb(59,130,246)]" : ""
                             }`}
                           >
-                            <span className={isEditing ? "invisible" : undefined}>{renderValue(r, c.key)}</span>
+                            <div className={isEditing ? "invisible" : undefined}>
+                              {renderValue(r, c.key)}
+                              {c.key === "empName" && canManage && canViewAll && (
+                                <button
+                                  type="button"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    setRenaming({ employeeId: r.employeeId, name: r.empName });
+                                  }}
+                                  onDoubleClick={(ev) => ev.stopPropagation()}
+                                  onKeyDown={(ev) => ev.stopPropagation()}
+                                  className="ml-1 inline-flex align-middle p-0.5 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                  title={`Rename ${r.empName} (${r.employeeId}); the emp code stays the same`}
+                                  aria-label={`Rename employee ${r.empName}`}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
                             {isEditing && cellEdit && (
                               <CellEditor
                                 editor={c.editor}
@@ -915,6 +1000,27 @@ export default function LoginSheetPage() {
           <option key={p} value={p} />
         ))}
       </datalist>
+
+      <RenameEmployeeModal
+        employee={renaming}
+        people={employees}
+        onClose={() => setRenaming(null)}
+        onMerged={(tempId, target, rows) => {
+          setEntries((list) => list.map((e) => (e.employeeId === tempId ? { ...e, employeeId: target.employeeId, empName: target.name } : e)));
+          setEmployees((list) => list.filter((e) => e.employeeId !== tempId));
+          setRenaming(null);
+          setNotice(`${tempId} was merged into ${target.name} (${target.employeeId}). ${rows} Login Sheet ${rows === 1 ? "row" : "rows"} moved.`);
+          loadEntries();
+        }}
+        onRenamed={(employeeId, name, rows) => {
+          setEntries((list) => list.map((e) => (e.employeeId === employeeId ? { ...e, empName: name } : e)));
+          setEmployees((list) =>
+            list.map((e) => (e.employeeId === employeeId ? { ...e, name } : e)).sort((a, b) => a.name.localeCompare(b.name))
+          );
+          setRenaming(null);
+          setNotice(`${employeeId} is now ${name}. ${rows} ${rows === 1 ? "row" : "rows"} updated.`);
+        }}
+      />
 
       <ImportModal
         isOpen={importOpen}

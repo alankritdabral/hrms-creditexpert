@@ -496,6 +496,126 @@ export async function createTemporaryEmployeeByName(
   return emp;
 }
 
+export interface EmployeeRenameDetails {
+  employeeId: string;
+  name: string;
+  branch: string;
+  department: string;
+  designation: string;
+  status: string;
+  isTemporary: boolean;
+  email: string;
+  mobile: string;
+  loginSheetRows: number;
+}
+
+/** What the "rename employee" dialog shows so the right person is changed: identity, branch, role and how many sheet rows carry the name. */
+export async function getEmployeeRenameDetails(employeeId: string): Promise<EmployeeRenameDetails | null> {
+  const emp = await getEmployeeById(employeeId);
+  if (!emp) return null;
+  const rows = isFirestoreConfigured()
+    ? await queryCollectionFromFirestore<LoginSheetEntry>(LOGIN_SHEET_COLLECTION, [{ field: "employeeId", op: "==", value: emp.employeeId }])
+    : memory.loginSheet.filter((r) => r.employeeId === emp.employeeId);
+  return {
+    employeeId: emp.employeeId,
+    name: emp.personal.fullName,
+    branch: emp.employment.branch,
+    department: emp.employment.department,
+    designation: emp.employment.designation,
+    status: emp.employment.employmentStatus,
+    isTemporary: Boolean(emp.isTemporary),
+    email: emp.personal.workEmail || emp.personal.personalEmail || "",
+    mobile: emp.personal.mobileNumber || "",
+    loginSheetRows: rows.length,
+  };
+}
+
+export interface RenameEmployeeResult {
+  employee: Employee;
+  oldName: string;
+  loginSheetRows: number;
+  loginRecords: number;
+  incentives: number;
+}
+
+/**
+ * Changes an employee's name while the employee ID stays the same. The name is also refreshed wherever it is
+ * stored beside the ID for display: the login account, Login Sheet rows, monthly login records and incentives.
+ * Payroll runs, payslips and attendance history keep the name they were issued under.
+ */
+export async function renameEmployee(
+  employeeId: string,
+  newName: string,
+  actor: { name: string; role: string }
+): Promise<RenameEmployeeResult | null> {
+  const name = newName.trim().replace(/\s+/g, " ");
+  if (name.length < 2 || name.length > 80) throw new ValidationError("Name must be 2 to 80 characters.");
+
+  const current = await loadEmployeeForUpdate(employeeId);
+  if (!current) return null;
+  const oldName = current.personal.fullName;
+  const id = current.employeeId;
+  if (oldName === name) throw new ValidationError("That is already this employee's name.");
+
+  const now = new Date().toISOString();
+  const emp: Employee = {
+    ...current,
+    personal: {
+      ...current.personal,
+      firstName: name.split(" ")[0] || name,
+      lastName: name.split(" ").slice(1).join(" "),
+      fullName: name,
+    },
+    updatedAt: now,
+  };
+  upsertMemory(memory.employees, (e) => e.employeeId === emp.employeeId, emp);
+  await persist("employees", emp.employeeId, emp);
+  invalidateFirestoreCache("employees");
+
+  // The login account shows this name in the header and on every request.
+  const stored = await getStoredUserAccountByEmployeeId(id);
+  if (stored) await updateUserAccount(stored.uid, { name });
+
+  const byEmployee = <T extends { employeeId: string }>(rows: T[]) => rows.filter((r) => r.employeeId === id);
+  const query = async <T extends { employeeId: string }>(collection: string, memoryRows: T[]): Promise<T[]> =>
+    isFirestoreConfigured()
+      ? await queryCollectionFromFirestore<T>(collection, [{ field: "employeeId", op: "==", value: id }])
+      : byEmployee(memoryRows);
+
+  const sheetRows = await query<LoginSheetEntry>(LOGIN_SHEET_COLLECTION, memory.loginSheet);
+  for (const row of sheetRows) {
+    const renamed: LoginSheetEntry = { ...row, empName: name, updatedAt: now, updatedBy: actor.name };
+    upsertMemory(memory.loginSheet, (e) => e.id === renamed.id, renamed);
+    await persist(LOGIN_SHEET_COLLECTION, renamed.id, renamed);
+  }
+  invalidateFirestoreCache(LOGIN_SHEET_COLLECTION);
+
+  const loginRecords = await query<EmployeeLoginRecord>("employee_logins", memory.employeeLogins);
+  for (const rec of loginRecords) {
+    const renamed: EmployeeLoginRecord = { ...rec, employeeName: name };
+    upsertMemory(memory.employeeLogins, (l) => l.id === renamed.id, renamed);
+    await persist("employee_logins", renamed.id, renamed);
+  }
+
+  const incentives = await query<EmployeeIncentiveRecord>("incentives", memory.employeeIncentives);
+  for (const inc of incentives) {
+    const renamed: EmployeeIncentiveRecord = { ...inc, employeeName: name };
+    upsertMemory(memory.employeeIncentives, (i) => i.id === renamed.id, renamed);
+    await persist("incentives", renamed.id, renamed);
+  }
+
+  await recordAuditLog({
+    who: actor.name,
+    role: actor.role,
+    action: "EMPLOYEE_UPDATED",
+    employeeId: id,
+    employeeName: name,
+    details: `Renamed ${oldName} to ${name} (${id} unchanged): updated ${sheetRows.length} login sheet rows, ${loginRecords.length} monthly login records and ${incentives.length} incentives${stored ? ", and the login account" : ""}.`,
+  });
+
+  return { employee: emp, oldName, loginSheetRows: sheetRows.length, loginRecords: loginRecords.length, incentives: incentives.length };
+}
+
 export interface AttachTemporaryResult {
   target: Employee;
   loginSheetRows: number;
