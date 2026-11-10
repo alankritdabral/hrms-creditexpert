@@ -53,7 +53,7 @@ export const SHEET_COLUMNS: readonly SheetColumn[] = [
   { key: "loginId", label: "Login ID", editor: "text" },
   { key: "product", label: "Product", editor: "suggest" },
   { key: "branch", label: "Branch", editor: "select" },
-  { key: "file", label: "File", editor: "select" },
+  { key: "file", label: "File", editor: "suggest" },
   { key: "amount", label: "Amount", editor: "amount" },
   { key: "time", label: "Time", editor: "time" },
   { key: "status", label: "Status", editor: "select" },

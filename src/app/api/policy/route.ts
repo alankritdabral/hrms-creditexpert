@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPolicy, updatePolicy, getEmployeeTiming } from "@/lib/db/db-adapter";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
-import { getTimingProfiles, lateAfterOf, validateTimingProfiles } from "@/lib/attendance/late-policy";
+import { getBranchTimingProfiles, getTimingProfiles, lateAfterOf, validateBranchTimingProfiles, validateTimingProfiles } from "@/lib/attendance/late-policy";
 import { getISTDateString } from "@/lib/attendance/ist-time";
 
 export async function GET(req: NextRequest) {
@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   try {
     const policy = await getPolicy();
     const timingProfiles = getTimingProfiles(policy);
+    const branchProfiles = getBranchTimingProfiles(policy);
 
     // The caller's own timing and, for half-day timings, their late count for the current week.
     let myTiming: unknown = null;
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, data: { ...policy, timingProfiles }, myTiming });
+    return NextResponse.json({ success: true, data: { ...policy, timingProfiles, branchProfiles }, myTiming });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -68,12 +69,20 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    if (updates.branchTimingProfiles !== undefined) {
+      const branchError = validateBranchTimingProfiles(updates.branchTimingProfiles);
+      if (branchError) {
+        return NextResponse.json({ success: false, error: branchError }, { status: 400 });
+      }
+    }
+
     const policy = await updatePolicy(updates, {
       name: auth.actor.name,
       role: auth.actor.role,
     });
 
-    return NextResponse.json({ success: true, data: { ...policy, timingProfiles: getTimingProfiles(policy) } });
+    return NextResponse.json({ success: true, data: { ...policy, timingProfiles: getTimingProfiles(policy), branchProfiles: getBranchTimingProfiles(policy) },
+    });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

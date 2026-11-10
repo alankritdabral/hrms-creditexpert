@@ -92,7 +92,7 @@ import {
   leaveWorkingDates,
   weekBoundsIST,
 } from "../attendance/ist-time";
-import { decideArrivalStatus, resolveTimingProfile } from "../attendance/late-policy";
+import { decideArrivalStatus, resolveTimingForEmployee } from "../attendance/late-policy";
 import { isLocalEnvironment } from "../env";
 import { hashPassword, generateTempPassword } from "../password";
 import { randomBytes } from "node:crypto";
@@ -1209,13 +1209,21 @@ export async function getEmployeeTiming(
 ): Promise<{ profile: TimingProfile; lateCountThisWeek: number; weekStart: string; weekEnd: string }> {
   const policy = policyOverride || (await getPolicy());
   const account = await getUserAccountByEmployeeId(employeeId);
-  const profile = resolveTimingProfile(account?.role, await getCustomRoles(), policy);
+  // Branch first (Delhi has its own timing for everyone), then the role's slot.
+  const employee = await getEmployeeById(employeeId);
+  const profile = resolveTimingForEmployee({
+    branch: employee?.employment?.branch || account?.branch,
+    roleId: account?.role,
+    roles: await getCustomRoles(),
+    policy,
+  });
   const { start, end } = weekBoundsIST(date);
 
   let lateCountThisWeek = 0;
   if (profile.halfDayRules) {
+    const countFrom = profile.effectiveFrom && profile.effectiveFrom > start ? profile.effectiveFrom : start;
     const week = await getAttendanceRecords({ from: start, to: end, employeeId });
-    lateCountThisWeek = week.filter((r) => r.date < date && r.lateArrival).length;
+    lateCountThisWeek = week.filter((r) => r.date >= countFrom && r.date < date && r.lateArrival).length;
   }
   return { profile, lateCountThisWeek, weekStart: start, weekEnd: end };
 }

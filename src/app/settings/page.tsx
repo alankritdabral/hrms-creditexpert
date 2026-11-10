@@ -117,6 +117,12 @@ export default function SettingsPage() {
   const [t1HardCutoff, setT1HardCutoff] = useState("10:00");
   const [t2Start, setT2Start] = useState("10:00");
   const [t2Grace, setT2Grace] = useState(15);
+  // Delhi branch timing: overrides the role timing for everyone in the branch.
+  const [dStart, setDStart] = useState("09:50");
+  const [dGrace, setDGrace] = useState(15);
+  const [dAllowance, setDAllowance] = useState(2);
+  const [dHardCutoff, setDHardCutoff] = useState("10:20");
+  const [dEffectiveFrom, setDEffectiveFrom] = useState("");
   const [fullDayHours, setFullDayHours] = useState(8);
   const [halfDayHours, setHalfDayHours] = useState(4);
 
@@ -278,6 +284,14 @@ export default function SettingsPage() {
             setT2Start(p2.startTime);
             setT2Grace(p2.graceMinutes);
           }
+          const delhi = ((data.data.branchProfiles || []) as TimingProfile[]).find((p) => p.id === "branch-delhi");
+          if (delhi) {
+            setDStart(delhi.startTime);
+            setDGrace(delhi.graceMinutes);
+            setDAllowance(delhi.halfDayRules?.weeklyLateAllowance ?? 2);
+            setDHardCutoff(delhi.halfDayRules?.hardCutoffTime ?? "");
+            setDEffectiveFrom(delhi.effectiveFrom ?? "");
+          }
           setFullDayHours(data.data.fullDayMinHours);
           setHalfDayHours(data.data.halfDayMinHours);
         }
@@ -314,6 +328,19 @@ export default function SettingsPage() {
               },
               { id: "timing2", label: "Timing 2", startTime: t2Start, graceMinutes: Number(t2Grace) },
             ],
+            branchTimingProfiles: {
+              Delhi: {
+                id: "branch-delhi",
+                label: "Delhi branch",
+                startTime: dStart,
+                graceMinutes: Number(dGrace),
+                halfDayRules: {
+                  weeklyLateAllowance: Number(dAllowance),
+                  ...(dHardCutoff ? { hardCutoffTime: dHardCutoff } : {}),
+                },
+                ...(dEffectiveFrom ? { effectiveFrom: dEffectiveFrom } : {}),
+              },
+            },
             fullDayMinHours: Number(fullDayHours),
             halfDayMinHours: Number(halfDayHours),
           },
@@ -1060,7 +1087,7 @@ export default function SettingsPage() {
                       Timing 2 · starts {t2Start}, late after {addMinutesToTime(t2Start, Number(t2Grace))}
                     </option>
                   </select>
-                  <p className="text-[10px] text-slate-500">Everyone in this role follows this timing.</p>
+                  <p className="text-[10px] text-slate-500">Everyone in this role follows this timing, except Delhi branch staff, who follow the Delhi branch timing in Attendance Policy.</p>
                 </div>
               </div>
 
@@ -1313,6 +1340,44 @@ export default function SettingsPage() {
                       <span className="text-[10px] text-slate-500 mt-1 block">
                         Late after {addMinutesToTime(t2Start, Number(t2Grace))}, no automatic half day
                       </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <h4 className="text-xs font-bold text-white">Delhi branch · applies to everyone in Delhi</h4>
+                    <span className="text-[10px] text-amber-300 text-right">Overrides the role timing above</span>
+                  </div>
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Office Start (HH:MM)</label>
+                      <input type="time" disabled={!canEdit} value={dStart} onChange={(e) => setDStart(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Grace Period (Minutes)</label>
+                      <input type="number" disabled={!canEdit} value={dGrace} onChange={(e) => setDGrace(Number(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                      <span className="text-[10px] text-slate-500 mt-1 block">Late after {addMinutesToTime(dStart, Number(dGrace))}</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Late Arrivals Allowed / Week</label>
+                      <input type="number" disabled={!canEdit} value={dAllowance} onChange={(e) => setDAllowance(Number(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                      <span className="text-[10px] text-slate-500 mt-1 block">The next late arrival is a half day</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Always Half Day After (HH:MM)</label>
+                      <input type="time" disabled={!canEdit} value={dHardCutoff} onChange={(e) => setDHardCutoff(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                      <span className="text-[10px] text-slate-500 mt-1 block">Leave empty to turn this off</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Strikes Count From</label>
+                      <input type="date" disabled={!canEdit} value={dEffectiveFrom} onChange={(e) => setDEffectiveFrom(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                      <span className="text-[10px] text-slate-500 mt-1 block">Earlier late arrivals are not counted</span>
                     </div>
                   </div>
                 </div>

@@ -20,7 +20,7 @@ const account = (employeeId: string, role: string, extra: Partial<UserAccount> =
   password: "x",
   name: employeeId,
   role,
-  branch: "Delhi",
+  branch: "Dehradun", // role timings apply outside Delhi
   department: "Sales",
   avatar: "",
   status: "Active",
@@ -28,8 +28,11 @@ const account = (employeeId: string, role: string, extra: Partial<UserAccount> =
   ...extra,
 });
 
-const call = () =>
-  GET(new Request("http://localhost/api/cron/attendance-reminder", { headers: { authorization: "Bearer test-secret" } }) as never);
+// The in-memory store also holds the seeded admin (Delhi) and accounts from earlier tests.
+const emails = (prefix: string) => sent.map((s) => s.email).filter((e) => e.startsWith(prefix)).sort();
+
+const call = (scope?: string) =>
+  GET(new Request(`http://localhost/api/cron/attendance-reminder${scope ? `?scope=${scope}` : ""}`, { headers: { authorization: "Bearer test-secret" } }) as never);
 
 describe("attendance reminder cron", () => {
   beforeAll(() => {
@@ -61,6 +64,39 @@ describe("attendance reminder cron", () => {
     expect(body.success).toBe(true);
     expect(sent.map((s) => s.email)).toEqual(["emp-a@example.com"]);
     expect(sent[0].hasRule).toBe(true);
+  });
+
+  it("scope=delhi mails only unmarked Delhi staff, whatever their role; scope=other skips them", async () => {
+    await saveCustomRole({ id: "early", name: "Early", sections: ["dashboard"], timingSlot: "timing1" });
+    await createUserAccount(account("EMP-DEL1", "employee", { branch: "Delhi" })); // Timing 2 role, Delhi
+    await createUserAccount(account("EMP-DEL2", "early", { branch: "Delhi" })); // Timing 1 role, Delhi
+    await createUserAccount(account("EMP-DEL3", "employee", { branch: "Delhi", status: "Suspended" }));
+    await createUserAccount(account("EMP-DUN1", "early", { branch: "Dehradun" }));
+    await createUserAccount(account("EMP-DUN2", "employee", { branch: "Dehradun" }));
+    vi.setSystemTime(new Date(Date.UTC(2026, 10, 2, 4, 30))); // Monday 10:00 IST
+
+    const body = await (await call("delhi")).json();
+    expect(body.scope).toBe("delhi");
+    expect(emails("emp-")).toEqual(["emp-del1@example.com", "emp-del2@example.com"]);
+    expect(sent.every((s) => s.hasRule)).toBe(true);
+
+    sent.length = 0;
+    await (await call("other")).json();
+    expect(emails("emp-dun")).toEqual(["emp-dun1@example.com"]); // Timing 1 role outside Delhi, not the Timing 2 one
+    expect(emails("emp-del")).toEqual([]); // Delhi is only mailed by the delhi run
+  });
+
+  it("scope=delhi skips a Delhi person who already clocked in", async () => {
+    await createUserAccount(account("EMP-DEL4", "employee", { branch: "Delhi" }));
+    await createUserAccount(account("EMP-DEL5", "employee", { branch: "Delhi" }));
+    vi.setSystemTime(new Date(Date.UTC(2026, 10, 2, 4, 20))); // 09:50 IST, on time
+    await punchAttendance("EMP-DEL4", "checkIn", { name: "x", role: "admin" });
+    vi.setSystemTime(new Date(Date.UTC(2026, 10, 2, 4, 30)));
+
+    await (await call("delhi")).json();
+    const got = emails("emp-del");
+    expect(got).toContain("emp-del5@example.com");
+    expect(got).not.toContain("emp-del4@example.com");
   });
 
   it("rejects a call without the cron secret", async () => {

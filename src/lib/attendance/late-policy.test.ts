@@ -3,8 +3,13 @@ import {
   decideArrivalStatus,
   defaultTimingProfiles,
   getTimingProfiles,
+  defaultBranchTimingProfiles,
+  getBranchTimingProfile,
   lateAfterOf,
+  resolveTimingForEmployee,
   resolveTimingProfile,
+  timingSummary,
+  validateBranchTimingProfiles,
   validateTimingProfiles,
 } from "./late-policy";
 import { addMinutesToTime, weekBoundsIST } from "./ist-time";
@@ -129,5 +134,61 @@ describe("addMinutesToTime", () => {
     expect(addMinutesToTime("", 15)).toBe("--:--");
     expect(addMinutesToTime("25:00", 15)).toBe("--:--");
     expect(addMinutesToTime("09:30", NaN)).toBe("--:--");
+  });
+});
+
+describe("Delhi branch timing", () => {
+  const policy: AttendancePolicy = {
+    id: "p", department: "All", officeStartTime: "10:00", officeEndTime: "19:00",
+    gracePeriodMinutes: 15, fullDayMinHours: 8, halfDayMinHours: 4, standardBreakHours: 1,
+  };
+  const delhi = getBranchTimingProfile(policy, "Delhi")!;
+  const d = (time: string, prior = 0) => decideArrivalStatus({ punchTimeIST: time, profile: delhi, priorLateCountThisWeek: prior });
+
+  it("defaults to start 09:50, late after 10:05, cutoff 10:20, 2 lates a week", () => {
+    expect(delhi.startTime).toBe("09:50");
+    expect(lateAfterOf(delhi)).toBe("10:05");
+    expect(delhi.halfDayRules).toEqual({ weeklyLateAllowance: 2, hardCutoffTime: "10:20" });
+    expect(validateBranchTimingProfiles(defaultBranchTimingProfiles())).toBeNull();
+  });
+
+  it("Present to 10:05, Late 10:06 to 10:20, Half Day after 10:20", () => {
+    expect(d("10:05").status).toBe("Present");
+    expect(d("10:06").status).toBe("Late");
+    expect(d("10:20").status).toBe("Late");
+    expect(d("10:21").status).toBe("Half Day");
+    expect(d("10:21").reason).toMatch(/after 10:20/);
+  });
+
+  it("the 3rd late in a week is a Half Day", () => {
+    expect(d("10:10", 1).status).toBe("Late");
+    expect(d("10:10", 2).status).toBe("Half Day");
+  });
+
+  it("overrides the role slot in Delhi only, matching the branch case-insensitively", () => {
+    const roles: CustomRole[] = [{ id: "early", name: "Early", sections: [], timingSlot: "timing1" } as unknown as CustomRole];
+    expect(resolveTimingForEmployee({ branch: "Delhi", roleId: "early", roles, policy }).startTime).toBe("09:50");
+    expect(resolveTimingForEmployee({ branch: " delhi ", roleId: "employee", roles, policy }).startTime).toBe("09:50");
+    expect(resolveTimingForEmployee({ branch: "Dehradun", roleId: "early", roles, policy }).startTime).toBe("09:30");
+    expect(resolveTimingForEmployee({ branch: "Rudrapur", roleId: "employee", roles, policy }).startTime).toBe("10:00");
+    expect(resolveTimingForEmployee({ roleId: "early", roles, policy }).startTime).toBe("09:30");
+  });
+
+  it("stored values win over the defaults", () => {
+    const custom = { ...policy, branchTimingProfiles: { Delhi: { ...delhi, startTime: "09:40" } } };
+    expect(getBranchTimingProfile(custom, "Delhi")?.startTime).toBe("09:40");
+    expect(getBranchTimingProfile(custom, "Delhi")?.halfDayRules?.hardCutoffTime).toBe("10:20");
+  });
+
+  it("validates branch profiles", () => {
+    expect(validateBranchTimingProfiles({ Mumbai: delhi })).toMatch(/Unknown branch/);
+    expect(validateBranchTimingProfiles({ Delhi: { ...delhi, startTime: "9.50" } })).toMatch(/HH:mm/);
+    expect(validateBranchTimingProfiles({ Delhi: { ...delhi, halfDayRules: { weeklyLateAllowance: 2, hardCutoffTime: "10:00" } } })).toMatch(/cutoff cannot be before/);
+    expect(validateBranchTimingProfiles({ Delhi: { ...delhi, effectiveFrom: "next monday" } })).toMatch(/YYYY-MM-DD/);
+    expect(validateBranchTimingProfiles([])).toMatch(/object/);
+  });
+
+  it("appears in the timing summary", () => {
+    expect(timingSummary(policy)).toContain("Delhi branch: late after 10:05, half day after 10:20");
   });
 });

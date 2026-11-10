@@ -105,6 +105,10 @@ function blankShared(self: SheetEmployee): Shared {
   };
 }
 
+const isFileDate = (v: string) => /^\d{2}-\d{2}-\d{4}$/.test(v);
+const toDmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.split("-").reverse().join("-") : "");
+const fromDmy = (dmy: string) => dmy.split("-").reverse().join("-");
+
 export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmployee, self, bankOptions, dsaOptions, onSubmit }: Props) {
   const [shared, setShared] = useState<Shared>(() => blankShared(self));
   const [lines, setLines] = useState<Line[]>([newLine()]);
@@ -313,9 +317,13 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
             </div>
             <div>
               <label className={labelCls}>File</label>
-              <select className={inputCls} value={shared.file} onChange={(e) => setS("file", e.target.value)}>
+              <select
+                className={inputCls}
+                value={isFileDate(shared.file) ? "__date" : shared.file}
+                onChange={(e) => setS("file", e.target.value === "__date" ? toDmy(shared.date) : e.target.value)}
+              >
                 <option value="">(Blank)</option>
-                {shared.file && !(LOGIN_SHEET_FILE_OPTIONS as readonly string[]).includes(shared.file) && (
+                {shared.file && !isFileDate(shared.file) && !(LOGIN_SHEET_FILE_OPTIONS as readonly string[]).includes(shared.file) && (
                   <option value={shared.file}>{shared.file}</option>
                 )}
                 {LOGIN_SHEET_FILE_OPTIONS.map((f) => (
@@ -323,7 +331,16 @@ export function EntryFormModal({ isOpen, onClose, editing, employees, canPickEmp
                     {f}
                   </option>
                 ))}
+                <option value="__date">Date…</option>
               </select>
+              {isFileDate(shared.file) && (
+                <input
+                  type="date"
+                  className={`${inputCls} mt-2`}
+                  value={fromDmy(shared.file)}
+                  onChange={(e) => setS("file", e.target.value ? toDmy(e.target.value) : "")}
+                />
+              )}
             </div>
             <div>
               <label className={labelCls}>Amount (₹) *</label>

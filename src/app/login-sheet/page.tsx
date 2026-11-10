@@ -905,6 +905,11 @@ export default function LoginSheetPage() {
           <option key={d} value={d} />
         ))}
       </datalist>
+      <datalist id="login-sheet-file-list">
+        {distinct([...LOGIN_SHEET_FILE_OPTIONS, ...options.files.filter((f) => f !== FILE_BLANKS)]).map((f) => (
+          <option key={f} value={f} />
+        ))}
+      </datalist>
       <datalist id="login-sheet-product-list">
         {distinct([...LOGIN_SHEET_PRODUCTS, ...options.products]).map((p) => (
           <option key={p} value={p} />

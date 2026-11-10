@@ -507,6 +507,8 @@ export async function sendPasswordChangedEmail(
 
 /** The automatic half-day rule shown in the attendance reminder. Times are "HH:mm" (IST). */
 export interface AttendanceRuleReminder {
+  /** Office start time ("HH:mm"). When given, the first line also says when the office starts. */
+  startTime?: string;
   /** Arrivals after this time are late. */
   lateAfter: string;
   weeklyLateAllowance: number;
@@ -534,8 +536,11 @@ export function attendanceLink(): string {
 export function ruleReminderHtml(rule: AttendanceRuleReminder): string {
   const late = clock12(rule.lateAfter);
   const allowed = rule.weeklyLateAllowance;
+  const lateShort = late.replace(" AM", "").replace(" PM", "");
   const items = [
-    `Clock in by ${late}; arrivals after ${late.replace(" AM", "").replace(" PM", "")} are Late.`,
+    rule.startTime
+      ? `Office starts at ${clock12(rule.startTime)}. Clock in by ${late}; arrivals after ${lateShort} are Late.`
+      : `Clock in by ${late}; arrivals after ${lateShort} are Late.`,
     `You can be late ${allowed} time${allowed === 1 ? "" : "s"} a week (Mon–Sat). From the ${ordinal(allowed + 1)} late arrival in a week, every arrival after ${late.replace(" AM", "").replace(" PM", "")} is an automatic Half Day.`,
   ];
   if (rule.hardCutoffTime) items.push(`Arriving after ${clock12(rule.hardCutoffTime)} is always a Half Day.`);

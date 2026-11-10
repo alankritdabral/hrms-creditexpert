@@ -1,9 +1,10 @@
-import type { AttendancePolicy, AttendanceStatus, CustomRole, TimingProfile, TimingSlotId } from "@/lib/types";
+import type { AttendancePolicy, AttendanceStatus, Branch, CustomRole, TimingProfile, TimingSlotId } from "@/lib/types";
 import { addMinutesToTime, evaluateLateArrivalIST } from "@/lib/attendance/ist-time";
 
 export const TIMING_SLOTS: TimingSlotId[] = ["timing1", "timing2"];
 export const DEFAULT_TIMING_SLOT: TimingSlotId = "timing2";
 
+const BRANCH_NAMES: Branch[] = ["Delhi", "Dehradun", "Rudrapur"];
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**
@@ -43,6 +44,64 @@ export function getTimingProfiles(policy: AttendancePolicy): TimingProfile[] {
 
 export function slotOfRole(role?: Pick<CustomRole, "timingSlot"> | null): TimingSlotId {
   return role?.timingSlot === "timing1" ? "timing1" : DEFAULT_TIMING_SLOT;
+}
+
+/**
+ * Branch-wide timing defaults. Delhi: office starts 09:50, late after 10:05, always a Half Day after 10:20,
+ * and the 3rd late arrival in a Monday-Saturday week is a Half Day too. Everyone in the branch follows it,
+ * whatever their role's slot is. `effectiveFrom` keeps lates judged under the earlier Delhi rule out of the
+ * weekly strike count in the first week; HR can change it in Settings.
+ */
+export function defaultBranchTimingProfiles(): Partial<Record<Branch, TimingProfile>> {
+  return {
+    Delhi: {
+      id: "branch-delhi",
+      label: "Delhi branch",
+      startTime: "09:50",
+      graceMinutes: 15,
+      halfDayRules: { weeklyLateAllowance: 2, hardCutoffTime: "10:20" },
+      effectiveFrom: "2026-11-10",
+    },
+  };
+}
+
+const normBranch = (b?: string) => (b || "").toString().toLowerCase().trim();
+
+/** The branch-wide profile for a branch ("Delhi", " delhi "), or undefined when the branch follows role timings. */
+export function getBranchTimingProfile(policy: AttendancePolicy, branch?: string): TimingProfile | undefined {
+  const wanted = normBranch(branch);
+  if (!wanted) return undefined;
+  const defaults = defaultBranchTimingProfiles();
+  const key = (Object.keys(defaults) as Branch[]).find((b) => normBranch(b) === wanted);
+  const storedKey = (Object.keys(policy.branchTimingProfiles || {}) as Branch[]).find((b) => normBranch(b) === wanted);
+  if (!key && !storedKey) return undefined;
+  const base = key ? defaults[key] : undefined;
+  const stored = storedKey ? policy.branchTimingProfiles?.[storedKey] : undefined;
+  return base || stored ? ({ ...base, ...stored } as TimingProfile) : undefined;
+}
+
+/** Every branch that has its own profile, with defaults filled in. */
+export function getBranchTimingProfiles(policy: AttendancePolicy): TimingProfile[] {
+  const branches = new Set<string>([
+    ...Object.keys(defaultBranchTimingProfiles()),
+    ...Object.keys(policy.branchTimingProfiles || {}),
+  ]);
+  return [...branches]
+    .map((b) => getBranchTimingProfile(policy, b))
+    .filter((p): p is TimingProfile => !!p);
+}
+
+/**
+ * The timing an employee follows: their branch's own profile when it has one (Delhi),
+ * otherwise the slot of their role.
+ */
+export function resolveTimingForEmployee(input: {
+  branch?: string;
+  roleId?: string;
+  roles: CustomRole[];
+  policy: AttendancePolicy;
+}): TimingProfile {
+  return getBranchTimingProfile(input.policy, input.branch) || resolveTimingProfile(input.roleId, input.roles, input.policy);
 }
 
 /** The timing profile of a role id (roles without a slot, or unknown roles, use Timing 2). */
@@ -109,38 +168,62 @@ export function decideArrivalStatus(input: {
   };
 }
 
-/** Rejects malformed timing settings; returns an error message or null when valid. */
-export function validateTimingProfiles(profiles: unknown): string | null {
-  if (!Array.isArray(profiles)) return "timingProfiles must be an array";
-  const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
-  const seen = new Set<string>();
-  for (const p of profiles as Partial<TimingProfile>[]) {
-    if (!p || (p.id !== "timing1" && p.id !== "timing2")) return "Unknown timing slot";
-    if (seen.has(p.id)) return "Duplicate timing slot";
-    seen.add(p.id);
-    if (!p.startTime || !hhmm.test(p.startTime)) return `${p.id}: start time must be HH:mm`;
-    if (!Number.isInteger(p.graceMinutes) || (p.graceMinutes as number) < 0 || (p.graceMinutes as number) > 180) {
-      return `${p.id}: grace minutes must be a whole number from 0 to 180`;
+
+function validateProfileFields(p: Partial<TimingProfile>, name: string): string | null {
+  if (!p.startTime || !HHMM.test(p.startTime)) return `${name}: start time must be HH:mm`;
+  if (!Number.isInteger(p.graceMinutes) || (p.graceMinutes as number) < 0 || (p.graceMinutes as number) > 180) {
+    return `${name}: grace minutes must be a whole number from 0 to 180`;
+  }
+  if (p.effectiveFrom !== undefined && p.effectiveFrom !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(p.effectiveFrom)) {
+    return `${name}: effective from must be YYYY-MM-DD`;
+  }
+  if (p.halfDayRules) {
+    const r = p.halfDayRules;
+    if (!Number.isInteger(r.weeklyLateAllowance) || r.weeklyLateAllowance < 0 || r.weeklyLateAllowance > 6) {
+      return `${name}: weekly late allowance must be a whole number from 0 to 6`;
     }
-    if (p.halfDayRules) {
-      const r = p.halfDayRules;
-      if (!Number.isInteger(r.weeklyLateAllowance) || r.weeklyLateAllowance < 0 || r.weeklyLateAllowance > 6) {
-        return `${p.id}: weekly late allowance must be a whole number from 0 to 6`;
-      }
-      if (r.hardCutoffTime !== undefined && r.hardCutoffTime !== "") {
-        if (!hhmm.test(r.hardCutoffTime)) return `${p.id}: hard cutoff must be HH:mm`;
-        if (r.hardCutoffTime < addMinutesToTime(p.startTime, p.graceMinutes as number)) {
-          return `${p.id}: hard cutoff cannot be before the late time`;
-        }
+    if (r.hardCutoffTime !== undefined && r.hardCutoffTime !== "") {
+      if (!HHMM.test(r.hardCutoffTime)) return `${name}: hard cutoff must be HH:mm`;
+      if (r.hardCutoffTime < addMinutesToTime(p.startTime, p.graceMinutes as number)) {
+        return `${name}: hard cutoff cannot be before the late time`;
       }
     }
   }
   return null;
 }
 
-/** "Timing 1: late after 09:45 · Timing 2: late after 10:15" for dashboards and reports. */
+/** Rejects malformed timing settings; returns an error message or null when valid. */
+export function validateTimingProfiles(profiles: unknown): string | null {
+  if (!Array.isArray(profiles)) return "timingProfiles must be an array";
+  const seen = new Set<string>();
+  for (const p of profiles as Partial<TimingProfile>[]) {
+    if (!p || (p.id !== "timing1" && p.id !== "timing2")) return "Unknown timing slot";
+    if (seen.has(p.id)) return "Duplicate timing slot";
+    seen.add(p.id);
+    const err = validateProfileFields(p, p.id);
+    if (err) return err;
+  }
+  return null;
+}
+
+/** Rejects malformed branch timing settings ({ Delhi: {...} }); returns an error message or null when valid. */
+export function validateBranchTimingProfiles(profiles: unknown): string | null {
+  if (!profiles || typeof profiles !== "object" || Array.isArray(profiles)) return "branchTimingProfiles must be an object";
+  for (const [branch, p] of Object.entries(profiles as Record<string, Partial<TimingProfile>>)) {
+    if (!(BRANCH_NAMES as string[]).includes(branch)) return `Unknown branch: ${branch}`;
+    if (!p || typeof p !== "object") return `${branch}: profile is required`;
+    const err = validateProfileFields(p, `${branch} branch`);
+    if (err) return err;
+  }
+  return null;
+}
+
+/** "Timing 1: late after 09:45 · Timing 2: late after 10:15 · Delhi branch: late after 10:05, half day after 10:20". */
 export function timingSummary(policy: AttendancePolicy): string {
-  return getTimingProfiles(policy)
-    .map((p) => `${p.label}: late after ${lateAfterOf(p)}`)
+  return [...getTimingProfiles(policy), ...getBranchTimingProfiles(policy)]
+    .map((p) => {
+      const cutoff = p.halfDayRules?.hardCutoffTime;
+      return `${p.label}: late after ${lateAfterOf(p)}${cutoff ? `, half day after ${cutoff}` : ""}`;
+    })
     .join(" · ");
 }

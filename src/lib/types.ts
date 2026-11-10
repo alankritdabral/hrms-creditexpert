@@ -392,12 +392,20 @@ export interface HalfDayRules {
   hardCutoffTime?: string;
 }
 
+/** A role slot ("timing1"/"timing2") or a branch-wide profile ("branch-delhi"). */
+export type TimingProfileId = TimingSlotId | `branch-${Lowercase<Branch>}`;
+
 export interface TimingProfile {
-  id: TimingSlotId;
+  id: TimingProfileId;
   label: string;
   startTime: string; // "09:30"
   graceMinutes: number; // 15 -> late after 09:45
   halfDayRules?: HalfDayRules;
+  /**
+   * "YYYY-MM-DD". Weekly late strikes only count records on or after this date, so lates judged under an
+   * earlier rule do not count against this one in its first week. Used by branch profiles.
+   */
+  effectiveFrom?: string;
 }
 
 export interface AttendancePolicy {
@@ -411,6 +419,11 @@ export interface AttendancePolicy {
   standardBreakHours: number; // 1
   /** The two timing slots roles can be assigned to. Absent on old policies; defaults are derived. */
   timingProfiles?: TimingProfile[];
+  /**
+   * Branch-wide timing. Everyone in the branch follows it whatever their role's slot is.
+   * Absent on old policies; the Delhi default is derived in late-policy.ts.
+   */
+  branchTimingProfiles?: Partial<Record<Branch, TimingProfile>>;
 }
 
 export interface LeaveRecordSummary {

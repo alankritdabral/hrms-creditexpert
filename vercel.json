@@ -1,8 +1,12 @@
 {
   "crons": [
     {
-      "path": "/api/cron/attendance-reminder",
+      "path": "/api/cron/attendance-reminder?scope=other",
       "schedule": "15 4 * * 1-6"
+    },
+    {
+      "path": "/api/cron/attendance-reminder?scope=delhi",
+      "schedule": "30 4 * * 1-6"
     },
     {
       "path": "/api/cron/daily-login-report",

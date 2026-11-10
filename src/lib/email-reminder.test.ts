@@ -24,6 +24,18 @@ describe("ruleReminderHtml", () => {
   });
 });
 
+describe("ruleReminderHtml for Delhi (starts 09:50, late after 10:05, half day after 10:20)", () => {
+  it("says when the office starts and shows the Delhi cutoffs", () => {
+    const lines = text(ruleReminderHtml({ startTime: "09:50", lateAfter: "10:05", weeklyLateAllowance: 2, hardCutoffTime: "10:20" }));
+    expect(lines).toEqual([
+      "Office starts at 9:50 AM. Clock in by 10:05 AM; arrivals after 10:05 are Late.",
+      "You can be late 2 times a week (Mon–Sat). From the 3rd late arrival in a week, every arrival after 10:05 is an automatic Half Day.",
+      "Arriving after 10:20 AM is always a Half Day.",
+      "A Half Day deducts half a day of salary.",
+    ]);
+  });
+});
+
 describe("attendanceLink", () => {
   it("prefers NEXT_PUBLIC_APP_URL, trims a trailing slash, and falls back to Vercel then localhost", () => {
     const keep = { a: process.env.NEXT_PUBLIC_APP_URL, v: process.env.VERCEL_PROJECT_PRODUCTION_URL };
