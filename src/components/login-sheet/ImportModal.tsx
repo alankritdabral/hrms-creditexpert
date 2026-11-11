@@ -81,7 +81,12 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
   /** Rows already saved for the dates in the file. The page only holds one date range, so this is fetched per file. */
   const [stored, setStored] = useState<LoginSheetEntry[]>([]);
 
+  /** The sheet as read from the file, kept so the date format can be switched without choosing the file again. */
+  const gridRef = useRef<unknown[][] | null>(null);
+  const [monthFirst, setMonthFirst] = useState(false);
+
   const reset = () => {
+    gridRef.current = null;
     setStored([]);
     setChoices({});
     setFileName("");
@@ -147,6 +152,30 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
   const duplicates = plan.filter((p) => p.duplicate);
   const renamed = !canPickEmployee && parsed ? parsed.filter((r) => r.empName && norm(r.empName) !== norm(self.name)).length : 0;
 
+  const applyGrid = async (grid: unknown[][], mf: boolean) => {
+    const result = parseSheetRows(grid, { monthFirst: mf });
+    if (result.fatal) {
+      setFatal(result.fatal);
+      setParsed(null);
+    } else {
+      setFatal(null);
+      setStored(await fetchStoredRows(result.rows.flatMap((r) => (r.input ? [r.input.date] : []))));
+      setParsed(result.rows);
+      setChoices({});
+    }
+  };
+
+  const onMonthFirst = async (mf: boolean) => {
+    setMonthFirst(mf);
+    if (!gridRef.current) return;
+    setReading(true);
+    try {
+      await applyGrid(gridRef.current, mf);
+    } finally {
+      setReading(false);
+    }
+  };
+
   const onFile = async (file: File | undefined) => {
     reset();
     if (!file) return;
@@ -161,12 +190,9 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
     setFileName(file.name);
     setReading(true);
     try {
-      const result = parseSheetRows(await xlsxToGrid(await file.arrayBuffer()));
-      if (result.fatal) setFatal(result.fatal);
-      else {
-        setStored(await fetchStoredRows(result.rows.flatMap((r) => (r.input ? [r.input.date] : []))));
-        setParsed(result.rows);
-      }
+      const grid = await xlsxToGrid(await file.arrayBuffer());
+      gridRef.current = grid;
+      await applyGrid(grid, monthFirst);
     } catch {
       setFatal("Could not read that file. Make sure it is a valid .xlsx workbook.");
     } finally {
@@ -259,6 +285,11 @@ export function ImportModal({ isOpen, onClose, canPickEmployee, self, employees,
             </span>
           )}
         </div>
+
+        <label className="flex items-center gap-2 text-xs text-slate-600">
+          <input type="checkbox" checked={monthFirst} disabled={Boolean(progress) || reading} onChange={(e) => onMonthFirst(e.target.checked)} />
+          Dates typed as text are MM/DD/YYYY (month first). Leave off for DD/MM/YYYY. Real Excel dates are always read correctly.
+        </label>
 
         {reading && <div className="text-xs text-slate-500">Reading the file…</div>}
         {fatal && (

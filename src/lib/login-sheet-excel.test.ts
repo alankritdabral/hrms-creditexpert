@@ -99,6 +99,9 @@ describe("date and time parsing", () => {
     expect(parseSheetDate("6-11-26")).toEqual({ value: "2026-11-06" });
     expect(parseSheetDate("2026-11-06")).toEqual({ value: "2026-11-06" });
     expect(parseSheetDate(46332)).toEqual({ value: "2026-11-06" });
+    expect(parseSheetDate("11/25/2026", true)).toEqual({ value: "2026-11-25" });
+    expect(parseSheetDate("11/05/2026", true)).toEqual({ value: "2026-11-05" });
+    expect(parseSheetDate("11/25/2026")).toHaveProperty("error");
     expect(parseSheetDate("")).toHaveProperty("error");
     expect(parseSheetDate("tomorrow")).toHaveProperty("error");
   });

@@ -65,8 +65,8 @@ const isoDate = (y: number, m: number, d: number) => {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? `${y}-${pad(m)}-${pad(d)}` : null;
 };
 
-/** Excel dates arrive as Date objects, serial numbers or typed text (day first, as in India). */
-export function parseSheetDate(v: unknown): { value: string } | { error: string } {
+/** Excel dates arrive as Date objects, serial numbers or typed text (day first, as in India, unless monthFirst is set). */
+export function parseSheetDate(v: unknown, monthFirst = false): { value: string } | { error: string } {
   if (v instanceof Date) {
     return Number.isNaN(v.getTime()) ? { error: "Date is not valid." } : { value: v.toISOString().slice(0, 10) };
   }
@@ -84,10 +84,10 @@ export function parseSheetDate(v: unknown): { value: string } | { error: string 
   m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/.exec(s);
   if (m) {
     const year = m[3].length === 2 ? 2000 + +m[3] : +m[3];
-    const r = isoDate(year, +m[2], +m[1]);
+    const r = monthFirst ? isoDate(year, +m[1], +m[2]) : isoDate(year, +m[2], +m[1]);
     return r ? { value: r } : { error: `Date "${s}" is not valid.` };
   }
-  return { error: `Date "${s}" is not valid (use DD-MM-YYYY).` };
+  return { error: `Date "${s}" is not valid (use ${monthFirst ? "MM-DD-YYYY" : "DD-MM-YYYY"}).` };
 }
 
 /** Excel times arrive as Date objects, a fraction of a day, or text such as "12:22" or "1:05 PM". Blank is allowed. */
@@ -127,7 +127,7 @@ function cleanAmount(v: unknown): string | number {
 }
 
 /** Reads the header row and every data row below it. */
-export function parseSheetRows(grid: unknown[][]): ParsedImport {
+export function parseSheetRows(grid: unknown[][], opts: { monthFirst?: boolean } = {}): ParsedImport {
   // The header row is the first one (within the top 10) that names both a customer and a bank column.
   let headerIdx = -1;
   for (let i = 0; i < Math.min(grid.length, 10); i++) {
@@ -164,7 +164,7 @@ export function parseSheetRows(grid: unknown[][]): ParsedImport {
     const line = i + 1;
     const empName = cleanText(cell(row, "empName"));
 
-    const date = parseSheetDate(cell(row, "date"));
+    const date = parseSheetDate(cell(row, "date"), opts.monthFirst);
     if ("error" in date) {
       rows.push({ line, empName, error: date.error });
       continue;
