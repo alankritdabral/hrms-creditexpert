@@ -161,3 +161,31 @@ describe("punchAttendance with timing slots", () => {
     });
   });
 });
+
+describe("attendance duplicates", () => {
+  beforeAll(() => {
+    if (isFirestoreConfigured()) throw new Error("Refusing to run: Firestore credentials are present in the test environment.");
+  });
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("a repeated punch on the same day does not add a second record", async () => {
+    at(3, "09:46");
+    await punchAttendance("EMP-DUP1", "checkIn", actor);
+    await expect(punchAttendance("EMP-DUP1", "checkIn", actor)).rejects.toThrow(/already clocked in/);
+    expect((await getAttendanceRecords({ employeeId: "EMP-DUP1" })).length).toBe(1);
+  });
+
+  it("an HR edit updates every record on that day, including older duplicates", async () => {
+    const { upsertAttendanceRecord, createAttendanceRecord } = await import("./db-adapter");
+    const base = { employeeId: "EMP-DUP2", employeeName: "Dup", date: "2026-11-06", totalWorkingHours: 0, breakDurationMinutes: 0, earlyDeparture: false, overtimeHours: 0, lateArrival: true, status: "Late" as const };
+    vi.setSystemTime(new Date("2026-11-06T04:28:00Z"));
+    await createAttendanceRecord({ ...base, checkIn: "09:58" }, actor);
+    vi.setSystemTime(new Date("2026-11-06T05:00:00Z"));
+    await createAttendanceRecord({ ...base, checkIn: "09:59" }, actor);
+    await upsertAttendanceRecord({ employeeId: "EMP-DUP2", employeeName: "Dup" }, "2026-11-06", { status: "Present" }, actor);
+    const recs = await getAttendanceRecords({ employeeId: "EMP-DUP2" });
+    expect(recs.length).toBeGreaterThan(0);
+    expect(recs.every((r) => r.status === "Present")).toBe(true);
+  });
+});

@@ -1429,8 +1429,16 @@ export async function punchAttendance(
     priorLateCountThisWeek: timing.lateCountThisWeek,
   });
 
+  // One fixed id per employee per day: a repeated or concurrent punch rewrites the same document
+  // instead of adding another record. Check it directly in case the day query above was stale.
+  const punchId = `att-${resolvedEmployeeId}-${today}`;
+  const sameDay = await loadForUpdate<AttendanceRecord>("attendance", punchId, memory.attendance, (a) => a.id === punchId);
+  if (sameDay && sameDay.checkIn && sameDay.checkIn !== "--") {
+    throw new Error("You have already clocked in for today.");
+  }
+
   const newRec: AttendanceRecord = {
-    id: `att-${Date.now()}`,
+    id: punchId,
     employeeId: resolvedEmployeeId,
     employeeName,
     date: today,
@@ -1480,11 +1488,15 @@ export async function upsertAttendanceRecord(
   updates: Partial<Pick<AttendanceRecord, "status" | "checkIn" | "remarks">>,
   actor: { name: string; role: string }
 ): Promise<AttendanceRecord> {
-  const existing = (await getAttendanceRecords(date)).find((r) => r.employeeId === employee.employeeId);
-  if (existing) {
-    const updated = await updateAttendanceRecord(existing.id, updates, actor);
-    if (updated) return updated;
+  // A day can hold more than one record (older double clock-ins). Update every one so the sheet,
+  // which shows a single record per day, always reflects the edit.
+  const existing = (await getAttendanceRecords(date)).filter((r) => r.employeeId === employee.employeeId);
+  let first: AttendanceRecord | null = null;
+  for (const rec of existing) {
+    const updated = await updateAttendanceRecord(rec.id, updates, actor);
+    if (updated && !first) first = updated;
   }
+  if (first) return first;
   const status = updates.status || "Present";
   return createAttendanceRecord(
     {
