@@ -12,7 +12,7 @@ const at = (day: number, istHHmm: string) => {
 };
 
 // Role timings apply outside Delhi; Delhi has its own branch timing (tested below).
-const account = (employeeId: string, role: string, branch: UserAccount["branch"] = "Dehradun"): UserAccount => ({
+const account = (employeeId: string, role: string, branch: UserAccount["branch"] = "Rudrapur"): UserAccount => ({
   uid: `uid-${employeeId}`,
   employeeId,
   email: `${employeeId.toLowerCase()}@example.com`,

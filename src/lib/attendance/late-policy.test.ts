@@ -169,7 +169,7 @@ describe("Delhi branch timing", () => {
     const roles: CustomRole[] = [{ id: "early", name: "Early", sections: [], timingSlot: "timing1" } as unknown as CustomRole];
     expect(resolveTimingForEmployee({ branch: "Delhi", roleId: "early", roles, policy }).startTime).toBe("09:50");
     expect(resolveTimingForEmployee({ branch: " delhi ", roleId: "employee", roles, policy }).startTime).toBe("09:50");
-    expect(resolveTimingForEmployee({ branch: "Dehradun", roleId: "early", roles, policy }).startTime).toBe("09:30");
+    expect(resolveTimingForEmployee({ branch: "Rudrapur", roleId: "early", roles, policy }).startTime).toBe("09:30");
     expect(resolveTimingForEmployee({ branch: "Rudrapur", roleId: "employee", roles, policy }).startTime).toBe("10:00");
     expect(resolveTimingForEmployee({ roleId: "early", roles, policy }).startTime).toBe("09:30");
   });

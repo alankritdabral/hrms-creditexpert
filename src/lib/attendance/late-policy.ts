@@ -62,6 +62,15 @@ export function defaultBranchTimingProfiles(): Partial<Record<Branch, TimingProf
       halfDayRules: { weeklyLateAllowance: 2, hardCutoffTime: "10:20" },
       effectiveFrom: "2026-11-10",
     },
+    // Dehradun follows the same timing as Delhi.
+    Dehradun: {
+      id: "branch-dehradun",
+      label: "Dehradun branch",
+      startTime: "09:50",
+      graceMinutes: 15,
+      halfDayRules: { weeklyLateAllowance: 2, hardCutoffTime: "10:20" },
+      effectiveFrom: "2026-11-16",
+    },
   };
 }
 

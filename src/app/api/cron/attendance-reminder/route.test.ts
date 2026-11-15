@@ -20,7 +20,7 @@ const account = (employeeId: string, role: string, extra: Partial<UserAccount> =
   password: "x",
   name: employeeId,
   role,
-  branch: "Dehradun", // role timings apply outside Delhi
+  branch: "Rudrapur", // role timings apply outside Delhi
   department: "Sales",
   avatar: "",
   status: "Active",
@@ -71,8 +71,8 @@ describe("attendance reminder cron", () => {
     await createUserAccount(account("EMP-DEL1", "employee", { branch: "Delhi" })); // Timing 2 role, Delhi
     await createUserAccount(account("EMP-DEL2", "early", { branch: "Delhi" })); // Timing 1 role, Delhi
     await createUserAccount(account("EMP-DEL3", "employee", { branch: "Delhi", status: "Suspended" }));
-    await createUserAccount(account("EMP-DUN1", "early", { branch: "Dehradun" }));
-    await createUserAccount(account("EMP-DUN2", "employee", { branch: "Dehradun" }));
+    await createUserAccount(account("EMP-DUN1", "early", { branch: "Rudrapur" }));
+    await createUserAccount(account("EMP-DUN2", "employee", { branch: "Rudrapur" }));
     vi.setSystemTime(new Date(Date.UTC(2026, 10, 2, 4, 30))); // Monday 10:00 IST
 
     const body = await (await call("delhi")).json();
