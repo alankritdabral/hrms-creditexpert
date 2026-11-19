@@ -827,8 +827,7 @@ export async function updateEmployeeBranch(
   await persist("employees", emp.employeeId, emp);
 
   // Keep the login account in sync: branch scope is read from the account on every request
-  const users = await getAllUserAccounts();
-  const acc = users.find((u) => u.employeeId?.toLowerCase() === emp.employeeId.toLowerCase());
+  const acc = await getUserAccountByEmployeeId(emp.employeeId);
   if (acc) await updateUserAccount(acc.uid, { branch });
 
   await recordAuditLog({
@@ -931,13 +930,13 @@ export async function updateEmployeeAvatar(
   await persist("employees", updatedEmp.employeeId, updatedEmp);
 
   // Sync the avatar onto the matching login account
-  const accounts = await getAllUserAccounts();
-  const userAcc = accounts.find(
-    (u) =>
-      u.employeeId.toLowerCase() === updatedEmp.employeeId.toLowerCase() ||
-      u.email.toLowerCase() === updatedEmp.personal.workEmail.toLowerCase() ||
-      u.email.toLowerCase() === updatedEmp.personal.personalEmail.toLowerCase()
-  );
+  // Targeted lookups (1-3 reads) instead of scanning the whole users collection.
+  let userAcc = await getUserAccountByEmployeeId(updatedEmp.employeeId);
+  if (!userAcc) {
+    for (const mail of [updatedEmp.personal.workEmail, updatedEmp.personal.personalEmail]) {
+      if (mail && (userAcc = await getUserAccountByEmail(mail))) break;
+    }
+  }
   if (userAcc) await updateUserAccount(userAcc.uid, { avatar: effectiveAvatarUrl });
 
   // If a passport photo was newly provided or changed, ensure a verified EmployeeDocument exists
@@ -2770,7 +2769,8 @@ export async function updateUserAccount(
   const updated: UserAccount = { ...current, ...updates };
   upsertMemory(memory.userAccounts, (u) => u.uid === uid, updated, false);
   await persist("users", uid, updated);
-  legacyEmailCheck = null;
+  // Only an email change can introduce a mixed-case address that the exact-match queries would miss.
+  if (updates.email !== undefined) legacyEmailCheck = null;
   return updated;
 }
 
@@ -2910,7 +2910,10 @@ export async function deleteCustomRole(
   roleGrantsCache = null;
 
   // Reassign any users who had this role to employee
-  for (const u of await getAllUserAccounts()) {
+  const affected = isFirestoreConfigured()
+    ? await queryFreshFromFirestore<UserAccount>("users", "role", roleId)
+    : memory.userAccounts.filter((u) => u.role === roleId);
+  for (const u of affected) {
     if (u.role === roleId) {
       await updateUserAccount(u.uid, { role: "employee" });
     }
