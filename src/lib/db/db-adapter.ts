@@ -2815,34 +2815,29 @@ export async function getCustomRoleGrants(roleId: string | undefined | null): Pr
   return roleGrantsCache.byRole.get(id) ?? [];
 }
 
+/**
+ * Role definitions only. This runs on every session heartbeat and clock-in, so it must not read the
+ * users collection; the per-role user counts the Settings page shows come from withRoleUserCounts().
+ */
 export async function getCustomRoles(): Promise<CustomRole[]> {
   await syncCustomRoles();
+  return memory.customRoles.map((role) => ({
+    ...role,
+    sections: Array.isArray(role.sections) ? role.sections : [],
+    permissions: effectiveRoleGrants(role),
+  }));
+}
 
-  // Calculate user counts for each role safely
-  try {
-    const allUsers = await getAllUserAccounts();
-    return memory.customRoles.map((role) => {
-      const targetRole = (role?.id || "").toString().toLowerCase().trim();
-      const count = (allUsers || []).filter((u) => {
-        const uRole = (u?.role || "employee").toString().toLowerCase().trim();
-        return uRole === targetRole || (targetRole === "employee" && (!u?.role || uRole === "employee"));
-      }).length;
-      return {
-        ...role,
-        sections: Array.isArray(role.sections) ? role.sections : [],
-        permissions: effectiveRoleGrants(role),
-        userCount: count,
-      };
-    });
-  } catch (err) {
-    console.warn("getCustomRoles calculate user counts error:", err);
-    return memory.customRoles.map((role) => ({
-      ...role,
-      sections: Array.isArray(role.sections) ? role.sections : [],
-      permissions: effectiveRoleGrants(role),
-      userCount: 0,
-    }));
-  }
+/** Adds how many of the given accounts hold each role (an account with no role counts as Employee). */
+export function withRoleUserCounts(roles: CustomRole[], users: UserAccount[]): CustomRole[] {
+  return roles.map((role) => {
+    const targetRole = (role?.id || "").toString().toLowerCase().trim();
+    const userCount = users.filter((u) => {
+      const uRole = (u?.role || "employee").toString().toLowerCase().trim();
+      return uRole === targetRole || (targetRole === "employee" && (!u?.role || uRole === "employee"));
+    }).length;
+    return { ...role, userCount };
+  });
 }
 
 export async function saveCustomRole(

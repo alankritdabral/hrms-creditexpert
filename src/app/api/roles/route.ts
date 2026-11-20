@@ -5,6 +5,7 @@ import {
   deleteCustomRole,
   getAllUserAccounts,
   assignUserRole,
+  withRoleUserCounts,
 } from "@/lib/db/db-adapter";
 import { authenticateRequest, authFailureResponse, requirePermission } from "@/lib/api-auth";
 import { APP_SECTIONS } from "@/lib/types";
@@ -31,8 +32,8 @@ export async function GET(req: NextRequest) {
     });
 
     // Map user accounts with clean display properties
-    const safeRoles = Array.isArray(roles) ? roles : [];
     const safeUsers = Array.isArray(users) ? users : [];
+    const safeRoles = withRoleUserCounts(Array.isArray(roles) ? roles : [], safeUsers);
 
     const userSummaries = safeUsers.map((u) => {
       const uRole = (u?.role || "employee").toString().toLowerCase().trim();
