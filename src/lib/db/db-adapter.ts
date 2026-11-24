@@ -81,6 +81,8 @@ import {
   saveOrThrow,
   deleteOrThrow,
   withTransaction,
+  type StoreDb,
+  type StoreTx,
   toFirestoreData,
   queryFreshFromFirestore,
   invalidateFirestoreCache,
@@ -96,7 +98,6 @@ import { decideArrivalStatus, resolveTimingForEmployee } from "../attendance/lat
 import { isLocalEnvironment } from "../env";
 import { hashPassword, generateTempPassword } from "../password";
 import { randomBytes } from "node:crypto";
-import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { formatEmployeeId, maxEmployeeNumber, nextEmployeeId } from "../employee-id";
 import { after } from "next/server";
 
@@ -361,7 +362,7 @@ export class ValidationError extends Error {}
  * missing it starts after the highest existing ID, and it skips any ID that already has a document.
  * Must be called before any write in the same transaction.
  */
-async function allocateEmployeeId(tx: Transaction, db: Firestore): Promise<string> {
+async function allocateEmployeeId(tx: StoreTx, db: StoreDb): Promise<string> {
   const counterRef = db.collection("counters").doc("employees");
   const counter = await tx.get(counterRef);
   const stored = counter.exists ? counter.data()?.last : undefined;

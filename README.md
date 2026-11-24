@@ -19,7 +19,7 @@ A modern, cloud-native Human Resource Management System (HRMS) built for enterpr
 - **💰 Multi-Tier Indian Statutory Payroll Engine**: Automated calculations for Basic Pay, HRA, Special Allowance, PF (12% employee/employer caps), ESIC, Professional Tax (PT), and Tax Deducted at Source (TDS).
 - **📄 Digital Payslip Generation**: On-demand printable and downloadable salary slips with breakdown of earnings, deductions, and net pay.
 - **📈 Performance & Loan Conversion Incentives**: Volume-based, tiered commission, and percentage-based incentive calculation schemes.
-- **🗂️ Mandatory KYC Document Verification**: Multi-file document upload (Aadhaar, PAN, Passbook, Photograph) with strict 2 MB limit verification and Cloudinary cloud storage.
+- **🗂️ Mandatory KYC Document Verification**: Multi-file document upload (Aadhaar, PAN, Passbook, Photograph) with strict 2 MB limit verification and S3 cloud storage (via the backend).
 - **🔐 Decoupled RBAC & Single-Session Auth**: Granular role-based access control (`SUPER_ADMIN`, `ADMIN`, `HR_MANAGER`, `MANAGER`, `EMPLOYEE`), single active device session heartbeat, and cryptographic OTP email verification.
 - **💻 Asset & Inventory Management**: IT asset assignment, serial number tracking, condition grading, and allocation lifecycle.
 - **📢 Company Announcements & Holiday Calendar**: Multi-branch holiday calendars and global broadcast feeds.
@@ -34,8 +34,8 @@ A modern, cloud-native Human Resource Management System (HRMS) built for enterpr
 | **Framework** | [Next.js](https://nextjs.org/) 16 (App Router) with [React 19](https://react.dev/) |
 | **Language** | [TypeScript](https://www.typescriptlang.org/) (Strict typing) |
 | **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) & [Lucide React](https://lucide.dev/) icons |
-| **Database** | [Google Cloud Firestore](https://firebase.google.com/docs/firestore) |
-| **Media & KYC Storage** | [Cloudinary](https://cloudinary.com/) with local fallback |
+| **Database** | AWS RDS (PostgreSQL), reached through the NodeBankend-Server `/internal/staff-data` API |
+| **Media & KYC Storage** | AWS S3 through the backend (older files stay on Cloudinary; local fallback in development) |
 | **Email & OTP Delivery** | [Nodemailer](https://nodemailer.com/) (SMTP / Gmail App Password) |
 
 ---
@@ -45,7 +45,7 @@ A modern, cloud-native Human Resource Management System (HRMS) built for enterpr
 ### 1. Prerequisites
 - **Node.js**: `v20.x` or higher
 - **npm**: `v10.x` or higher (or `pnpm` / `yarn` / `bun`)
-- **Firebase Project**: A Google Cloud Firebase project with Firestore enabled.
+- **Backend**: NodeBankend-Server running with `DASHBOARD_API_KEY` set; the HRMS needs `BACKEND_API_URL` and `BACKEND_API_KEY` (same value).
 - **Cloudinary Account**: For KYC document uploads.
 - **SMTP Account**: For transactional emails (e.g. Gmail App Password).
 
@@ -70,15 +70,11 @@ cp .env.example .env.local
 Open `.env.local` and fill in your actual credentials:
 
 ```env
-# Firebase / Firestore Client Configuration
-NEXT_PUBLIC_FIREBASE_API_KEY="AIzaSy..."
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-app.firebaseapp.com"
-NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-app"
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-app.firebasestorage.app"
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="1234567890"
-NEXT_PUBLIC_FIREBASE_APP_ID="1:1234567890:web:abcdef"
+# Data store: RDS + S3 through the backend (NodeBankend-Server)
+BACKEND_API_URL="https://your-backend.example.com/api/v1"
+BACKEND_API_KEY="same value as DASHBOARD_API_KEY in the backend"
 
-# Cloudinary KYC Storage
+# Cloudinary (legacy KYC files uploaded before the move to S3; still served)
 CLOUDINARY_CLOUD_NAME="your_cloud_name"
 CLOUDINARY_API_KEY="your_api_key"
 CLOUDINARY_API_SECRET="your_api_secret"

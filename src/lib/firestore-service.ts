@@ -1,7 +1,17 @@
 import "server-only";
-import type { Firestore, Transaction } from "firebase-admin/firestore";
-import { getFirebaseAdminFirestore } from "./firebase-admin";
-import { getWebCompatFirestore } from "./firestore-web-compat";
+import {
+  BackendApiError,
+  clearCollection,
+  commitBatch,
+  deleteDoc,
+  getDoc,
+  importDocs,
+  isBackendConfigured,
+  listDocs,
+  putDoc,
+  type BatchOp,
+  type Precondition,
+} from "./backend-store";
 import { isLocalEnvironment } from "./env";
 import { UserSession } from "./types";
 import { matchesFilters, patchCachedList, docWithId, type CacheFilter } from "./cache-patch";
@@ -9,12 +19,9 @@ import {
   INITIAL_EMPLOYEES,
   INITIAL_ATTENDANCE,
   INITIAL_LEAVES,
-  INITIAL_INCENTIVE_SCHEMES,
-  INITIAL_EMPLOYEE_INCENTIVES,
   INITIAL_ASSETS,
   INITIAL_REQUESTS,
   INITIAL_ANNOUNCEMENTS,
-  INITIAL_AUDIT_LOGS,
   INITIAL_PAYROLL_RUNS,
   INITIAL_POLICY,
   INITIAL_HOLIDAYS,
@@ -23,20 +30,15 @@ import {
 } from "./db/seed-data";
 
 // ============================================================================
-// FIRESTORE FREE (SPARK) PLAN ARCHITECTURE & QUOTA BUDGET
+// DATA ACCESS LAYER (RDS, through the backend's /internal/staff-data API)
 // ============================================================================
-// Google Cloud Firestore Free Tier Limits:
-// - Daily Reads: 50,000 documents / day
-// - Daily Writes: 20,000 documents / day
-// - Daily Deletes: 20,000 documents / day
-// - Total Storage: 1 GiB (1,024 MB)
-// - Outbound Network: 10 GiB / month
-// - Monthly Cost: $0.00 / ₹0 (Spark Plan)
+// The HRMS data used to live in Firestore; it now lives in the backend's RDS database. The file
+// and its export names are unchanged (so the rest of the app is untouched), but every call goes
+// to the backend: RDS is private to the backend's network. Documents keep their Firestore shape:
+// a JSON object under collection + id.
 //
-// In a typical 50-100 employee company:
-// - Without caching: ~15,000 - 35,000 reads/day (risking quota exhaustion).
-// - With 60-second TTL in-memory caching: ~1,200 - 2,500 reads/day (< 5% of quota).
-// - Writes for attendance, leaves & payroll: ~250 - 500 writes/day (< 3% of quota).
+// A short in-memory cache (60 s) sits in front, because a server render often reads the same
+// collection several times; writes patch the cached copies in place.
 // ============================================================================
 
 interface CacheEntry<T> {
@@ -44,23 +46,19 @@ interface CacheEntry<T> {
   cachedAt: number;
 }
 
-// In-Memory Read Cache for Firestore collections (TTL 60 seconds)
 const collectionCache = new Map<string, CacheEntry<any>>();
 const singleDocCache = new Map<string, CacheEntry<any>>();
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
-// Filtered-query cache (server-side `where` reads) — keeps large, ever-growing
-// collections such as attendance from ever being loaded in full.
 export type QueryFilter = CacheFilter;
 interface QueryCacheEntry extends CacheEntry<any[]> { collection: string; filters: QueryFilter[] }
 const queryCache = new Map<string, QueryCacheEntry>();
 const inflightQueries = new Map<string, Promise<unknown[]>>();
 
-/** Cache key for a collection read; limited reads must never be mistaken for the full collection. */
 export interface CollectionReadOptions {
   forceRefresh?: boolean;
   limitCount?: number;
-  /** Server-side ordering (single field, so no composite index is needed). */
+  /** Server-side ordering (single field). */
   orderBy?: { field: string; direction: "asc" | "desc" };
 }
 
@@ -68,6 +66,9 @@ const colKey = (name: string, limitCount?: number, orderBy?: CollectionReadOptio
   limitCount || orderBy
     ? `${name}#limit${limitCount ?? ""}${orderBy ? `#${orderBy.field}-${orderBy.direction}` : ""}`
     : name;
+
+/** Collections whose reads must never come from a cache (instant revocation / resent codes). */
+const NEVER_CACHED = new Set(["sessions", "otps"]);
 
 /**
  * Write-through: after a successful write, patch every cached copy in place
@@ -84,85 +85,35 @@ function applyWriteToCaches(collectionName: string, docId: string, data: any | n
     if (q.collection === collectionName) q.data = patchCachedList(q.data, docId, data, q.filters);
   }
   if (data === null) singleDocCache.delete(`${collectionName}/${docId}`);
-  else if (collectionName !== "sessions") {
+  else if (!NEVER_CACHED.has(collectionName)) {
     const sd = singleDocCache.get(`${collectionName}/${docId}`);
     singleDocCache.set(`${collectionName}/${docId}`, { data: { ...(sd?.data || {}), ...data, id: docId }, cachedAt: Date.now() });
   }
 }
 
-// Spark Plan Quota & Telemetry Metrics
 let totalReadsAttempted = 0;
 let cacheHits = 0;
 let cacheMisses = 0;
 let totalWrites = 0;
-let quotaExhaustedUntil: number | null = null;
-let lastQuotaWarningTime = 0;
 
 /**
- * Check if error indicates Firestore daily quota has been exceeded
- */
-function isQuotaExhaustedError(err: any): boolean {
-  if (!err) return false;
-  const msg = String(err.message || "").toLowerCase();
-  const code = String(err.code || "").toLowerCase();
-  return (
-    code.includes("resource-exhausted") ||
-    code === "8" ||
-    msg.includes("quota exceeded") ||
-    msg.includes("resource has been exhausted") ||
-    msg.includes("too many requests")
-  );
-}
-
-/**
- * Trip circuit breaker when quota exhaustion is encountered
- */
-function handleQuotaExhausted(operation: string, err: any) {
-  // Cooldown for 15 minutes before retrying Firestore
-  quotaExhaustedUntil = Date.now() + 15 * 60 * 1000;
-  const now = Date.now();
-  if (now - lastQuotaWarningTime > 60 * 1000) {
-    lastQuotaWarningTime = now;
-    console.warn(
-      `⚠️ [Firestore Free (Spark) Plan] Daily quota limit reached during "${operation}". ` +
-      `Activating Graceful Fallback Circuit Breaker (In-Memory Fallback Tier). Error: ${err.message}`
-    );
-  }
-}
-
-/**
- * The Firestore handle: the Admin SDK when a service-account key is configured (bypasses rules),
- * otherwise the web SDK through the NEXT_PUBLIC_FIREBASE_* config (subject to firestore.rules).
- */
-function resolveDb(): Firestore | null {
-  return getFirebaseAdminFirestore() ?? getWebCompatFirestore();
-}
-
-/**
- * True when the server can reach Firestore (Admin credentials or the web config).
- * When false (local development with neither) callers fall back to the in-memory store.
+ * True when the server can reach the backend store. When false (local development without
+ * BACKEND_API_*) callers fall back to the in-memory store.
  */
 export function isFirestoreConfigured(): boolean {
-  return resolveDb() !== null;
+  return isBackendConfigured();
 }
 
-/**
- * Returns the Firestore handle. In production a missing configuration is a hard error.
- * In local development it returns null so the in-memory fallback keeps working.
- */
-function getAdminDb() {
-  const db = resolveDb();
-  if (!db && !isLocalEnvironment()) {
-    throw new Error(
-      "Firestore is not configured: set NEXT_PUBLIC_FIREBASE_API_KEY and NEXT_PUBLIC_FIREBASE_PROJECT_ID, or the FIREBASE_ADMIN_* credentials."
-    );
+/** In production a missing configuration is a hard error; in local development it is the memory fallback. */
+function assertStoreReady(): boolean {
+  if (isBackendConfigured()) return true;
+  if (!isLocalEnvironment()) {
+    throw new Error("Backend store is not configured: set BACKEND_API_URL and BACKEND_API_KEY.");
   }
-  return db;
+  return false;
 }
 
-/**
- * Invalidate in-memory cache for a collection or specific document
- */
+/** Invalidate in-memory cache for a collection or specific document */
 export function invalidateFirestoreCache(collectionName?: string, docId?: string) {
   if (!collectionName) {
     collectionCache.clear();
@@ -181,9 +132,6 @@ export function invalidateFirestoreCache(collectionName?: string, docId?: string
   }
 }
 
-/**
- * Reads a full collection from Firestore with smart Free-Plan TTL caching
- */
 const inflightReads = new Map<string, Promise<unknown[]>>();
 
 /**
@@ -203,59 +151,37 @@ export function getCollectionFromFirestore<T>(
   return p;
 }
 
-async function fetchCollection<T>(
-  collectionName: string,
-  options?: CollectionReadOptions
-): Promise<T[]> {
+async function fetchCollection<T>(collectionName: string, options?: CollectionReadOptions): Promise<T[]> {
   totalReadsAttempted++;
+  const key = colKey(collectionName, options?.limitCount, options?.orderBy);
 
-  // 1. Check Circuit Breaker (If quota is exhausted, fail-fast to memory fallback tier)
-  if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
-    // Return cached data if present, otherwise empty array to let memory store take over
-    const cached = collectionCache.get(colKey(collectionName, options?.limitCount, options?.orderBy));
-    if (cached) return cached.data as T[];
-    return [];
-  }
-
-  // 2. Check In-Memory TTL Cache (Conserves reads against 50k daily limit)
   if (!options?.forceRefresh) {
-    const cached = collectionCache.get(colKey(collectionName, options?.limitCount, options?.orderBy));
+    const cached = collectionCache.get(key);
     if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
       cacheHits++;
       return cached.data as T[];
     }
   }
-
   cacheMisses++;
 
-  // 3. Read through the Admin SDK (the only server path to Firestore)
-  const adminDb = getAdminDb();
-  if (!adminDb) return [];
+  if (!assertStoreReady()) return [];
   try {
-    let queryRef: any = adminDb.collection(collectionName);
-    if (options?.orderBy) {
-      queryRef = queryRef.orderBy(options.orderBy.field, options.orderBy.direction);
-    }
-    if (options?.limitCount) {
-      queryRef = queryRef.limit(options.limitCount);
-    }
-    const snapshot = await queryRef.get();
-    const docs = snapshot.docs.map((d: any) => docWithId<T>(d.id, d.data()));
-    collectionCache.set(colKey(collectionName, options?.limitCount, options?.orderBy), { data: docs, cachedAt: Date.now() });
+    const rows = await listDocs(collectionName, { orderBy: options?.orderBy, limit: options?.limitCount });
+    const docs = rows.map((d) => docWithId<T>(d.id, d.data));
+    collectionCache.set(key, { data: docs, cachedAt: Date.now() });
     return docs;
   } catch (err: any) {
-    if (isQuotaExhaustedError(err)) {
-      handleQuotaExhausted(`adminDb.collection("${collectionName}")`, err);
-    } else {
-      console.warn(`Firestore Admin read failed for collection "${collectionName}":`, err.message);
-    }
-    return [];
+    console.warn(`Backend read failed for collection "${collectionName}":`, err.message);
+    // Serve a stale copy rather than an empty list if the backend hiccups.
+    const stale = collectionCache.get(key);
+    if (stale) return stale.data as T[];
+    throw err;
   }
 }
 
 /**
- * Server-side filtered read (single-field filters only, so no composite index is needed).
- * Cached per filter set, patched in place by writes, and shared between concurrent callers.
+ * Server-side filtered read (single-field filters). Cached per filter set, patched in place by
+ * writes, and shared between concurrent callers.
  */
 export function queryCollectionFromFirestore<T>(
   collectionName: string,
@@ -267,7 +193,7 @@ export function queryCollectionFromFirestore<T>(
     cacheHits++;
     return Promise.resolve(cached.data as T[]);
   }
-  // A fresh full-collection copy can answer the query with zero reads.
+  // A fresh full-collection copy can answer the query with no backend call.
   const full = collectionCache.get(collectionName);
   if (full && Date.now() - full.cachedAt < CACHE_TTL_MS) {
     cacheHits++;
@@ -282,41 +208,30 @@ export function queryCollectionFromFirestore<T>(
 
 async function runQuery<T>(collectionName: string, filters: QueryFilter[], key: string): Promise<T[]> {
   totalReadsAttempted++;
-  if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
-    return (queryCache.get(key)?.data as T[]) || [];
-  }
   cacheMisses++;
-  const store = (docs: T[]) => {
+  if (!assertStoreReady()) return [];
+  try {
+    const rows = await listDocs(collectionName, { filters });
+    const docs = rows.map((d) => docWithId<T>(d.id, d.data));
     queryCache.set(key, { data: docs, cachedAt: Date.now(), collection: collectionName, filters });
     return docs;
-  };
-
-  const adminDb = getAdminDb();
-  if (!adminDb) return [];
-  try {
-    let ref: any = adminDb.collection(collectionName);
-    for (const f of filters) ref = ref.where(f.field, f.op, f.value);
-    const snap = await ref.get();
-    return store(snap.docs.map((d: any) => docWithId<T>(d.id, d.data())));
   } catch (err: any) {
-    if (isQuotaExhaustedError(err)) handleQuotaExhausted(`adminDb.query("${collectionName}")`, err);
-    else console.warn(`Firestore Admin query failed for "${collectionName}":`, err.message);
-    return [];
+    console.warn(`Backend query failed for "${collectionName}":`, err.message);
+    const stale = queryCache.get(key);
+    if (stale) return stale.data as T[];
+    throw err;
   }
 }
 
-/**
- * Fetch a single document by ID (Optimized to cost 1 read instead of N reads)
- */
+/** Fetch a single document by ID. */
 export async function getDocumentFromFirestore<T>(
   collectionName: string,
   docId: string
 ): Promise<T | null> {
   const cacheKey = `${collectionName}/${docId}`;
 
-  // 1. Check if the parent collection is already cached in memory (0 Firestore reads!)
-  // Note: "sessions" collection must never use stale collection cache to ensure instant revocation/authentication
-  if (collectionName !== "sessions" && collectionName !== "otps") {
+  // 1. A fresh copy of the parent collection answers with no backend call (never for sessions / OTPs).
+  if (!NEVER_CACHED.has(collectionName)) {
     const cachedCol = collectionCache.get(collectionName);
     if (cachedCol && Date.now() - cachedCol.cachedAt < CACHE_TTL_MS) {
       const list = cachedCol.data as any[];
@@ -335,41 +250,35 @@ export async function getDocumentFromFirestore<T>(
     }
   }
 
-  // 2. Check single document cache (one-time codes are never cached: a resent code must win immediately)
+  // 2. Single document cache (one-time codes are never cached: a resent code must win immediately)
   const cachedDoc = collectionName === "otps" ? undefined : singleDocCache.get(cacheKey);
   if (cachedDoc && Date.now() - cachedDoc.cachedAt < CACHE_TTL_MS) {
     cacheHits++;
     return cachedDoc.data as T;
   }
 
-  // 3. Check Circuit Breaker
-  if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
-    return null;
-  }
-
   cacheMisses++;
-
-  // 4. Read through the Admin SDK
-  const adminDb = getAdminDb();
-  if (!adminDb) return null;
+  if (!assertStoreReady()) return null;
   try {
-    const docSnap = await adminDb.collection(collectionName).doc(docId).get();
-    if (!docSnap.exists) return null;
-    const data = docWithId<T>(docSnap.id, docSnap.data());
+    const row = await getDoc(collectionName, docId);
+    if (!row) return null;
+    const data = docWithId<T>(row.id, row.data);
     singleDocCache.set(cacheKey, { data, cachedAt: Date.now() });
     return data;
   } catch (err: any) {
-    if (isQuotaExhaustedError(err)) {
-      handleQuotaExhausted(`adminDb.doc("${cacheKey}")`, err);
-    } else {
-      console.warn(`Firestore Admin read failed for "${cacheKey}":`, err.message);
-    }
-    return null;
+    console.warn(`Backend read failed for "${cacheKey}":`, err.message);
+    throw err;
   }
 }
 
+/** Firestore-style JSON clean-up: undefined values are dropped by the round trip. */
+export function toFirestoreData<T>(data: T): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(data));
+}
+
 /**
- * Saves or updates a document in Firestore, invalidating the TTL cache
+ * Saves or replaces a document, keeping the caches in step. Returns false when the write failed.
+ * A full-document overwrite: a field a caller removed must really disappear.
  */
 export async function saveDocumentToFirestore(
   collectionName: string,
@@ -377,62 +286,20 @@ export async function saveDocumentToFirestore(
   data: any
 ): Promise<boolean> {
   totalWrites++;
-
-  // If circuit breaker is tripped due to write quota, fail fast to Memory store
-  if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
-    invalidateFirestoreCache(collectionName, docId);
-    return false;
-  }
-
-  const cleanData = JSON.parse(JSON.stringify(data));
-
-  // Write through the Admin SDK. A full-document overwrite (no merge): a field a caller removed must really disappear.
-  let adminDb;
+  const cleanData = toFirestoreData(data);
   try {
-    adminDb = getAdminDb();
-  } catch (err: any) {
-    console.error(err.message);
-    return false;
-  }
-  if (!adminDb) {
-    invalidateFirestoreCache(collectionName, docId);
-    return false;
-  }
-
-  try {
-    await adminDb.collection(collectionName).doc(docId).set(cleanData);
+    if (!assertStoreReady()) {
+      invalidateFirestoreCache(collectionName, docId);
+      return false;
+    }
+    await putDoc(collectionName, docId, cleanData);
     applyWriteToCaches(collectionName, docId, cleanData);
     return true;
   } catch (err: any) {
-    if (isQuotaExhaustedError(err)) {
-      handleQuotaExhausted(`adminDb.save("${collectionName}/${docId}")`, err);
-    } else {
-      console.warn(`Firestore Admin write failed for "${collectionName}/${docId}":`, err.message);
-    }
+    console.warn(`Backend write failed for "${collectionName}/${docId}":`, err.message);
     invalidateFirestoreCache(collectionName, docId);
     return false;
   }
-}
-
-/** Firestore rejects undefined values; JSON round-tripping drops them. */
-export function toFirestoreData<T>(data: T): Record<string, unknown> {
-  return JSON.parse(JSON.stringify(data));
-}
-
-/**
- * Runs an Admin SDK transaction (all reads before any write; the callback may run more than once on
- * contention, so it must be free of side effects). Caches for the touched collections are dropped
- * after the commit. Requires Firestore to be configured.
- */
-export async function withTransaction<T>(
-  fn: (tx: Transaction, db: Firestore) => Promise<T>,
-  touchedCollections: string[]
-): Promise<T> {
-  const db = getAdminDb();
-  if (!db) throw new Error("Firestore is not configured: transactions need the Admin SDK.");
-  const result = await db.runTransaction((tx) => fn(tx, db));
-  for (const c of touchedCollections) invalidateFirestoreCache(c);
-  return result;
 }
 
 /** Uncached equality query (used for uniqueness and login checks that must see the latest data). */
@@ -441,10 +308,9 @@ export async function queryFreshFromFirestore<T>(
   field: string,
   value: string | number | boolean
 ): Promise<T[]> {
-  const db = getAdminDb();
-  if (!db) return [];
-  const snap = await db.collection(collectionName).where(field, "==", value).limit(5).get();
-  return snap.docs.map((d) => docWithId<T>(d.id, d.data()));
+  if (!assertStoreReady()) return [];
+  const rows = await listDocs(collectionName, { filters: [{ field, op: "==", value }], limit: 5 });
+  return rows.map((d) => docWithId<T>(d.id, d.data));
 }
 
 /**
@@ -466,92 +332,145 @@ export async function deleteOrThrow(collectionName: string, docId: string): Prom
   }
 }
 
-/**
- * Query active sessions for a specific user ID directly from Firestore (Admin SDK)
- */
+/** Active sessions for one user (read fresh, never cached). */
 export async function getUserSessionsFromFirestore(userId: string): Promise<UserSession[]> {
-  const adminDb = getAdminDb();
-  if (!adminDb) return [];
+  if (!assertStoreReady()) return [];
   try {
-    const snapshot = await adminDb
-      .collection("sessions")
-      .where("userId", "==", userId)
-      .where("isActive", "==", true)
-      .get();
-    return snapshot.docs.map((d: any) => ({ sessionId: d.id, ...d.data() } as UserSession));
+    const rows = await listDocs("sessions", {
+      filters: [
+        { field: "userId", op: "==", value: userId },
+        { field: "isActive", op: "==", value: true },
+      ],
+    });
+    return rows.map((d) => ({ sessionId: d.id, ...d.data }) as unknown as UserSession);
   } catch (err: any) {
-    console.warn("Admin SDK getUserSessionsFromFirestore failed:", err?.message);
+    console.warn("getUserSessionsFromFirestore failed:", err?.message);
     return [];
   }
 }
 
-/**
- * Deletes a document from Firestore and purges it from cache
- */
+/** Deletes a document and purges it from cache. */
 export async function deleteDocumentFromFirestore(
   collectionName: string,
   docId: string
 ): Promise<boolean> {
-  if (quotaExhaustedUntil && Date.now() < quotaExhaustedUntil) {
-    invalidateFirestoreCache(collectionName, docId);
-    return false;
-  }
-
-  const adminDb = getAdminDb();
-  if (!adminDb) {
-    invalidateFirestoreCache(collectionName, docId);
-    return false;
-  }
   try {
-    await adminDb.collection(collectionName).doc(docId).delete();
+    if (!assertStoreReady()) {
+      invalidateFirestoreCache(collectionName, docId);
+      return false;
+    }
+    await deleteDoc(collectionName, docId);
     applyWriteToCaches(collectionName, docId, null);
     return true;
   } catch (err: any) {
-    if (isQuotaExhaustedError(err)) {
-      handleQuotaExhausted(`adminDb.delete("${collectionName}/${docId}")`, err);
-    } else {
-      console.warn(`Firestore Admin delete failed for "${collectionName}/${docId}":`, err.message);
-    }
+    console.warn(`Backend delete failed for "${collectionName}/${docId}":`, err.message);
     invalidateFirestoreCache(collectionName, docId);
     return false;
   }
 }
 
-/**
- * Purges all documents in a collection from Firestore and clears cache
- */
+/** Purges all documents in a collection and clears the cache. */
 export async function clearCollectionInFirestore(collectionName: string): Promise<number> {
   invalidateFirestoreCache(collectionName);
-  let deletedCount = 0;
-
-  const adminDb = getAdminDb();
-  if (!adminDb) return deletedCount;
+  if (!assertStoreReady()) return 0;
   try {
-    const snapshot = await adminDb.collection(collectionName).get();
-    if (!snapshot.empty) {
-      // Keep each batch well under Firestore's per-batch write limit.
-      for (let i = 0; i < snapshot.docs.length; i += 400) {
-        const batch = adminDb.batch();
-        snapshot.docs.slice(i, i + 400).forEach((d: any) => {
-          batch.delete(d.ref);
-          deletedCount++;
-        });
-        await batch.commit();
-      }
-    }
+    const n = await clearCollection(collectionName);
     invalidateFirestoreCache(collectionName);
-    return deletedCount;
+    return n;
   } catch (err: any) {
-    console.warn(`Admin clear collection "${collectionName}" error:`, err.message);
-    return deletedCount;
+    console.warn(`Clear collection "${collectionName}" error:`, err.message);
+    return 0;
   }
 }
 
+// ============================================================================
+// TRANSACTIONS
+// ============================================================================
+// Same call shape the app used with Firestore (`tx.get(ref)`, `tx.set/create/delete`,
+// `db.collection(x).doc(id)`), emulated with optimistic concurrency: each document read is
+// remembered with its version, writes are queued, and the backend applies them only if none of
+// the documents read has changed. On a conflict the callback simply runs again, as Firestore's
+// own transactions do.
+
+export class DocRef {
+  constructor(
+    readonly collection: string,
+    readonly id: string
+  ) {}
+}
+export class CollectionRef {
+  constructor(readonly name: string) {}
+  doc(id: string) {
+    return new DocRef(this.name, id);
+  }
+}
+export interface DocSnap {
+  id: string;
+  exists: boolean;
+  data(): Record<string, any> | undefined;
+}
+export interface QuerySnap {
+  docs: DocSnap[];
+}
+export interface StoreDb {
+  collection(name: string): CollectionRef;
+}
+export interface StoreTx {
+  get(ref: DocRef): Promise<DocSnap>;
+  get(ref: CollectionRef): Promise<QuerySnap>;
+  set(ref: DocRef, data: Record<string, unknown>): void;
+  create(ref: DocRef, data: Record<string, unknown>): void;
+  delete(ref: DocRef): void;
+}
+
+const MAX_TX_ATTEMPTS = 8;
+
 /**
- * High-performance atomic batch seeding for the Free (Spark) Plan.
- * Groups records into atomic batches (< 500 per batch) to respect write quotas
- * and minimize network round-trips.
+ * Runs `fn` as a transaction (all reads before any write; the callback may run more than once on
+ * contention, so it must be free of side effects). Caches for the touched collections are dropped
+ * after the commit. Requires the backend store to be configured.
  */
+export async function withTransaction<T>(
+  fn: (tx: StoreTx, db: StoreDb) => Promise<T>,
+  touchedCollections: string[]
+): Promise<T> {
+  if (!isBackendConfigured()) throw new Error("Backend store is not configured: transactions need BACKEND_API_*.");
+  const db: StoreDb = { collection: (name) => new CollectionRef(name) };
+
+  for (let attempt = 1; ; attempt++) {
+    const reads = new Map<string, Precondition>();
+    const ops: BatchOp[] = [];
+    const tx: StoreTx = {
+      async get(ref: DocRef | CollectionRef): Promise<any> {
+        if (ref instanceof CollectionRef) {
+          const rows = await listDocs(ref.name);
+          return { docs: rows.map((r) => ({ id: r.id, exists: true, data: () => r.data })) } as QuerySnap;
+        }
+        const row = await getDoc(ref.collection, ref.id);
+        reads.set(`${ref.collection}/${ref.id}`, { collection: ref.collection, id: ref.id, version: row ? row.version : null });
+        return { id: ref.id, exists: Boolean(row), data: () => row?.data } as DocSnap;
+      },
+      set: (ref, data) => void ops.push({ op: "set", collection: ref.collection, id: ref.id, data }),
+      create: (ref, data) => void ops.push({ op: "create", collection: ref.collection, id: ref.id, data }),
+      delete: (ref) => void ops.push({ op: "delete", collection: ref.collection, id: ref.id }),
+    };
+
+    const result = await fn(tx, db);
+    try {
+      if (ops.length > 0) await commitBatch(ops, Array.from(reads.values()));
+      for (const c of touchedCollections) invalidateFirestoreCache(c);
+      return result;
+    } catch (err) {
+      if (err instanceof BackendApiError && err.status === 409 && attempt < MAX_TX_ATTEMPTS) continue;
+      throw err;
+    }
+  }
+}
+
+// ============================================================================
+// DEMO SEEDING (local development only)
+// ============================================================================
+
 export async function seedAllToFirestore(): Promise<{
   success: boolean;
   counts: Record<string, number>;
@@ -572,171 +491,56 @@ export async function seedAllToFirestore(): Promise<{
     users: 0,
   };
 
-  const adminDb = resolveDb();
-
-  if (!adminDb) {
+  if (!isBackendConfigured()) {
     return {
       success: false,
       counts,
       batchMode: false,
-      error: "Firestore is not configured (set NEXT_PUBLIC_FIREBASE_* or FIREBASE_ADMIN_* credentials).",
+      error: "Backend store is not configured (set BACKEND_API_URL and BACKEND_API_KEY).",
     };
   }
 
+  const byCollection: Record<string, { id: string; data: unknown }[]> = {};
+  const add = (collection: string, id: string, data: unknown, counter?: string) => {
+    (byCollection[collection] ||= []).push({ id, data: toFirestoreData(data) });
+    if (counter) counts[counter]++;
+  };
+  SEED_USER_ACCOUNTS.forEach((u) => add("users", u.uid, u, "users"));
+  INITIAL_EMPLOYEES.forEach((e) => add("employees", e.employeeId, e, "employees"));
+  INITIAL_ATTENDANCE.forEach((a) => add("attendance", a.id, a, "attendance"));
+  INITIAL_LEAVES.forEach((l) => add("leaves", l.id, l, "leaves"));
+  INITIAL_PAYROLL_RUNS.forEach((p) => add("payroll_runs", p.runCode, p, "payroll"));
+  INITIAL_ASSETS.forEach((a) => add("assets", a.assetTag, a, "assets"));
+  INITIAL_REQUESTS.forEach((r) => add("requests", r.id, r, "requests"));
+  INITIAL_ANNOUNCEMENTS.forEach((a) => add("announcements", a.id, a, "announcements"));
+  INITIAL_HOLIDAYS.forEach((h) => add("holidays", h.id, h, "holidays"));
+  INITIAL_ONBOARDING_RECORDS.forEach((o) => add("onboarding", o.id, o, "onboarding"));
+  add("settings", "attendance_policy", INITIAL_POLICY, "policy");
+
   try {
-    // Collect all documents to seed
-    const itemsToSeed: Array<{ collection: string; docId: string; data: any }> = [];
-
-    SEED_USER_ACCOUNTS.forEach((usr) => {
-      itemsToSeed.push({ collection: "users", docId: usr.uid, data: usr });
-      counts.users++;
-    });
-
-    INITIAL_EMPLOYEES.forEach((emp) => {
-      itemsToSeed.push({ collection: "employees", docId: emp.employeeId, data: emp });
-      counts.employees++;
-    });
-
-    INITIAL_ATTENDANCE.forEach((att) => {
-      itemsToSeed.push({ collection: "attendance", docId: att.id, data: att });
-      counts.attendance++;
-    });
-
-    INITIAL_LEAVES.forEach((lev) => {
-      itemsToSeed.push({ collection: "leaves", docId: lev.id, data: lev });
-      counts.leaves++;
-    });
-
-    INITIAL_PAYROLL_RUNS.forEach((pay) => {
-      itemsToSeed.push({ collection: "payroll_runs", docId: pay.runCode, data: pay });
-      counts.payroll++;
-    });
-
-    INITIAL_ASSETS.forEach((ast) => {
-      itemsToSeed.push({ collection: "assets", docId: ast.assetTag, data: ast });
-      counts.assets++;
-    });
-
-    INITIAL_REQUESTS.forEach((req) => {
-      itemsToSeed.push({ collection: "requests", docId: req.id, data: req });
-      counts.requests++;
-    });
-
-    INITIAL_ANNOUNCEMENTS.forEach((ann) => {
-      itemsToSeed.push({ collection: "announcements", docId: ann.id, data: ann });
-      counts.announcements++;
-    });
-
-    INITIAL_HOLIDAYS.forEach((hol) => {
-      itemsToSeed.push({ collection: "holidays", docId: hol.id, data: hol });
-      counts.holidays++;
-    });
-
-    INITIAL_ONBOARDING_RECORDS.forEach((onb) => {
-      itemsToSeed.push({ collection: "onboarding", docId: onb.id, data: onb });
-      counts.onboarding++;
-    });
-
-    itemsToSeed.push({
-      collection: "settings",
-      docId: "attendance_policy",
-      data: INITIAL_POLICY,
-    });
-    counts.policy = 1;
-
-    // Use Batch Writes (under 500 operations per batch)
-    const batch = adminDb.batch();
-    for (const item of itemsToSeed) {
-      const ref = adminDb.collection(item.collection).doc(item.docId);
-      batch.set(ref, JSON.parse(JSON.stringify(item.data)), { merge: true });
+    for (const [collection, docs] of Object.entries(byCollection)) {
+      for (let i = 0; i < docs.length; i += 200) {
+        await importDocs(collection, docs.slice(i, i + 200), true);
+      }
     }
-    await batch.commit();
-
-    // Invalidate all caches after complete seed
     invalidateFirestoreCache();
-
     return { success: true, counts, batchMode: true };
   } catch (err: any) {
-    console.error("Firestore batch seed failed, falling back to sequential writes:", err.message);
-
-    // Graceful sequential fallback if batch fails
-    try {
-      for (const usr of SEED_USER_ACCOUNTS) {
-        await saveDocumentToFirestore("users", usr.uid, usr);
-      }
-      for (const emp of INITIAL_EMPLOYEES) {
-        await saveDocumentToFirestore("employees", emp.employeeId, emp);
-      }
-      for (const att of INITIAL_ATTENDANCE) {
-        await saveDocumentToFirestore("attendance", att.id, att);
-      }
-      for (const lev of INITIAL_LEAVES) {
-        await saveDocumentToFirestore("leaves", lev.id, lev);
-      }
-      for (const pay of INITIAL_PAYROLL_RUNS) {
-        await saveDocumentToFirestore("payroll_runs", pay.runCode, pay);
-      }
-      for (const ast of INITIAL_ASSETS) {
-        await saveDocumentToFirestore("assets", ast.assetTag, ast);
-      }
-      for (const req of INITIAL_REQUESTS) {
-        await saveDocumentToFirestore("requests", req.id, req);
-      }
-      for (const ann of INITIAL_ANNOUNCEMENTS) {
-        await saveDocumentToFirestore("announcements", ann.id, ann);
-      }
-      for (const hol of INITIAL_HOLIDAYS) {
-        await saveDocumentToFirestore("holidays", hol.id, hol);
-      }
-      for (const onb of INITIAL_ONBOARDING_RECORDS) {
-        await saveDocumentToFirestore("onboarding", onb.id, onb);
-      }
-      await saveDocumentToFirestore("settings", "attendance_policy", INITIAL_POLICY);
-
-      invalidateFirestoreCache();
-      return { success: true, counts, batchMode: false };
-    } catch (fallbackErr: any) {
-      return { success: false, counts, batchMode: false, error: fallbackErr.message };
-    }
+    return { success: false, counts, batchMode: false, error: err.message };
   }
 }
 
-/**
- * Returns Firestore Free (Spark) Plan Quota Health, Cache Analytics & Circuit Breaker Status
- */
+/** Cache analytics for the settings screen. */
 export function getFirestoreFreePlanMetrics() {
-  const isCircuitBreakerTripped = Boolean(quotaExhaustedUntil && Date.now() < quotaExhaustedUntil);
-
   return {
-    plan: "Firebase Spark (Free Tier)",
-    cost: "₹0 / Free forever",
-    quotas: {
-      dailyReadsLimit: 50000,
-      dailyWritesLimit: 20000,
-      dailyDeletesLimit: 20000,
-      storageLimitGiB: 1,
-      networkEgressLimitGiB: 10,
-    },
+    plan: "AWS RDS (via backend API)",
     caching: {
       ttlSeconds: CACHE_TTL_MS / 1000,
       cacheHits,
       cacheMisses,
-      estimatedReadsSaved: cacheHits * 10, // Approx average docs per collection read
       cachedCollectionsCount: collectionCache.size,
     },
-    usageInSession: {
-      totalReadsAttempted,
-      totalWrites,
-    },
-    circuitBreaker: {
-      isTripped: isCircuitBreakerTripped,
-      status: isCircuitBreakerTripped ? "Quota Exhausted (Serving from Local Fallback Tier)" : "Healthy",
-      cooldownExpiresAt: quotaExhaustedUntil ? new Date(quotaExhaustedUntil).toISOString() : null,
-    },
-    activeSdk: getFirebaseAdminFirestore()
-      ? "Firebase Admin SDK (Bypasses rules, zero rule evaluation cost)"
-      : getWebCompatFirestore()
-        ? "Firebase web SDK (NEXT_PUBLIC_FIREBASE_* config, subject to firestore.rules)"
-        : "Offline Fallback Tier (in-memory, local development only)",
+    usageInSession: { totalReadsAttempted, totalWrites },
+    activeSdk: isBackendConfigured() ? "Backend staff-data API" : "Offline Fallback Tier (in-memory, local development only)",
   };
 }
