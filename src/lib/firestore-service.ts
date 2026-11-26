@@ -5,7 +5,6 @@ import {
   commitBatch,
   deleteDoc,
   getDoc,
-  importDocs,
   isBackendConfigured,
   listDocs,
   putDoc,
@@ -15,19 +14,6 @@ import {
 import { isLocalEnvironment } from "./env";
 import { UserSession } from "./types";
 import { matchesFilters, patchCachedList, docWithId, type CacheFilter } from "./cache-patch";
-import {
-  INITIAL_EMPLOYEES,
-  INITIAL_ATTENDANCE,
-  INITIAL_LEAVES,
-  INITIAL_ASSETS,
-  INITIAL_REQUESTS,
-  INITIAL_ANNOUNCEMENTS,
-  INITIAL_PAYROLL_RUNS,
-  INITIAL_POLICY,
-  INITIAL_HOLIDAYS,
-  INITIAL_ONBOARDING_RECORDS,
-  SEED_USER_ACCOUNTS,
-} from "./db/seed-data";
 
 // ============================================================================
 // DATA ACCESS LAYER (RDS, through the backend's /internal/staff-data API)
@@ -91,10 +77,6 @@ function applyWriteToCaches(collectionName: string, docId: string, data: any | n
   }
 }
 
-let totalReadsAttempted = 0;
-let cacheHits = 0;
-let cacheMisses = 0;
-let totalWrites = 0;
 
 /**
  * True when the server can reach the backend store. When false (local development without
@@ -152,17 +134,14 @@ export function getCollectionFromFirestore<T>(
 }
 
 async function fetchCollection<T>(collectionName: string, options?: CollectionReadOptions): Promise<T[]> {
-  totalReadsAttempted++;
   const key = colKey(collectionName, options?.limitCount, options?.orderBy);
 
   if (!options?.forceRefresh) {
     const cached = collectionCache.get(key);
     if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
-      cacheHits++;
       return cached.data as T[];
     }
   }
-  cacheMisses++;
 
   if (!assertStoreReady()) return [];
   try {
@@ -190,13 +169,11 @@ export function queryCollectionFromFirestore<T>(
   const key = `${collectionName}|${JSON.stringify(filters)}`;
   const cached = queryCache.get(key);
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
-    cacheHits++;
     return Promise.resolve(cached.data as T[]);
   }
   // A fresh full-collection copy can answer the query with no backend call.
   const full = collectionCache.get(collectionName);
   if (full && Date.now() - full.cachedAt < CACHE_TTL_MS) {
-    cacheHits++;
     return Promise.resolve(full.data.filter((d: any) => matchesFilters(d, filters)) as T[]);
   }
   const existing = inflightQueries.get(key);
@@ -207,8 +184,6 @@ export function queryCollectionFromFirestore<T>(
 }
 
 async function runQuery<T>(collectionName: string, filters: QueryFilter[], key: string): Promise<T[]> {
-  totalReadsAttempted++;
-  cacheMisses++;
   if (!assertStoreReady()) return [];
   try {
     const rows = await listDocs(collectionName, { filters });
@@ -244,7 +219,6 @@ export async function getDocumentFromFirestore<T>(
           item.uid === docId
       );
       if (match) {
-        cacheHits++;
         return match as T;
       }
     }
@@ -253,11 +227,8 @@ export async function getDocumentFromFirestore<T>(
   // 2. Single document cache (one-time codes are never cached: a resent code must win immediately)
   const cachedDoc = collectionName === "otps" ? undefined : singleDocCache.get(cacheKey);
   if (cachedDoc && Date.now() - cachedDoc.cachedAt < CACHE_TTL_MS) {
-    cacheHits++;
     return cachedDoc.data as T;
   }
-
-  cacheMisses++;
   if (!assertStoreReady()) return null;
   try {
     const row = await getDoc(collectionName, docId);
@@ -285,7 +256,6 @@ export async function saveDocumentToFirestore(
   docId: string,
   data: any
 ): Promise<boolean> {
-  totalWrites++;
   const cleanData = toFirestoreData(data);
   try {
     if (!assertStoreReady()) {
@@ -465,82 +435,4 @@ export async function withTransaction<T>(
       throw err;
     }
   }
-}
-
-// ============================================================================
-// DEMO SEEDING (local development only)
-// ============================================================================
-
-export async function seedAllToFirestore(): Promise<{
-  success: boolean;
-  counts: Record<string, number>;
-  batchMode: boolean;
-  error?: string;
-}> {
-  const counts: Record<string, number> = {
-    employees: 0,
-    attendance: 0,
-    leaves: 0,
-    payroll: 0,
-    assets: 0,
-    requests: 0,
-    announcements: 0,
-    holidays: 0,
-    onboarding: 0,
-    policy: 0,
-    users: 0,
-  };
-
-  if (!isBackendConfigured()) {
-    return {
-      success: false,
-      counts,
-      batchMode: false,
-      error: "Backend store is not configured (set BACKEND_API_URL and BACKEND_API_KEY).",
-    };
-  }
-
-  const byCollection: Record<string, { id: string; data: unknown }[]> = {};
-  const add = (collection: string, id: string, data: unknown, counter?: string) => {
-    (byCollection[collection] ||= []).push({ id, data: toFirestoreData(data) });
-    if (counter) counts[counter]++;
-  };
-  SEED_USER_ACCOUNTS.forEach((u) => add("users", u.uid, u, "users"));
-  INITIAL_EMPLOYEES.forEach((e) => add("employees", e.employeeId, e, "employees"));
-  INITIAL_ATTENDANCE.forEach((a) => add("attendance", a.id, a, "attendance"));
-  INITIAL_LEAVES.forEach((l) => add("leaves", l.id, l, "leaves"));
-  INITIAL_PAYROLL_RUNS.forEach((p) => add("payroll_runs", p.runCode, p, "payroll"));
-  INITIAL_ASSETS.forEach((a) => add("assets", a.assetTag, a, "assets"));
-  INITIAL_REQUESTS.forEach((r) => add("requests", r.id, r, "requests"));
-  INITIAL_ANNOUNCEMENTS.forEach((a) => add("announcements", a.id, a, "announcements"));
-  INITIAL_HOLIDAYS.forEach((h) => add("holidays", h.id, h, "holidays"));
-  INITIAL_ONBOARDING_RECORDS.forEach((o) => add("onboarding", o.id, o, "onboarding"));
-  add("settings", "attendance_policy", INITIAL_POLICY, "policy");
-
-  try {
-    for (const [collection, docs] of Object.entries(byCollection)) {
-      for (let i = 0; i < docs.length; i += 200) {
-        await importDocs(collection, docs.slice(i, i + 200), true);
-      }
-    }
-    invalidateFirestoreCache();
-    return { success: true, counts, batchMode: true };
-  } catch (err: any) {
-    return { success: false, counts, batchMode: false, error: err.message };
-  }
-}
-
-/** Cache analytics for the settings screen. */
-export function getFirestoreFreePlanMetrics() {
-  return {
-    plan: "AWS RDS (via backend API)",
-    caching: {
-      ttlSeconds: CACHE_TTL_MS / 1000,
-      cacheHits,
-      cacheMisses,
-      cachedCollectionsCount: collectionCache.size,
-    },
-    usageInSession: { totalReadsAttempted, totalWrites },
-    activeSdk: isBackendConfigured() ? "Backend staff-data API" : "Offline Fallback Tier (in-memory, local development only)",
-  };
 }
