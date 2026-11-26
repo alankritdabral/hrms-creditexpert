@@ -2,6 +2,7 @@ import "server-only";
 import { v2 as cloudinary, UploadApiResponse } from "cloudinary";
 import fs from "fs";
 import path from "path";
+import { isBackendConfigured, uploadFile } from "./backend-store";
 
 // Initialize Cloudinary
 const isCloudinaryConfigured = Boolean(
@@ -30,7 +31,7 @@ export interface UploadResult {
 }
 
 /**
- * Uploads a file buffer to Cloudinary with automatic fallback
+ * Uploads a file buffer to S3 (via the backend) when configured; otherwise to Cloudinary with automatic fallback
  * to local private storage (.uploads/kyc, served only through /uploads with a session check) if credentials are not yet set.
  */
 export async function uploadKycDocument(
@@ -44,6 +45,26 @@ export async function uploadKycDocument(
   const baseName = path.parse(filename).name.replace(/[^a-zA-Z0-9_-]/g, "_");
   // Cloudinary automatically prefixes `folder` when folder option is provided
   const publicId = `${baseName}_${Date.now()}`;
+
+  // S3 (through the backend): the stored file is served back through /uploads/kyc/<owner>/<file>,
+  // which checks the session and the owner before redirecting to a short-lived signed link.
+  if (isBackendConfigured()) {
+    try {
+      const stored = await uploadFile({ folder, filename, contentType: mimeType, data: buffer });
+      const storedName = stored.key.split("/").pop() || "";
+      return {
+        success: true,
+        url: `/uploads/kyc/${sanitizedIdentifier}/${storedName}`,
+        publicId: stored.key,
+        format: mimeType.split("/")[1] || path.extname(filename).replace(".", "") || "unknown",
+        bytes: stored.bytes,
+        originalFilename: filename,
+      };
+    } catch (err: any) {
+      console.error("S3 upload through the backend failed:", err.message);
+      return { success: false, url: "", publicId: "", bytes: buffer.length, error: "Could not store the file. Please try again." };
+    }
+  }
 
   // If Cloudinary is fully configured in .env.local
   if (isCloudinaryConfigured) {

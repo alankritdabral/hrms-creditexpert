@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { authenticateRequest, authFailureResponse } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/permissions";
+import { fileUrl, isBackendConfigured } from "@/lib/backend-store";
 
 const MIME_TYPES: Record<string, string> = {
   ".webp": "image/webp",
@@ -61,6 +62,15 @@ export async function GET(
     try {
       stat = await fs.promises.stat(filePath);
     } catch {
+      // Not on local disk: files uploaded through the backend live in S3 (kyc/<owner>/<file>).
+      if (segments[0] === "kyc" && segments.length === 3 && isBackendConfigured()) {
+        try {
+          const signed = await fileUrl(`staff-files/hrms_kyc/${segments[1]}/${segments[2]}`);
+          return NextResponse.redirect(signed, { status: 302, headers: { "Cache-Control": "private, no-store" } });
+        } catch {
+          return new NextResponse("File Not Found", { status: 404 });
+        }
+      }
       return new NextResponse("File Not Found", { status: 404 });
     }
     if (!stat.isFile()) {
