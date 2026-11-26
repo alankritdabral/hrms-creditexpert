@@ -52,7 +52,7 @@ export default function AuditLogsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <ScrollText className="w-6 h-6 text-blue-600" />
+            <ScrollText className="w-6 h-6 text-brand-600" />
             Immutable System Audit Logs
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -73,7 +73,7 @@ export default function AuditLogsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Filter audit logs by user, action, employee, or detail..."
-          className="w-full sm:w-96 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+          className="w-full sm:w-96 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
         />
         <span className="text-xs text-slate-400 shrink-0">{meta.total} events logged</span>
       </div>
@@ -107,7 +107,7 @@ export default function AuditLogsPage() {
                       {log.role}
                     </Badge>
                   </td>
-                  <td className="py-3 font-medium text-indigo-300">{log.action}</td>
+                  <td className="py-3 font-medium text-brand-300">{log.action}</td>
                   <td className="py-3 text-slate-300 whitespace-nowrap">
                     {log.employeeName ? `${log.employeeName} (${log.employeeId})` : "—"}
                   </td>

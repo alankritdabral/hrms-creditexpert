@@ -129,7 +129,7 @@ export function LocationHelpModal({
             onClick={() => setActiveTab("android")}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 ${
               activeTab === "android"
-                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs font-semibold"
+                ? "bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-xs font-semibold"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
             }`}
           >
@@ -142,7 +142,7 @@ export function LocationHelpModal({
             onClick={() => setActiveTab("ios")}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 ${
               activeTab === "ios"
-                ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs font-semibold"
+                ? "bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-xs font-semibold"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
             }`}
           >
@@ -182,8 +182,8 @@ export function LocationHelpModal({
           {/* ANDROID TAB */}
           {activeTab === "android" && (
             <div className="space-y-3.5 text-xs text-slate-600 dark:text-slate-300">
-              <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 rounded-xl space-y-1">
-                <p className="font-semibold text-blue-900 dark:text-blue-300">
+              <div className="p-3 bg-brand-50/70 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800/50 rounded-xl space-y-1">
+                <p className="font-semibold text-brand-900 dark:text-brand-300">
                   Step 1: Check Chrome Site Permissions
                 </p>
                 <ol className="list-decimal list-inside space-y-1 pl-1">
@@ -228,8 +228,8 @@ export function LocationHelpModal({
           {/* IOS TAB */}
           {activeTab === "ios" && (
             <div className="space-y-3.5 text-xs text-slate-600 dark:text-slate-300">
-              <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 rounded-xl space-y-1">
-                <p className="font-semibold text-blue-900 dark:text-blue-300">
+              <div className="p-3 bg-brand-50/70 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800/50 rounded-xl space-y-1">
+                <p className="font-semibold text-brand-900 dark:text-brand-300">
                   Step 1: Website Settings in Safari
                 </p>
                 <ol className="list-decimal list-inside space-y-1 pl-1">
@@ -316,7 +316,7 @@ export function LocationHelpModal({
                 <ol className="list-decimal list-inside space-y-1 pl-1">
                   <li>
                     Open Chrome on your phone and go to URL:
-                    <div className="inline-block mx-1 font-mono font-bold text-blue-600 dark:text-blue-400">
+                    <div className="inline-block mx-1 font-mono font-bold text-brand-600 dark:text-brand-400">
                       chrome://flags/#unsafely-treat-insecure-origin-as-secure
                     </div>
                   </li>
@@ -439,7 +439,7 @@ export function LocationHelpModal({
               type="button"
               onClick={handleTestGPS}
               disabled={isTesting}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors shrink-0 shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-[#2E2E2E] rounded-lg text-xs font-semibold transition-colors shrink-0 shadow-xs"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? "animate-spin" : ""}`} />
               {isTesting ? "Testing GPS..." : "Test GPS Now"}

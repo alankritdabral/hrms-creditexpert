@@ -284,7 +284,7 @@ export default function IncentivesPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+            <div className="p-2.5 rounded-xl bg-brand-50 text-brand-600 border border-brand-100">
               <Award className="w-5 h-5" />
             </div>
             <div>
@@ -311,7 +311,7 @@ export default function IncentivesPage() {
           </div>
 
           <Link href="/logins">
-            <Button size="sm" variant="outline" icon={<TrendingUp className="w-4 h-4 text-blue-600" />}>
+            <Button size="sm" variant="outline" icon={<TrendingUp className="w-4 h-4 text-brand-600" />}>
               View Logins
             </Button>
           </Link>
@@ -323,7 +323,7 @@ export default function IncentivesPage() {
                 size="sm"
                 isLoading={isSyncing}
                 icon={<Sparkles className="w-4 h-4 text-amber-500" />}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs"
+                className="bg-gradient-to-r from-brand-600 to-brand-600 hover:from-brand-700 hover:to-brand-700 text-white shadow-xs"
               >
                 Auto-Fetch & Calculate
               </Button>
@@ -360,7 +360,7 @@ export default function IncentivesPage() {
       <div className="bg-white rounded-2xl p-6 text-slate-900 border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+            <div className="p-2 rounded-xl bg-brand-50 text-brand-600 border border-brand-100">
               <Calculator className="w-5 h-5" />
             </div>
             <div>
@@ -437,15 +437,15 @@ export default function IncentivesPage() {
           </div>
 
           {/* Step 4 */}
-          <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-200/80 space-y-2">
-            <div className="font-bold text-blue-900 flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 flex items-center justify-center text-[10px] font-bold">
+          <div className="bg-brand-50/50 rounded-xl p-4 border border-brand-200/80 space-y-2">
+            <div className="font-bold text-brand-900 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-800 border border-brand-200 flex items-center justify-center text-[10px] font-bold">
                 4
               </span>
               Total Net Incentive
             </div>
             <p className="text-slate-600 text-[11px] leading-relaxed">
-              Net payout = <code className="text-blue-900 font-bold bg-blue-100/80 border border-blue-200 px-1 py-0.5 rounded text-[10px]">Axis Bank + Other Banks Slabs</code>. Automatically syncs with Payroll.
+              Net payout = <code className="text-brand-900 font-bold bg-brand-100/80 border border-brand-200 px-1 py-0.5 rounded text-[10px]">Axis Bank + Other Banks Slabs</code>. Automatically syncs with Payroll.
             </p>
           </div>
         </div>
@@ -487,7 +487,7 @@ export default function IncentivesPage() {
               Connected to Logins Hub
             </div>
           </div>
-          <Link href="/logins" className="text-xs text-blue-600 font-semibold hover:underline mt-2">
+          <Link href="/logins" className="text-xs text-brand-600 font-semibold hover:underline mt-2">
             Update bank disbursals in Logins Hub →
           </Link>
         </div>
@@ -503,7 +503,7 @@ export default function IncentivesPage() {
               placeholder="Search employee, ID, scheme..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 bg-slate-50/50"
+              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-500 bg-slate-50/50"
             />
           </div>
 
@@ -541,7 +541,7 @@ export default function IncentivesPage() {
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-brand-600 border-t-transparent rounded-full animate-spin"></div>
                       <span>Loading incentive records...</span>
                     </div>
                   </td>
@@ -581,7 +581,7 @@ export default function IncentivesPage() {
                       {/* Employee Column */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-xs shrink-0">
                             {i.employeeName.charAt(0)}
                           </div>
                           <div>
@@ -612,7 +612,7 @@ export default function IncentivesPage() {
                           <button
                             type="button"
                             onClick={() => setBreakdownModalRecord(i)}
-                            className="text-left group cursor-pointer p-1 -m-1 rounded-lg hover:bg-blue-50 transition-colors"
+                            className="text-left group cursor-pointer p-1 -m-1 rounded-lg hover:bg-brand-50 transition-colors"
                           >
                             <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
                               {b.isEligible ? (
@@ -623,7 +623,7 @@ export default function IncentivesPage() {
                                     </span>
                                   )}
                                   {b.slabIncentive > 0 ? (
-                                    <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold border border-blue-200">
+                                    <span className="px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 font-semibold border border-brand-200">
                                       Slab ({b.slabRatePerLakh}/L): +₹{b.slabIncentive.toLocaleString("en-IN")}
                                     </span>
                                   ) : (
@@ -637,7 +637,7 @@ export default function IncentivesPage() {
                                   Hurdle Not Met (₹0 Payout)
                                 </span>
                               )}
-                              <span className="text-blue-600 group-hover:underline text-[10px] ml-1">
+                              <span className="text-brand-600 group-hover:underline text-[10px] ml-1">
                                 View Math →
                               </span>
                             </div>
@@ -675,7 +675,7 @@ export default function IncentivesPage() {
                       {/* Payroll Ref */}
                       <td className="py-3 px-4">
                         <Link href="/payroll">
-                          <span className="font-mono text-blue-600 hover:underline cursor-pointer">
+                          <span className="font-mono text-brand-600 hover:underline cursor-pointer">
                             {i.payrollRunId || `PAY-${i.month}`}
                           </span>
                         </Link>
@@ -691,7 +691,7 @@ export default function IncentivesPage() {
                                 setEditingRecord(i);
                                 setIsEditModalOpen(true);
                               }}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                               title="Edit this incentive record"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
@@ -776,18 +776,18 @@ export default function IncentivesPage() {
                     </div>
                     <div className="text-xs font-semibold text-slate-900 flex justify-between pt-1 border-t border-amber-200">
                       <span>Other Banks Balance after Salary Cut:</span>
-                      <span className="font-bold font-mono text-blue-700">₹{b.remainingDisbursalForSlabs.toLocaleString("en-IN")}</span>
+                      <span className="font-bold font-mono text-brand-700">₹{b.remainingDisbursalForSlabs.toLocaleString("en-IN")}</span>
                     </div>
                   </div>
 
                   {/* Step 3: Remaining Disbursal Slabs */}
-                  <div className="p-4 rounded-xl bg-blue-50/40 border border-blue-200 space-y-2">
-                    <div className="text-xs font-bold text-blue-900 flex items-center justify-between">
+                  <div className="p-4 rounded-xl bg-brand-50/40 border border-brand-200 space-y-2">
+                    <div className="text-xs font-bold text-brand-900 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
-                        <span className="w-4 h-4 rounded-full bg-blue-700 text-white flex items-center justify-center text-[10px]">3</span>
+                        <span className="w-4 h-4 rounded-full bg-brand-700 text-[#2E2E2E] flex items-center justify-center text-[10px]">3</span>
                         General Disbursal Slabs on Other Banks
                       </span>
-                      <span className="text-[11px] font-semibold text-blue-700">Bracket: {b.slabBracket}</span>
+                      <span className="text-[11px] font-semibold text-brand-700">Bracket: {b.slabBracket}</span>
                     </div>
                     <div className="text-xs text-slate-600 flex justify-between">
                       <span>Evaluated Other Banks Amount:</span>
@@ -797,7 +797,7 @@ export default function IncentivesPage() {
                       <span>Applied Flat Rate:</span>
                       <span className="font-mono text-slate-900">₹{b.slabRatePerLakh} per ₹1,00,000</span>
                     </div>
-                    <div className="text-xs text-slate-900 font-semibold flex justify-between pt-1 border-t border-blue-200">
+                    <div className="text-xs text-slate-900 font-semibold flex justify-between pt-1 border-t border-brand-200">
                       <span>General Slab Incentive Earned:</span>
                       <span className="font-bold font-mono text-emerald-700">
                         + ₹{b.slabIncentive.toLocaleString("en-IN")}
@@ -824,7 +824,7 @@ export default function IncentivesPage() {
             })()}
 
             <div className="flex items-center justify-between pt-2">
-              <Link href="/logins" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+              <Link href="/logins" className="text-xs text-brand-600 hover:underline flex items-center gap-1">
                 Edit Disbursals in Logins Hub <ArrowRight className="w-3.5 h-3.5" />
               </Link>
               <Button size="sm" variant="ghost" onClick={() => setBreakdownModalRecord(null)}>
@@ -851,7 +851,7 @@ export default function IncentivesPage() {
             <select
               value={addEmployeeId}
               onChange={(e) => setAddEmployeeId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
               required
             >
               {employees.map((e) => (
@@ -867,7 +867,7 @@ export default function IncentivesPage() {
             <select
               value={addSchemeId}
               onChange={(e) => setAddSchemeId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
             >
               {schemes.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -884,7 +884,7 @@ export default function IncentivesPage() {
                 type="number"
                 value={addTarget}
                 onChange={(e) => setAddTarget(Number(e.target.value))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-brand-500"
                 placeholder="e.g. 5000000"
               />
             </div>
@@ -896,7 +896,7 @@ export default function IncentivesPage() {
                 type="number"
                 value={addAchievement}
                 onChange={(e) => setAddAchievement(Number(e.target.value))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-brand-500"
                 placeholder="e.g. 7500000"
               />
             </div>
@@ -913,7 +913,7 @@ export default function IncentivesPage() {
                 onChange={(e) =>
                   setAddIncentiveAmount(e.target.value ? Number(e.target.value) : "")
                 }
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-blue-500 font-bold"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-brand-500 font-bold"
                 placeholder="e.g. 15000"
                 required
               />
@@ -924,7 +924,7 @@ export default function IncentivesPage() {
               <select
                 value={addStatus}
                 onChange={(e) => setAddStatus(e.target.value as any)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
               >
                 <option value="Approved">Approved (Ready for Payroll)</option>
                 <option value="Pending">Pending Review</option>
@@ -970,7 +970,7 @@ export default function IncentivesPage() {
                 onChange={(e) =>
                   setEditingRecord({ ...editingRecord, schemeName: e.target.value })
                 }
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
               />
             </div>
 
@@ -983,7 +983,7 @@ export default function IncentivesPage() {
                   onChange={(e) =>
                     setEditingRecord({ ...editingRecord, target: Number(e.target.value) })
                   }
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-brand-500"
                 />
               </div>
               <div>
@@ -996,7 +996,7 @@ export default function IncentivesPage() {
                   onChange={(e) =>
                     setEditingRecord({ ...editingRecord, achievement: Number(e.target.value) })
                   }
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-brand-500"
                 />
               </div>
             </div>
@@ -1012,7 +1012,7 @@ export default function IncentivesPage() {
                   onChange={(e) =>
                     setEditingRecord({ ...editingRecord, incentiveAmount: Number(e.target.value) })
                   }
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-brand-500"
                   required
                 />
               </div>
@@ -1024,7 +1024,7 @@ export default function IncentivesPage() {
                   onChange={(e) =>
                     setEditingRecord({ ...editingRecord, status: e.target.value as any })
                   }
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-brand-500"
                 >
                   <option value="Approved">Approved</option>
                   <option value="Pending">Pending</option>
@@ -1071,7 +1071,7 @@ export default function IncentivesPage() {
                 type="number"
                 value={policyHurdleMultiplier}
                 onChange={(e) => setPolicyHurdleMultiplier(Number(e.target.value))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-blue-500 font-bold"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-brand-500 font-bold"
                 placeholder="e.g. 100"
                 required
               />
@@ -1091,7 +1091,7 @@ export default function IncentivesPage() {
                 type="number"
                 value={policyAxisRate}
                 onChange={(e) => setPolicyAxisRate(Number(e.target.value))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-blue-500 font-bold"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-brand-500 font-bold"
                 placeholder="e.g. 200"
                 required
               />

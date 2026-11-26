@@ -36,7 +36,7 @@ export const KIND_STYLE: Record<CellKind, string> = {
   early: "bg-yellow-100 text-yellow-800",
   absent: "bg-red-100 text-red-700",
   leave: "bg-violet-100 text-violet-800",
-  holiday: "bg-sky-100 text-sky-800",
+  holiday: "bg-brand-100 text-brand-800",
   off: "bg-slate-100 text-slate-400",
   none: "bg-white text-slate-300",
 };

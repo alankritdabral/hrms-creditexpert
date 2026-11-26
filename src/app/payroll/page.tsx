@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { Logo } from "@/components/Logo";
 import { PayrollRun, PayrollStatus, PayrollItemSnapshot } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -149,7 +149,7 @@ export default function PayrollPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <CircleDollarSign className="w-6 h-6 text-blue-600" />
+            <CircleDollarSign className="w-6 h-6 text-brand-600" />
             Payroll Engine & Lifecycle Control
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -207,7 +207,7 @@ export default function PayrollPage() {
           <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div>
-                <span className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">
+                <span className="text-xs text-brand-400 font-semibold uppercase tracking-wider">
                   Lifecycle Workflow Stage
                 </span>
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -222,7 +222,7 @@ export default function PayrollPage() {
                   isLoading={isUpdatingStatus}
                   onClick={() => handleAdvanceLifecycle(nextStage)}
                   icon={nextStage === "FINALIZED" ? <Lock className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
-                  className={nextStage === "FINALIZED" ? "bg-purple-600 hover:bg-purple-500" : "bg-indigo-600"}
+                  className={nextStage === "FINALIZED" ? "bg-purple-600 hover:bg-purple-500" : "bg-brand-600"}
                 >
                   Advance to: {nextStage.replace("_", " ")}
                 </Button>
@@ -241,7 +241,7 @@ export default function PayrollPage() {
                       {idx !== 0 && (
                         <div
                           className={`absolute top-3.5 right-1/2 w-full h-0.5 -z-10 ${
-                            idx <= currentStageIndex ? "bg-indigo-500" : "bg-slate-800"
+                            idx <= currentStageIndex ? "bg-brand-500" : "bg-slate-800"
                           }`}
                         />
                       )}
@@ -249,9 +249,9 @@ export default function PayrollPage() {
                       <div
                         className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                           isDone
-                            ? "bg-emerald-500 text-white"
+                            ? "bg-emerald-500 text-[#2E2E2E]"
                             : isCurrent
-                            ? "bg-indigo-600 text-white ring-4 ring-indigo-500/30 animate-pulse"
+                            ? "bg-brand-600 text-[#2E2E2E] ring-4 ring-brand-500/30 animate-pulse"
                             : "bg-slate-800 text-slate-500 border border-slate-700"
                         }`}
                       >
@@ -261,7 +261,7 @@ export default function PayrollPage() {
                       <span
                         className={`text-[10px] mt-2 font-medium tracking-tight ${
                           isCurrent
-                            ? "text-indigo-400 font-bold"
+                            ? "text-brand-400 font-bold"
                             : isDone
                             ? "text-slate-300"
                             : "text-slate-500"
@@ -296,7 +296,7 @@ export default function PayrollPage() {
             </div>
             <div className="glass-card rounded-2xl p-5 border border-slate-800">
               <span className="text-slate-400 text-xs">Gross Earnings</span>
-              <p className="text-2xl font-bold text-indigo-400 mt-1">
+              <p className="text-2xl font-bold text-brand-400 mt-1">
                 ₹{selectedRun.totalGross.toLocaleString("en-IN")}
               </p>
               <span className="text-[11px] text-slate-500">Basic + HRA + Incentives</span>
@@ -384,7 +384,7 @@ export default function PayrollPage() {
                           variant="ghost"
                           icon={<Eye className="w-3.5 h-3.5" />}
                           onClick={() => setActivePayslipItem(item)}
-                          className="text-xs py-1 px-2.5 text-indigo-400 hover:text-white"
+                          className="text-xs py-1 px-2.5 text-brand-400 hover:text-white"
                         >
                           Payslip
                         </Button>
@@ -429,7 +429,7 @@ export default function PayrollPage() {
                 });
                 setNewRunLabel(`${monthName} ${year}`);
               }}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -440,7 +440,7 @@ export default function PayrollPage() {
               required
               value={newRunLabel}
               onChange={(e) => setNewRunLabel(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -482,18 +482,12 @@ export default function PayrollPage() {
             <div className="p-4 sm:p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-3">
-                  <div className="relative h-10 w-auto flex items-center bg-[#0a2540] px-2 py-1 rounded-lg border border-[#87bfff]/20">
-                    <Image
-                      src="/img/logo.webp"
-                      alt="Credit Expert India Logo"
-                      width={120}
-                      height={32}
-                      className="h-7 w-auto object-contain"
-                    />
+                  <div className="relative h-10 w-auto flex items-center bg-[#2E2E2E] px-2 py-1 rounded-lg border border-[#FFB380]/20">
+                    <Logo size="sm" tone="dark" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-white text-sm tracking-tight">CREDIT EXPERT INDIA</h3>
-                    <p className="text-[10px] text-[#87bfff]">HR & Payroll Division • Corporate HQ</p>
+                    <h3 className="font-bold text-white text-sm tracking-tight">AMORTAS</h3>
+                    <p className="text-[10px] text-[#FFB380]">HR & Payroll Division • Corporate HQ</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -509,7 +503,7 @@ export default function PayrollPage() {
                 </div>
                 <div>
                   <span className="text-slate-500 block">Employee ID</span>
-                  <span className="font-mono text-indigo-400">{activePayslipItem.employeeId}</span>
+                  <span className="font-mono text-brand-400">{activePayslipItem.employeeId}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">Designation</span>

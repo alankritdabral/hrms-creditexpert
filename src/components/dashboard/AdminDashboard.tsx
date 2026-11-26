@@ -110,19 +110,19 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      {/* Top Banner & Quick Actions with Credit Expert India Blue Gradient */}
-      <div className="hero-banner flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-md shadow-blue-500/15 relative overflow-hidden">
+      {/* Top Banner & Quick Actions with Amortas Blue Gradient */}
+      <div className="hero-banner flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-brand-600 via-brand-700 to-brand-700 text-white shadow-md shadow-brand-500/15 relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center gap-2">
             <span className="banner-pill px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-semibold backdrop-blur-xs">
-              Credit Expert India
+              Amortas
             </span>
-            <span className="text-xs text-blue-100 font-mono">HR & Operations Command</span>
+            <span className="text-xs text-brand-100 font-mono">HR & Operations Command</span>
           </div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mt-2 tracking-tight">
             Workforce Overview & Intelligence
           </h1>
-          <p className="text-xs sm:text-sm text-blue-100 mt-1 max-w-2xl">
+          <p className="text-xs sm:text-sm text-brand-100 mt-1 max-w-2xl">
             Real-time tracking of employee attendance, salary structures, statutory compliance, and payroll.
           </p>
         </div>
@@ -133,14 +133,14 @@ export function AdminDashboard() {
             </button>
           </Link>
           <Link href="/payroll" className="flex-1 sm:flex-none">
-            <button className="w-full justify-center btn-banner-white px-4 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-blue-50 text-blue-700 shadow-sm transition-all flex items-center gap-2 cursor-pointer">
-              <CircleDollarSign className="w-4 h-4 text-blue-700 shrink-0" />
+            <button className="w-full justify-center btn-banner-white px-4 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-brand-50 text-brand-700 shadow-sm transition-all flex items-center gap-2 cursor-pointer">
+              <CircleDollarSign className="w-4 h-4 text-brand-700 shrink-0" />
               <span>Process Payroll</span>
             </button>
           </Link>
         </div>
         <div className="absolute -right-8 -top-8 w-56 h-56 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute right-40 -bottom-8 w-44 h-44 bg-blue-400/20 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute right-40 -bottom-8 w-44 h-44 bg-brand-400/20 rounded-full blur-2xl pointer-events-none" />
       </div>
 
       {/* Primary KPI Metrics Grid */}
@@ -193,7 +193,7 @@ export function AdminDashboard() {
               <AlertCircle className="w-4 h-4 text-amber-500" />
               Action Required ({pendingLeaves.length + pendingRequests.length})
             </h3>
-            <Link href="/leaves" className="text-xs font-semibold text-blue-600 hover:text-blue-700">
+            <Link href="/leaves" className="text-xs font-semibold text-brand-600 hover:text-brand-700">
               View all
             </Link>
           </div>
@@ -252,7 +252,7 @@ export function AdminDashboard() {
               <h3 className="font-bold text-slate-900 text-base">Today&apos;s Attendance Logs</h3>
               <p className="text-xs text-slate-500 mt-0.5">{policy ? timingSummary(policy) : ""}</p>
             </div>
-            <Link href="/attendance" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+            <Link href="/attendance" className="text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1">
               Full Logs <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -339,7 +339,7 @@ export function AdminDashboard() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                <CalendarDays className="w-4 h-4 text-blue-600" />
+                <CalendarDays className="w-4 h-4 text-brand-600" />
                 Branch Holidays
               </span>
               <Badge variant="indigo">{holidays.length} Total</Badge>

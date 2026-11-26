@@ -250,7 +250,7 @@ export default function AttendancePage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Clock className="w-6 h-6 text-blue-600" />
+            <Clock className="w-6 h-6 text-brand-600" />
             Attendance Management
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -288,7 +288,7 @@ export default function AttendancePage() {
       {/* View switcher */}
       <div className="no-print inline-flex rounded-xl border border-slate-200 bg-white p-1 text-xs font-semibold">
         {([["dashboard", currentUser.role === "employee" ? "My Attendance" : "Attendance Sheet"], ["daily", "Daily & Clock-In"]] as const).map(([k, label]) => (
-          <button key={k} onClick={() => setTab(k)} className={`px-4 py-1.5 rounded-lg cursor-pointer transition-colors ${tab === k ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{label}</button>
+          <button key={k} onClick={() => setTab(k)} className={`px-4 py-1.5 rounded-lg cursor-pointer transition-colors ${tab === k ? "bg-brand-600 text-[#2E2E2E]" : "text-slate-600 hover:bg-slate-50"}`}>{label}</button>
         ))}
       </div>
 
@@ -344,8 +344,8 @@ export default function AttendancePage() {
             )}
 
             {punchStatusMessage && (
-              <div className="text-xs text-blue-400 flex items-center justify-center gap-1.5 animate-pulse pt-1">
-                <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
+              <div className="text-xs text-brand-400 flex items-center justify-center gap-1.5 animate-pulse pt-1">
+                <span className="w-2 h-2 rounded-full bg-brand-400 animate-ping" />
                 {punchStatusMessage}
               </div>
             )}
@@ -382,7 +382,7 @@ export default function AttendancePage() {
                         type="button"
                         onClick={handleClockIn}
                         disabled={isPunching}
-                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                        className="px-2.5 py-1 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-[#2E2E2E] rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                       >
                         {isPunching ? "Retrying..." : "Try Again"}
                       </button>
@@ -465,7 +465,7 @@ export default function AttendancePage() {
             </div>
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 col-span-2">
               <span className="text-slate-500 text-[11px] font-medium">Overtime Hours Accrued</span>
-              <p className="text-xl font-bold text-blue-600 mt-1">{overtimeHours.toFixed(1)} hrs</p>
+              <p className="text-xl font-bold text-brand-600 mt-1">{overtimeHours.toFixed(1)} hrs</p>
             </div>
           </div>
         </div>
@@ -474,13 +474,13 @@ export default function AttendancePage() {
       {/* Date Picker Filter Bar */}
       <div className="glass-card rounded-2xl p-4 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
+          <Calendar className="w-4 h-4 text-brand-400 shrink-0" />
           <span className="text-xs font-medium text-slate-300">View Logs for Date:</span>
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500 font-mono"
           />
         </div>
         <span className="text-xs text-slate-400">{attendance.length} record(s) on file</span>
@@ -560,10 +560,10 @@ export default function AttendancePage() {
                           href={`https://www.openstreetmap.org/?mlat=${rec.checkInLatitude}&mlon=${rec.checkInLongitude}#map=18/${rec.checkInLatitude}/${rec.checkInLongitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-400 hover:text-blue-300 bg-blue-950/40 border border-blue-800/40 px-2 py-1 rounded-md transition-colors"
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-400 hover:text-brand-300 bg-brand-950/40 border border-brand-800/40 px-2 py-1 rounded-md transition-colors"
                           title="Inspect GPS location on OpenStreetMap"
                         >
-                          <MapPin className="w-3 h-3 text-blue-400" />
+                          <MapPin className="w-3 h-3 text-brand-400" />
                           Map
                         </a>
                       )}
@@ -603,7 +603,7 @@ export default function AttendancePage() {
             <select
               value={adjustStatus}
               onChange={(e) => setAdjustStatus(e.target.value as any)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             >
               <option value="Present">Present</option>
               <option value="Late">Late</option>
@@ -621,7 +621,7 @@ export default function AttendancePage() {
               value={adjustCheckIn}
               onChange={(e) => setAdjustCheckIn(e.target.value)}
               placeholder="10:00:00"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -635,7 +635,7 @@ export default function AttendancePage() {
               value={adjustRemarks}
               onChange={(e) => setAdjustRemarks(e.target.value)}
               placeholder="e.g. Regularized on client visit approval"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -675,7 +675,7 @@ export default function AttendancePage() {
                 value={policyEndTime}
                 onChange={(e) => setPolicyEndTime(e.target.value)}
                 placeholder="19:00"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
               />
             </div>
             <div>
@@ -686,7 +686,7 @@ export default function AttendancePage() {
                 type="number"
                 value={policyMinHours}
                 onChange={(e) => setPolicyMinHours(Number(e.target.value))}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
               />
             </div>
           </div>

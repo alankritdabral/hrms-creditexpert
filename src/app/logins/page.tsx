@@ -532,7 +532,7 @@ export default function LoginsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+            <div className="p-2.5 rounded-xl bg-brand-50 text-brand-600 border border-brand-100">
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
@@ -542,7 +542,7 @@ export default function LoginsPage() {
               <p className="text-xs text-slate-500 mt-0.5">
                 Manage monthly loan file logins, commitments, bank-wise disbursals, and customer pipeline.
               </p>
-              <p className="text-[11px] text-blue-700 mt-1">
+              <p className="text-[11px] text-brand-700 mt-1">
                 Files, banks and disbursals are pulled automatically from the{" "}
                 <Link href="/login-sheet" className="font-semibold underline underline-offset-2">
                   Login Sheet
@@ -632,7 +632,7 @@ export default function LoginsPage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Total Logins Submitted
             </span>
-            <span className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+            <span className="p-2 rounded-xl bg-brand-50 text-brand-600 border border-brand-100">
               <TrendingUp className="w-4 h-4" />
             </span>
           </div>
@@ -643,7 +643,7 @@ export default function LoginsPage() {
             <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center justify-between gap-1">
               <span>Across {filteredLogins.length} {hasAnyFilter ? "matching" : "active"} employees</span>
               {totalLoginCommitment > 0 && (
-                <span className="text-blue-600 font-semibold">
+                <span className="text-brand-600 font-semibold">
                   Target: {totalLoginCommitment} files ({Math.round((totalLoginsCount / totalLoginCommitment) * 100)}%)
                 </span>
               )}
@@ -657,7 +657,7 @@ export default function LoginsPage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Target Commitment
             </span>
-            <span className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+            <span className="p-2 rounded-xl bg-brand-50 text-brand-600 border border-brand-100">
               <Users className="w-4 h-4" />
             </span>
           </div>
@@ -686,7 +686,7 @@ export default function LoginsPage() {
                 placeholder="Search employee, ID, branch, remarks..."
                 value={filters.search}
                 onChange={(e) => setFilter("search", e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/50"
+                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-slate-50/50"
               />
             </div>
 
@@ -764,8 +764,8 @@ export default function LoginsPage() {
                 <select
                   value={f.value || (f.anyValue ?? "")}
                   onChange={(e) => f.onChange(e.target.value)}
-                  className={`w-full py-1.5 px-2.5 text-xs rounded-xl border focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
-                    f.value && f.value !== "all" ? "border-blue-300 bg-blue-50/60 text-blue-900 font-semibold" : "border-slate-200 bg-slate-50/50 text-slate-700"
+                  className={`w-full py-1.5 px-2.5 text-xs rounded-xl border focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 ${
+                    f.value && f.value !== "all" ? "border-brand-300 bg-brand-50/60 text-brand-900 font-semibold" : "border-slate-200 bg-slate-50/50 text-slate-700"
                   }`}
                 >
                   <option value={f.anyValue ?? ""}>{f.any}</option>
@@ -782,7 +782,7 @@ export default function LoginsPage() {
               <button
                 type="button"
                 onClick={() => setFilters(EMPTY_LOGIN_FILTERS)}
-                className="py-1.5 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded-xl border border-blue-200 transition-colors cursor-pointer"
+                className="py-1.5 px-3 text-xs font-semibold text-brand-700 hover:bg-brand-50 rounded-xl border border-brand-200 transition-colors cursor-pointer"
               >
                 Clear filters{filterCount > 0 ? ` (${filterCount})` : ""}
               </button>
@@ -811,7 +811,7 @@ export default function LoginsPage() {
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-brand-600 border-t-transparent rounded-full animate-spin"></div>
                       <span>Loading logins records for {selectedMonth}...</span>
                     </div>
                   </td>
@@ -845,7 +845,7 @@ export default function LoginsPage() {
                       {/* Employee Column */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
                             {record.employeeName.charAt(0)}
                           </div>
                           <div>
@@ -872,8 +872,8 @@ export default function LoginsPage() {
                           {(record.commitment / 100000).toFixed(1)} Lakhs
                         </div>
                         {(record.loginCommitment ?? (record.commitment >= 10000000 ? 15 : record.commitment >= 5000000 ? 10 : 5)) > 0 && (
-                          <div className="text-[10px] text-blue-600 font-semibold mt-1 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                          <div className="text-[10px] text-brand-600 font-semibold mt-1 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
                             <span>Login Target: {record.loginCommitment ?? (record.commitment >= 10000000 ? 15 : record.commitment >= 5000000 ? 10 : 5)} files</span>
                           </div>
                         )}
@@ -882,12 +882,12 @@ export default function LoginsPage() {
                       {/* Logins Count */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-bold border border-blue-100 font-mono">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-brand-50 text-brand-700 font-bold border border-brand-100 font-mono">
                             {record.loginsCount} Files
                           </span>
                         </div>
                         {(record.sheetRows ?? 0) > 0 && (
-                          <div className="text-[10px] text-blue-600 font-semibold mt-1">
+                          <div className="text-[10px] text-brand-600 font-semibold mt-1">
                             Auto from Login Sheet · {record.sheetRows} {record.sheetRows === 1 ? "row" : "rows"}
                           </div>
                         )}
@@ -931,14 +931,14 @@ export default function LoginsPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenDisbursals(record)}
-                          className="group text-left p-1.5 -m-1.5 rounded-xl hover:bg-blue-50/80 transition-all border border-transparent hover:border-blue-200 cursor-pointer block"
+                          className="group text-left p-1.5 -m-1.5 rounded-xl hover:bg-brand-50/80 transition-all border border-transparent hover:border-brand-200 cursor-pointer block"
                           title="Click to view and edit bank breakdown and customers"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 font-mono text-sm group-hover:text-blue-700">
+                            <span className="font-bold text-slate-900 font-mono text-sm group-hover:text-brand-700">
                               ₹{record.totalDisbursal.toLocaleString("en-IN")}
                             </span>
-                            <span className="text-[10px] text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-[10px] text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity">
                               Manage Banks →
                             </span>
                           </div>
@@ -986,7 +986,7 @@ export default function LoginsPage() {
                                 });
                                 setIsEditModalOpen(true);
                               }}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                               title="Edit submission dates and remarks"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
@@ -1058,12 +1058,12 @@ export default function LoginsPage() {
 
           {/* Add Bank Bar */}
           {canManage && (
-            <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-              <span className="text-xs font-semibold text-blue-900 shrink-0">Add Bank:</span>
+            <div className="p-3.5 rounded-xl bg-brand-50/60 border border-brand-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              <span className="text-xs font-semibold text-brand-900 shrink-0">Add Bank:</span>
               <select
                 value={newBankName}
                 onChange={(e) => setNewBankName(e.target.value)}
-                className="flex-1 text-xs rounded-lg border border-slate-200 px-3 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
+                className="flex-1 text-xs rounded-lg border border-slate-200 px-3 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500"
               >
                 {lenderBanks.map((b) => (
                   <option key={b} value={b}>
@@ -1167,7 +1167,7 @@ export default function LoginsPage() {
                               placeholder="e.g. Rahul Verma"
                               value={newCustName}
                               onChange={(e) => setNewCustName(e.target.value)}
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500"
                             />
                           </div>
 
@@ -1182,7 +1182,7 @@ export default function LoginsPage() {
                               onChange={(e) =>
                                 setNewCustAmount(e.target.value ? Number(e.target.value) : "")
                               }
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 font-mono focus:outline-none focus:border-brand-500"
                             />
                           </div>
 
@@ -1193,7 +1193,7 @@ export default function LoginsPage() {
                             <select
                               value={newCustStatus}
                               onChange={(e) => setNewCustStatus(e.target.value as any)}
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500"
                             >
                               <option value="Disbursed">Disbursed (Counts in Total)</option>
                               <option value="Sanctioned">Sanctioned</option>
@@ -1212,7 +1212,7 @@ export default function LoginsPage() {
                               type="date"
                               value={newCustDate}
                               onChange={(e) => setNewCustDate(e.target.value)}
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500"
                             />
                           </div>
                           <div>
@@ -1224,7 +1224,7 @@ export default function LoginsPage() {
                               placeholder="e.g. Personal Loan, Sanction #4512"
                               value={newCustRemarks}
                               onChange={(e) => setNewCustRemarks(e.target.value)}
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500"
                             />
                           </div>
                         </div>
@@ -1246,8 +1246,8 @@ export default function LoginsPage() {
 
                     {/* Inline Form to Edit Existing Customer Case */}
                     {editingCustomer && editingCustomer.bankId === bank.id && (
-                      <form onSubmit={handleSaveCustomerEdit} className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-200 space-y-3 animate-fadeIn">
-                        <div className="text-xs font-bold text-blue-900 flex items-center justify-between">
+                      <form onSubmit={handleSaveCustomerEdit} className="p-3.5 rounded-xl bg-brand-50/50 border border-brand-200 space-y-3 animate-fadeIn">
+                        <div className="text-xs font-bold text-brand-900 flex items-center justify-between">
                           <span>Edit Customer Case ({editingCustomer.customer.customerName})</span>
                           <button
                             type="button"
@@ -1274,7 +1274,7 @@ export default function LoginsPage() {
                                   },
                                 })
                               }
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500"
                               required
                             />
                           </div>
@@ -1295,7 +1295,7 @@ export default function LoginsPage() {
                                   },
                                 })
                               }
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 font-mono focus:outline-none focus:border-brand-500"
                               required
                             />
                           </div>
@@ -1315,7 +1315,7 @@ export default function LoginsPage() {
                                   },
                                 })
                               }
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500"
                             >
                               <option value="Disbursed">Disbursed (Counts in Total)</option>
                               <option value="Sanctioned">Sanctioned</option>
@@ -1342,7 +1342,7 @@ export default function LoginsPage() {
                                   },
                                 })
                               }
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500"
                             />
                           </div>
                           <div>
@@ -1361,7 +1361,7 @@ export default function LoginsPage() {
                                   },
                                 })
                               }
-                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500"
+                              className="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500"
                             />
                           </div>
                         </div>
@@ -1407,7 +1407,7 @@ export default function LoginsPage() {
                                   {cust.customerName}
                                   {cust.source === "login-sheet" && (
                                     <span
-                                      className="ml-2 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 text-[9px] font-bold align-middle"
+                                      className="ml-2 px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-100 text-[9px] font-bold align-middle"
                                       title="Pulled automatically from the Login Sheet. Change it there."
                                     >
                                       LOGIN SHEET
@@ -1440,7 +1440,7 @@ export default function LoginsPage() {
                                 {canManage && (
                                   <td className="py-2 px-3 text-right">
                                     {cust.source === "login-sheet" ? (
-                                      <Link href="/login-sheet" className="text-[10px] font-semibold text-blue-600 hover:underline">
+                                      <Link href="/login-sheet" className="text-[10px] font-semibold text-brand-600 hover:underline">
                                         Edit in sheet
                                       </Link>
                                     ) : (
@@ -1453,7 +1453,7 @@ export default function LoginsPage() {
                                             customer: { ...cust },
                                           })
                                         }
-                                        className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                                        className="p-1 text-slate-400 hover:text-brand-600 transition-colors"
                                         title="Edit customer details"
                                       >
                                         <Edit2 className="w-3 h-3" />
@@ -1541,13 +1541,13 @@ export default function LoginsPage() {
                     setEditingRecord({ ...editingRecord, loginsCount: Number(e.target.value) })
                   }
                   readOnly={(editingRecord.sheetRows ?? 0) > 0}
-                  className={`w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500 ${
+                  className={`w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-brand-500 ${
                     (editingRecord.sheetRows ?? 0) > 0 ? "bg-slate-50 text-slate-500" : ""
                   }`}
                   placeholder="e.g. 5"
                 />
                 {(editingRecord.sheetRows ?? 0) > 0 && (
-                  <p className="text-[10px] text-blue-600 mt-1">Counted automatically from the Login Sheet: each customer logged in counts once, however many banks.</p>
+                  <p className="text-[10px] text-brand-600 mt-1">Counted automatically from the Login Sheet: each customer logged in counts once, however many banks.</p>
                 )}
               </div>
 
@@ -1561,7 +1561,7 @@ export default function LoginsPage() {
                   onChange={(e) =>
                     setEditingRecord({ ...editingRecord, submissionDate: e.target.value })
                   }
-                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-500"
                 />
               </div>
             </div>
@@ -1576,7 +1576,7 @@ export default function LoginsPage() {
                 onChange={(e) =>
                   setEditingRecord({ ...editingRecord, lastLoginDate: e.target.value })
                 }
-                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
+                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-500"
               />
             </div>
 
@@ -1590,7 +1590,7 @@ export default function LoginsPage() {
                 onChange={(e) =>
                   setEditingRecord({ ...editingRecord, remarks: e.target.value })
                 }
-                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500 resize-none"
+                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-500 resize-none"
                 placeholder="Notes on commitments, pending sanction letters, lender coordination..."
               />
             </div>
@@ -1642,7 +1642,7 @@ export default function LoginsPage() {
                       setAddEmpName(employees[0].name);
                     }
                   }}
-                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer"
+                  className="text-[11px] font-semibold text-brand-600 hover:text-brand-800 cursor-pointer"
                 >
                   {isCustomEmployee ? "← Select from Roster" : "+ Type New / Other Staff"}
                 </button>
@@ -1661,7 +1661,7 @@ export default function LoginsPage() {
                     setAddBranch(matched.branch || "Delhi");
                   }
                 }}
-                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500 bg-slate-50 font-medium"
+                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-500 bg-slate-50 font-medium"
                 required
               >
                 {employees.map((e) => (
@@ -1671,7 +1671,7 @@ export default function LoginsPage() {
                 ))}
               </select>
             ) : (
-              <div className="space-y-2.5 p-3 rounded-xl bg-blue-50/60 border border-blue-100">
+              <div className="space-y-2.5 p-3 rounded-xl bg-brand-50/60 border border-brand-100">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
@@ -1683,7 +1683,7 @@ export default function LoginsPage() {
                       value={addEmpName}
                       onChange={(e) => setAddEmpName(e.target.value)}
                       placeholder="e.g. Vikram Malhotra"
-                      className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 focus:outline-none focus:border-blue-500 bg-white"
+                      className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 focus:outline-none focus:border-brand-500 bg-white"
                     />
                   </div>
                   <div>
@@ -1695,7 +1695,7 @@ export default function LoginsPage() {
                       value={addEmpId}
                       onChange={(e) => setAddEmpId(e.target.value)}
                       placeholder="e.g. EMP-0105 (Auto-generated if empty)"
-                      className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 focus:outline-none focus:border-blue-500 bg-white font-mono"
+                      className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 focus:outline-none focus:border-brand-500 bg-white font-mono"
                     />
                   </div>
                 </div>
@@ -1709,7 +1709,7 @@ export default function LoginsPage() {
                       value={addDepartment}
                       onChange={(e) => setAddDepartment(e.target.value)}
                       placeholder="Sales"
-                      className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 focus:outline-none focus:border-blue-500 bg-white"
+                      className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 focus:outline-none focus:border-brand-500 bg-white"
                     />
                   </div>
                   <div>
@@ -1719,7 +1719,7 @@ export default function LoginsPage() {
                     <select
                       value={addBranch}
                       onChange={(e) => setAddBranch(e.target.value)}
-                      className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 focus:outline-none focus:border-blue-500 bg-white"
+                      className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 focus:outline-none focus:border-brand-500 bg-white"
                     >
                       <option value="Delhi">Delhi</option>
                       <option value="Dehradun">Dehradun</option>
@@ -1742,7 +1742,7 @@ export default function LoginsPage() {
                 onChange={(e) =>
                   setAddLoginsCount(e.target.value ? Number(e.target.value) : "")
                 }
-                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-blue-500"
+                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-brand-500"
                 placeholder="e.g. 5"
               />
             </div>
@@ -1755,7 +1755,7 @@ export default function LoginsPage() {
                 type="date"
                 value={addSubmissionDate}
                 onChange={(e) => setAddSubmissionDate(e.target.value)}
-                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
+                className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-500"
               />
             </div>
           </div>
@@ -1768,7 +1768,7 @@ export default function LoginsPage() {
               type="date"
               value={addLastLoginDate}
               onChange={(e) => setAddLastLoginDate(e.target.value)}
-              className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
+              className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -1796,7 +1796,7 @@ export default function LoginsPage() {
                     }}
                     maxLength={80}
                     placeholder="Pick or type a bank / NBFC"
-                    className="w-full min-w-0 text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 bg-white focus:outline-none focus:border-blue-500"
+                    className="w-full min-w-0 text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 bg-white focus:outline-none focus:border-brand-500"
                   />
                   {addInitialBank.trim() && !isKnownBank(addInitialBank) && (
                     <button
@@ -1808,7 +1808,7 @@ export default function LoginsPage() {
                           setBankSaveMsg(`"${r.name}" saved. It will be offered next time.`);
                         } else setBankSaveMsg(r.error);
                       }}
-                      className="shrink-0 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 px-2.5 rounded-xl border border-blue-200 transition-colors cursor-pointer"
+                      className="shrink-0 text-[11px] font-semibold text-brand-700 hover:bg-brand-50 px-2.5 rounded-xl border border-brand-200 transition-colors cursor-pointer"
                     >
                       Save bank
                     </button>
@@ -1820,7 +1820,7 @@ export default function LoginsPage() {
                   ))}
                 </datalist>
                 {bankSaveMsg ? (
-                  <span className="text-[10px] text-blue-600 mt-0.5 block">{bankSaveMsg}</span>
+                  <span className="text-[10px] text-brand-600 mt-0.5 block">{bankSaveMsg}</span>
                 ) : addInitialBank.trim() && !isKnownBank(addInitialBank) ? (
                   <span className="text-[10px] text-slate-400 mt-0.5 block">New bank. It is saved when you add the entry, or press Save bank now.</span>
                 ) : null}
@@ -1836,7 +1836,7 @@ export default function LoginsPage() {
                     setAddInitialDisbursal(e.target.value ? Number(e.target.value) : "")
                   }
                   placeholder="e.g. 2500000 (Optional)"
-                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 bg-white font-mono focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 bg-white font-mono focus:outline-none focus:border-brand-500"
                 />
               </div>
             </div>
@@ -1850,7 +1850,7 @@ export default function LoginsPage() {
                   value={addInitialCustomerName}
                   onChange={(e) => setAddInitialCustomerName(e.target.value)}
                   placeholder="e.g. Vikas Aggarwal (Home Loan)"
-                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 bg-white focus:outline-none focus:border-blue-500"
+                  className="w-full text-xs rounded-xl border border-slate-200 px-3 py-1.5 text-slate-900 bg-white focus:outline-none focus:border-brand-500"
                 />
               </div>
             )}
@@ -1864,7 +1864,7 @@ export default function LoginsPage() {
               rows={2}
               value={addRemarks}
               onChange={(e) => setAddRemarks(e.target.value)}
-              className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500 resize-none"
+              className="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:border-brand-500 resize-none"
               placeholder="e.g. Primary partner Axis Bank, targets home loans and personal loans..."
             />
           </div>

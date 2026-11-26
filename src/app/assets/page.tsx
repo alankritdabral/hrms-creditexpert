@@ -152,7 +152,7 @@ export default function AssetsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Laptop className="w-6 h-6 text-blue-600" />
+            <Laptop className="w-6 h-6 text-brand-600" />
             Company Asset Management
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -184,7 +184,7 @@ export default function AssetsPage() {
         </div>
         <div className="glass-card rounded-2xl p-5 border border-slate-800">
           <span className="text-xs text-slate-400">In IT Inventory</span>
-          <p className="text-2xl font-bold text-indigo-400 mt-1">{inStockCount}</p>
+          <p className="text-2xl font-bold text-brand-400 mt-1">{inStockCount}</p>
           <span className="text-[11px] text-slate-500">Available for immediate onboarding</span>
         </div>
       </div>
@@ -198,7 +198,7 @@ export default function AssetsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by tag, model, serial, employee..."
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
           />
         </div>
 
@@ -207,7 +207,7 @@ export default function AssetsPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
           >
             <option value="All">All Statuses</option>
             <option value="Assigned">Assigned</option>
@@ -223,12 +223,12 @@ export default function AssetsPage() {
         {filteredAssets.map((a) => (
           <div
             key={a.id}
-            className="glass-card rounded-2xl p-5 border border-slate-800 hover:border-indigo-500/40 transition-all space-y-4"
+            className="glass-card rounded-2xl p-5 border border-slate-800 hover:border-brand-500/40 transition-all space-y-4"
           >
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
+                  <span className="text-xs font-mono font-bold text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded">
                     {a.assetTag}
                   </span>
                   <Badge
@@ -304,7 +304,7 @@ export default function AssetsPage() {
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
                 placeholder="e.g. LAP-045"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-brand-500"
               />
             </div>
             <div>
@@ -312,7 +312,7 @@ export default function AssetsPage() {
               <select
                 value={newType}
                 onChange={(e) => setNewType(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
               >
                 <option value="Laptop">Laptop</option>
                 <option value="Monitor">Monitor</option>
@@ -332,7 +332,7 @@ export default function AssetsPage() {
               value={newModel}
               onChange={(e) => setNewModel(e.target.value)}
               placeholder="e.g. Apple MacBook Air M3 15-inch"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -344,7 +344,7 @@ export default function AssetsPage() {
               value={newSerial}
               onChange={(e) => setNewSerial(e.target.value)}
               placeholder="e.g. C02XYZ12345"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -355,7 +355,7 @@ export default function AssetsPage() {
             <select
               value={newAssignedTo}
               onChange={(e) => setNewAssignedTo(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             >
               <option value="">Keep in IT Inventory (Unassigned)</option>
               {employees.map((e) => (
@@ -373,7 +373,7 @@ export default function AssetsPage() {
               value={newNotes}
               onChange={(e) => setNewNotes(e.target.value)}
               placeholder="e.g. Purchased with 3-year AppleCare warranty"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -408,7 +408,7 @@ export default function AssetsPage() {
             <select
               value={editStatus}
               onChange={(e) => setEditStatus(e.target.value as any)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             >
               <option value="Assigned">Assigned to Employee</option>
               <option value="Returned">Returned to Inventory</option>
@@ -426,7 +426,7 @@ export default function AssetsPage() {
               <select
                 value={editAssignedTo}
                 onChange={(e) => setEditAssignedTo(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
               >
                 {employees.map((e) => (
                   <option key={e.id} value={e.employeeId}>

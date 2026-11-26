@@ -147,7 +147,7 @@ export default function ReportsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <BarChart3 className="w-6 h-6 text-blue-600" />
+            <BarChart3 className="w-6 h-6 text-brand-600" />
             Executive Reports & Analytics
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -191,7 +191,7 @@ export default function ReportsPage() {
           onClick={() => setActiveReportTab("headcount")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
             activeReportTab === "headcount"
-              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+              ? "bg-brand-600 text-[#2E2E2E] shadow-md shadow-brand-600/30"
               : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
           }`}
         >
@@ -202,7 +202,7 @@ export default function ReportsPage() {
           onClick={() => setActiveReportTab("payroll")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
             activeReportTab === "payroll"
-              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+              ? "bg-brand-600 text-[#2E2E2E] shadow-md shadow-brand-600/30"
               : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
           }`}
         >
@@ -213,7 +213,7 @@ export default function ReportsPage() {
           onClick={() => setActiveReportTab("attendance")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
             activeReportTab === "attendance"
-              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+              ? "bg-brand-600 text-[#2E2E2E] shadow-md shadow-brand-600/30"
               : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
           }`}
         >
@@ -235,12 +235,12 @@ export default function ReportsPage() {
                     <div key={dept} className="space-y-1">
                       <div className="flex justify-between text-xs">
                         <span className="text-slate-300 font-medium">{dept}</span>
-                        <span className="text-indigo-400 font-bold">
+                        <span className="text-brand-400 font-bold">
                           {count} ({pct}%)
                         </span>
                       </div>
                       <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${pct}%` }} />
+                        <div className="bg-brand-500 h-full rounded-full" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );
@@ -314,7 +314,7 @@ export default function ReportsPage() {
             </div>
             <div className="glass-card rounded-2xl p-5 border border-slate-800">
               <span className="text-slate-400 text-xs">Employer PF Liability</span>
-              <p className="text-2xl font-bold text-indigo-400 mt-1">
+              <p className="text-2xl font-bold text-brand-400 mt-1">
                 ₹{latestPayroll.totalPfEmployer.toLocaleString("en-IN")}
               </p>
               <span className="text-[11px] text-slate-500">Company matching contribution</span>
@@ -350,7 +350,7 @@ export default function ReportsPage() {
                       <td className="py-2.5 font-medium text-slate-200">{i.employeeName}</td>
                       <td className="py-2.5 text-slate-300">₹{i.grossEarnings.toLocaleString("en-IN")}</td>
                       <td className="py-2.5 text-rose-400">₹{i.employeePf}</td>
-                      <td className="py-2.5 text-indigo-400">₹{i.employerPf}</td>
+                      <td className="py-2.5 text-brand-400">₹{i.employerPf}</td>
                       <td className="py-2.5 text-rose-400">₹{i.professionalTax}</td>
                       <td className="py-2.5 text-rose-400">₹{attendanceImpact(i).absentAmount}</td>
                       <td className="py-2.5 text-rose-400">₹{attendanceImpact(i).halfDayAmount}</td>

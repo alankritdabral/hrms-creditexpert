@@ -31,7 +31,7 @@ interface Props {
 }
 
 const base =
-  "h-full w-full rounded-none border-0 bg-white px-1.5 py-1 text-[11px] text-slate-900 shadow-lg ring-2 ring-blue-500 focus:outline-none";
+  "h-full w-full rounded-none border-0 bg-white px-1.5 py-1 text-[11px] text-slate-900 shadow-lg ring-2 ring-brand-500 focus:outline-none";
 
 /** The box that appears over a sheet cell while it is being edited. */
 export function CellEditor({ editor, draft, onDraft, onCommit, onPick, onCancel, onBlur, choices = [], listId, error, alignRight, ariaLabel }: Props) {

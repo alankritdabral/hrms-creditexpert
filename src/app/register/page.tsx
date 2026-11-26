@@ -650,22 +650,22 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-brand-500 selection:text-white">
       {/* Background radial glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-600/10 blur-[130px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 blur-[130px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-brand-600/10 blur-[130px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-brand-600/10 blur-[130px] rounded-full" />
       </div>
 
       {/* Top Navbar */}
       <header className="relative z-10 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
               <ShieldCheck className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-white tracking-tight">Credit Expert India</h1>
+              <h1 className="text-base font-bold text-white tracking-tight">Amortas</h1>
               <p className="text-xs text-slate-400">Employee Self-Registration Portal</p>
             </div>
           </div>
@@ -673,7 +673,7 @@ export default function RegisterPage() {
             <span className="text-xs text-slate-400 hidden sm:inline">Already registered?</span>
             <Link
               href="/login"
-              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors border border-indigo-500/30 px-3.5 py-1.5 rounded-lg hover:border-indigo-400/50"
+              className="text-xs font-semibold text-brand-400 hover:text-brand-300 transition-colors border border-brand-500/30 px-3.5 py-1.5 rounded-lg hover:border-brand-400/50"
             >
               Sign In
             </Link>
@@ -714,11 +714,11 @@ export default function RegisterPage() {
                     <div
                       className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold transition-all mb-1 sm:mb-2 ${
                         isDone
-                          ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20 group-hover:ring-2 group-hover:ring-emerald-400"
+                          ? "bg-emerald-500 text-[#2E2E2E] shadow-md shadow-emerald-500/20 group-hover:ring-2 group-hover:ring-emerald-400"
                           : isActive
-                          ? "bg-indigo-600 text-white ring-4 ring-indigo-500/20"
+                          ? "bg-brand-600 text-[#2E2E2E] ring-4 ring-brand-500/20"
                           : isAccessible
-                          ? "bg-slate-800 text-indigo-300 border border-indigo-500/40 group-hover:border-indigo-400"
+                          ? "bg-slate-800 text-brand-300 border border-brand-500/40 group-hover:border-brand-400"
                           : "bg-slate-800 text-slate-500 border border-slate-700"
                       }`}
                     >
@@ -727,7 +727,7 @@ export default function RegisterPage() {
                     <span
                       className={`text-[10px] sm:text-xs font-medium tracking-tight line-clamp-1 sm:line-clamp-none ${
                         isActive
-                          ? "text-indigo-400 font-semibold"
+                          ? "text-brand-400 font-semibold"
                           : isDone
                           ? "text-slate-300"
                           : "text-slate-500"
@@ -741,7 +741,7 @@ export default function RegisterPage() {
             </div>
             <div className="w-full bg-slate-800 h-1.5 rounded-full mt-4 overflow-hidden">
               <div
-                className="bg-gradient-to-r from-indigo-500 to-emerald-500 h-full transition-all duration-300"
+                className="bg-gradient-to-r from-brand-500 to-emerald-500 h-full transition-all duration-300"
                 style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
               />
             </div>
@@ -750,25 +750,25 @@ export default function RegisterPage() {
 
         {/* Incomplete Registration Detected Banner */}
         {pendingResumeDraft && (
-          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-blue-900/60 via-indigo-900/50 to-slate-900/80 border border-blue-500/40 shadow-xl shadow-blue-900/20 backdrop-blur-md">
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-brand-900/60 via-brand-900/50 to-slate-900/80 border border-brand-500/40 shadow-xl shadow-brand-900/20 backdrop-blur-md">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-400/30 shrink-0">
-                  <Bookmark className="w-5 h-5 text-blue-300" />
+                <div className="p-2.5 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-400/30 shrink-0">
+                  <Bookmark className="w-5 h-5 text-brand-300" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-white tracking-tight">
                       Incomplete Registration Found
                     </h3>
-                    <span className="text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-400/30">
+                    <span className="text-[10px] font-semibold bg-brand-500/20 text-brand-300 px-2 py-0.5 rounded-full border border-brand-400/30">
                       Step {pendingResumeDraft.currentStep || pendingResumeDraft.highestStep || 1} of 4
                     </span>
                   </div>
                   <p className="text-xs text-slate-300 mt-1">
                     Applicant: <strong className="text-white">{pendingResumeDraft.candidateName || "Candidate"}</strong> ({pendingResumeDraft.email}) • Saved {formatTimeAgo(pendingResumeDraft.lastSavedAt)}
                   </p>
-                  <p className="text-[11px] text-blue-300/80 mt-0.5">
+                  <p className="text-[11px] text-brand-300/80 mt-0.5">
                     {STEP_NAMES[pendingResumeDraft.currentStep || pendingResumeDraft.highestStep || 1] || "Registration Progress"}
                   </p>
                 </div>
@@ -777,7 +777,7 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={handleResumeDraft}
-                  className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-600 hover:from-brand-500 hover:to-brand-500 text-white text-xs font-semibold shadow-md shadow-brand-500/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   Resume Step {pendingResumeDraft.currentStep || pendingResumeDraft.highestStep || 1}
@@ -821,7 +821,7 @@ export default function RegisterPage() {
               disabled={isSavingDraft}
               className="inline-flex items-center gap-1.5 text-xs text-slate-300 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all cursor-pointer shadow-xs"
             >
-              <Save className="w-3.5 h-3.5 text-blue-400" />
+              <Save className="w-3.5 h-3.5 text-brand-400" />
               <span>{isSavingDraft ? "Saving..." : "Save & Continue Later"}</span>
             </button>
           </div>
@@ -836,7 +836,7 @@ export default function RegisterPage() {
             <form onSubmit={handleProceedStep1} className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <User className="w-5 h-5 text-indigo-400" />
+                  <User className="w-5 h-5 text-brand-400" />
                   Account Details & Email Verification
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
@@ -858,7 +858,7 @@ export default function RegisterPage() {
                       value={candidateName}
                       onChange={(e) => setCandidateName(e.target.value)}
                       placeholder="e.g. Ramesh Kumar Sharma"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
                     />
                   </div>
                 </div>
@@ -873,7 +873,7 @@ export default function RegisterPage() {
                     <select
                       value={branch}
                       onChange={(e) => setBranch(e.target.value as Branch)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 transition-colors"
                     >
                       {BRANCHES.map((b) => (
                         <option key={b} value={b}>
@@ -899,7 +899,7 @@ export default function RegisterPage() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="e.g. ramesh.sharma@gmail.com"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60 transition-colors"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 disabled:opacity-60 transition-colors"
                       />
                     </div>
                     {!otpVerified && (
@@ -924,9 +924,9 @@ export default function RegisterPage() {
 
                 {/* OTP Verification Box */}
                 {otpSent && !otpVerified && (
-                  <div className="sm:col-span-2 p-4 rounded-xl bg-indigo-950/30 border border-indigo-500/30 space-y-3">
+                  <div className="sm:col-span-2 p-4 rounded-xl bg-brand-950/30 border border-brand-500/30 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-brand-300 flex items-center gap-1.5">
                         <Clock className="w-4 h-4" /> Enter the 6-Digit Code Sent to {email}
                       </span>
                       <span className="text-[11px] text-slate-400 font-mono">Valid 10 mins</span>
@@ -971,7 +971,7 @@ export default function RegisterPage() {
                           }
                         }}
                         placeholder="••••••"
-                        className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-center text-lg font-mono tracking-widest text-white focus:outline-none focus:border-indigo-400"
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-center text-lg font-mono tracking-widest text-white focus:outline-none focus:border-brand-400"
                       />
                       <Button
                         type="button"
@@ -999,7 +999,7 @@ export default function RegisterPage() {
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="+91 98765 43210"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 transition-colors"
                     />
                   </div>
                 </div>
@@ -1017,7 +1017,7 @@ export default function RegisterPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="At least 6 characters"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 transition-colors"
                     />
                   </div>
                 </div>
@@ -1035,7 +1035,7 @@ export default function RegisterPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Repeat your chosen password"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 transition-colors"
                     />
                   </div>
                 </div>
@@ -1048,7 +1048,7 @@ export default function RegisterPage() {
                   disabled={isSavingDraft || (!candidateName && !email)}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  <Save className="w-3.5 h-3.5 text-indigo-400" />
+                  <Save className="w-3.5 h-3.5 text-brand-400" />
                   {isSavingDraft ? "Saving..." : "Save & Continue Later"}
                 </button>
                 <Button
@@ -1072,7 +1072,7 @@ export default function RegisterPage() {
             <form onSubmit={handleProceedStep2} className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-indigo-400" />
+                  <FileText className="w-5 h-5 text-brand-400" />
                   Personal Information & Contacts
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
@@ -1091,7 +1091,7 @@ export default function RegisterPage() {
                     required
                     value={dob}
                     onChange={(e) => setDob(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
 
@@ -1101,7 +1101,7 @@ export default function RegisterPage() {
                   <select
                     value={gender}
                     onChange={(e) => setGender(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
                   >
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
@@ -1120,7 +1120,7 @@ export default function RegisterPage() {
                     value={parentsName}
                     onChange={(e) => setParentsName(e.target.value)}
                     placeholder="Parent or Guardian name"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
 
@@ -1135,7 +1135,7 @@ export default function RegisterPage() {
                     value={currentAddress}
                     onChange={(e) => setCurrentAddress(e.target.value)}
                     placeholder="House/Flat No., Street, City, State, PIN Code"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
 
@@ -1148,7 +1148,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setPermanentAddress(currentAddress)}
-                      className="text-[11px] text-indigo-400 hover:text-indigo-300 underline"
+                      className="text-[11px] text-brand-400 hover:text-brand-300 underline"
                     >
                       Same as current address
                     </button>
@@ -1158,7 +1158,7 @@ export default function RegisterPage() {
                     value={permanentAddress}
                     onChange={(e) => setPermanentAddress(e.target.value)}
                     placeholder="Permanent home address"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
 
@@ -1180,7 +1180,7 @@ export default function RegisterPage() {
                     value={emergencyName}
                     onChange={(e) => setEmergencyName(e.target.value)}
                     placeholder="e.g. Sunita Sharma"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
 
@@ -1195,7 +1195,7 @@ export default function RegisterPage() {
                     value={emergencyRelation}
                     onChange={(e) => setEmergencyRelation(e.target.value)}
                     placeholder="e.g. Spouse / Parent / Sibling"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
 
@@ -1210,7 +1210,7 @@ export default function RegisterPage() {
                     value={emergencyPhone}
                     onChange={(e) => setEmergencyPhone(e.target.value)}
                     placeholder="+91 98765 00000"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
               </div>
@@ -1233,7 +1233,7 @@ export default function RegisterPage() {
                     disabled={isSavingDraft}
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    <Save className="w-3.5 h-3.5 text-indigo-400" />
+                    <Save className="w-3.5 h-3.5 text-brand-400" />
                     {isSavingDraft ? "Saving..." : "Save & Continue Later"}
                   </button>
                   <Button
@@ -1257,7 +1257,7 @@ export default function RegisterPage() {
             <form onSubmit={handleProceedStep3} className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-indigo-400" />
+                  <CreditCard className="w-5 h-5 text-brand-400" />
                   Statutory Identification & Banking Details
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
@@ -1278,7 +1278,7 @@ export default function RegisterPage() {
                     value={panNumber}
                     onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
                     placeholder="ABCDE1234F"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono uppercase text-white focus:outline-none focus:border-indigo-500 tracking-wider"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono uppercase text-white focus:outline-none focus:border-brand-500 tracking-wider"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">10-character alphanumeric</span>
                 </div>
@@ -1298,7 +1298,7 @@ export default function RegisterPage() {
                       setAadhaarNumber(val);
                     }}
                     placeholder="1234 5678 9012"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500 tracking-wider"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-brand-500 tracking-wider"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">12-digit UIDAI number</span>
                 </div>
@@ -1314,7 +1314,7 @@ export default function RegisterPage() {
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
                     placeholder="e.g. HDFC Bank Ltd"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
 
@@ -1329,7 +1329,7 @@ export default function RegisterPage() {
                     value={bankAccountNumber}
                     onChange={(e) => setBankAccountNumber(e.target.value)}
                     placeholder="e.g. 50100012345678"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-brand-500"
                   />
                 </div>
 
@@ -1345,7 +1345,7 @@ export default function RegisterPage() {
                     value={ifscCode}
                     onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
                     placeholder="e.g. HDFC0000123"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono uppercase text-white focus:outline-none focus:border-indigo-500 tracking-wider"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono uppercase text-white focus:outline-none focus:border-brand-500 tracking-wider"
                   />
                 </div>
               </div>
@@ -1368,7 +1368,7 @@ export default function RegisterPage() {
                     disabled={isSavingDraft}
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    <Save className="w-3.5 h-3.5 text-indigo-400" />
+                    <Save className="w-3.5 h-3.5 text-brand-400" />
                     {isSavingDraft ? "Saving..." : "Save & Continue Later"}
                   </button>
                   <Button
@@ -1393,7 +1393,7 @@ export default function RegisterPage() {
               <div>
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <FileCheck2 className="w-5 h-5 text-indigo-400" />
+                    <FileCheck2 className="w-5 h-5 text-brand-400" />
                     Upload Mandatory KYC Documents
                   </h2>
                   <Badge variant="warning" className="text-[11px] font-bold">
@@ -1490,7 +1490,7 @@ export default function RegisterPage() {
                               ? "bg-slate-800 text-slate-400 border-slate-700 cursor-wait"
                               : isUploaded
                               ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
-                              : "bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border-indigo-500/30 hover:border-indigo-400/50"
+                              : "bg-brand-600/20 hover:bg-brand-600/30 text-brand-300 border-brand-500/30 hover:border-brand-400/50"
                           }`}
                         >
                           {doc.uploading ? (
@@ -1518,7 +1518,7 @@ export default function RegisterPage() {
 
               {/* Note on approval policy */}
               <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 text-xs flex items-start gap-2.5">
-                <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                <ShieldCheck className="w-4 h-4 text-brand-400 shrink-0 mt-0.5" />
                 <span>
                   <strong>Approval Policy:</strong> After submitting, your application goes into
                   <strong> Pending HR/Admin Verification</strong>. Once verified, HR will activate your official profile,
@@ -1544,7 +1544,7 @@ export default function RegisterPage() {
                     disabled={isSavingDraft}
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700/80 bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    <Save className="w-3.5 h-3.5 text-indigo-400" />
+                    <Save className="w-3.5 h-3.5 text-brand-400" />
                     {isSavingDraft ? "Saving..." : "Save & Continue Later"}
                   </button>
                   <Button
@@ -1591,7 +1591,7 @@ export default function RegisterPage() {
                 </h4>
                 <ul className="text-xs text-slate-400 space-y-2">
                   <li className="flex items-start gap-2">
-                    <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    <span className="w-4 h-4 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                       1
                     </span>
                     <span>
@@ -1599,7 +1599,7 @@ export default function RegisterPage() {
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    <span className="w-4 h-4 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                       2
                     </span>
                     <span>
@@ -1607,7 +1607,7 @@ export default function RegisterPage() {
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    <span className="w-4 h-4 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                       3
                     </span>
                     <span>
@@ -1656,8 +1656,8 @@ export default function RegisterPage() {
             </p>
 
             {email && (
-              <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/20 text-xs text-indigo-200 flex items-start gap-2.5 mb-5">
-                <Mail className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+              <div className="p-3 rounded-xl bg-brand-950/40 border border-brand-500/20 text-xs text-brand-200 flex items-start gap-2.5 mb-5">
+                <Mail className="w-4 h-4 text-brand-400 shrink-0 mt-0.5" />
                 <span>
                   Synchronized with <strong>{email}</strong>. Entering this email on any device will allow you to continue.
                 </span>
@@ -1688,7 +1688,7 @@ export default function RegisterPage() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-900 bg-slate-950 px-6 py-4 text-center text-xs text-slate-500">
-        &copy; {new Date().getFullYear()} Credit Expert India HRMS. Encrypted & ISO Compliant Employee Data Management.
+        &copy; {new Date().getFullYear()} Amortas HRMS. Encrypted & ISO Compliant Employee Data Management.
       </footer>
     </div>
   );

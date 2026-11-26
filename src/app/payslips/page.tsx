@@ -1,7 +1,7 @@
 "use client";
 
+import { Logo } from "@/components/Logo";
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
 import { PayrollRun, PayrollItemSnapshot } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -65,7 +65,7 @@ export default function PayslipsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <FileSpreadsheet className="w-6 h-6 text-blue-600" />
+            <FileSpreadsheet className="w-6 h-6 text-brand-600" />
             Monthly Payslips & Statements
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -81,7 +81,7 @@ export default function PayslipsPage() {
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
+            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600 font-medium"
           >
             {runs.map((r) => (
               <option key={r.id} value={r.month}>
@@ -100,7 +100,7 @@ export default function PayslipsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search employee payslips..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600"
             />
           </div>
         )}
@@ -111,12 +111,12 @@ export default function PayslipsPage() {
         {itemsToDisplay.map((item) => (
           <div
             key={item.employeeId}
-            className="bg-white rounded-2xl p-5 border border-slate-200 hover:border-blue-300 shadow-xs hover:shadow-md transition-all space-y-4"
+            className="bg-white rounded-2xl p-5 border border-slate-200 hover:border-brand-300 shadow-xs hover:shadow-md transition-all space-y-4"
           >
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">{item.employeeName}</h3>
-                <span className="text-[11px] font-mono text-blue-600 font-semibold">{item.employeeId}</span>
+                <span className="text-[11px] font-mono text-brand-600 font-semibold">{item.employeeId}</span>
                 <span className="text-slate-500 text-[11px] block">{item.designation}</span>
               </div>
               <Badge variant="indigo" className="text-[10px]">
@@ -177,17 +177,11 @@ export default function PayslipsPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
                 <div className="flex items-center gap-3">
                   <div className="relative h-10 w-auto flex items-center bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
-                    <Image
-                      src="/img/logo.webp"
-                      alt="Credit Expert India Logo"
-                      width={120}
-                      height={32}
-                      className="h-7 w-auto object-contain"
-                    />
+                    <Logo size="sm" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm tracking-tight">CREDIT EXPERT INDIA</h3>
-                    <p className="text-[10px] text-blue-600 font-medium">HR & Payroll Division • Corporate HQ</p>
+                    <h3 className="font-bold text-slate-900 text-sm tracking-tight">AMORTAS</h3>
+                    <p className="text-[10px] text-brand-600 font-medium">HR & Payroll Division • Corporate HQ</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -203,7 +197,7 @@ export default function PayslipsPage() {
                 </div>
                 <div>
                   <span className="text-slate-500 block">Employee ID</span>
-                  <span className="font-mono text-blue-600 font-semibold">{activeItem.employeeId}</span>
+                  <span className="font-mono text-brand-600 font-semibold">{activeItem.employeeId}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block">Designation</span>
@@ -326,9 +320,9 @@ export default function PayslipsPage() {
             <AttendanceImpactSummary impact={attendanceImpact(activeItem)} />
 
             {/* Net Salary in Words */}
-            <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 rounded-xl bg-brand-50/70 border border-brand-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <span className="text-[10px] text-blue-700 font-semibold uppercase tracking-wider block">
+                <span className="text-[10px] text-brand-700 font-semibold uppercase tracking-wider block">
                   Net Payable Amount
                 </span>
                 <span className="text-2xl font-bold text-emerald-700 font-mono">

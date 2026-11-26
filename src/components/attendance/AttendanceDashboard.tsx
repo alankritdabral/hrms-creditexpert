@@ -177,14 +177,14 @@ export function AttendanceDashboard() {
       <div id="attendance-print-area" className="space-y-5">
         {/* Print-only header */}
         <div className="print-only hidden">
-          <h2 className="text-lg font-bold">Credit Expert India — Attendance Sheet</h2>
+          <h2 className="text-lg font-bold">Amortas — Attendance Sheet</h2>
           <p className="text-xs">{monthLabel(month)} · {branch === "All" ? "All branches" : branch} · Generated {new Date().toLocaleString("en-IN")}</p>
         </div>
 
         {/* Summary */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: viewAll ? "Attendance rate" : "My attendance", value: `${summary.pct}%`, tone: "text-blue-700" },
+            { label: viewAll ? "Attendance rate" : "My attendance", value: `${summary.pct}%`, tone: "text-brand-700" },
             { label: "Present days", value: summary.present, tone: "text-emerald-700" },
             { label: "Late arrivals", value: summary.late, tone: "text-orange-600" },
             { label: "Absent / Leave", value: `${summary.absent} / ${summary.leave}`, tone: "text-red-600" },
@@ -229,7 +229,7 @@ export function AttendanceDashboard() {
                 {rows.map(({ emp, cells, totals }, i) => (
                   <React.Fragment key={emp.employeeId}>
                     {groupByBranch && (i === 0 || rows[i - 1].emp.branch !== emp.branch) && (
-                      <tr><td colSpan={days.length + 7} className="sticky left-0 bg-blue-50 text-blue-800 font-bold px-3 py-1.5 text-xs">{emp.branch}</td></tr>
+                      <tr><td colSpan={days.length + 7} className="sticky left-0 bg-brand-50 text-brand-800 font-bold px-3 py-1.5 text-xs">{emp.branch}</td></tr>
                     )}
                     <tr className="hover:bg-slate-50/60">
                       <td className="sticky left-0 z-10 bg-white px-3 py-1.5 border-b border-slate-100">
@@ -243,7 +243,7 @@ export function AttendanceDashboard() {
                             title={`${emp.name} · ${days[idx]}${c.title ? `\n${c.title}` : ""}`}
                             disabled={!data.canEdit || days[idx] > today}
                             onClick={() => openEdit(emp, days[idx], c)}
-                            className={`w-full h-7 text-[10px] font-semibold ${KIND_STYLE[c.kind]} ${c.derived && c.kind === "absent" ? "opacity-70" : ""} ${data.canEdit && days[idx] <= today ? "hover:ring-2 hover:ring-blue-400 hover:ring-inset cursor-pointer" : "cursor-default"}`}
+                            className={`w-full h-7 text-[10px] font-semibold ${KIND_STYLE[c.kind]} ${c.derived && c.kind === "absent" ? "opacity-70" : ""} ${data.canEdit && days[idx] <= today ? "hover:ring-2 hover:ring-brand-400 hover:ring-inset cursor-pointer" : "cursor-default"}`}
                           >
                             {c.code}
                           </button>
@@ -292,14 +292,14 @@ function MyCalendar({ month, days, cells, today }: { month: string; days: string
   const lead = new Date(`${month}-01T00:00:00`).getDay();
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4">
-      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3"><CalendarDays className="w-4 h-4 text-blue-600" /> My calendar</h3>
+      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3"><CalendarDays className="w-4 h-4 text-brand-600" /> My calendar</h3>
       <div className="grid grid-cols-7 gap-1.5 text-center">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d} className="text-[10px] font-semibold text-slate-400 uppercase">{d}</div>)}
         {Array.from({ length: lead }).map((_, i) => <div key={`b${i}`} />)}
         {days.map((d, i) => {
           const c = cells[i];
           return (
-            <div key={d} title={c.title} className={`rounded-xl p-1.5 sm:p-2 min-h-[56px] flex flex-col items-center justify-between ${KIND_STYLE[c.kind]} ${d === today ? "ring-2 ring-blue-500" : ""}`}>
+            <div key={d} title={c.title} className={`rounded-xl p-1.5 sm:p-2 min-h-[56px] flex flex-col items-center justify-between ${KIND_STYLE[c.kind]} ${d === today ? "ring-2 ring-brand-500" : ""}`}>
               <span className="text-[11px] opacity-70">{Number(d.slice(8))}</span>
               <span className="text-xs font-bold">{c.code}</span>
               <span className="text-[9px] opacity-70">{c.record?.checkIn ? c.record.checkIn.slice(0, 5) : " "}</span>

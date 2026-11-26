@@ -127,29 +127,29 @@ export async function sendEmailOtp(
   }
 
   const transporter = getTransporter();
-  const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS" <no-reply@creditexpertindia.com>`;
+  const fromAddress = process.env.SMTP_FROM || `"Amortas HRMS" <no-reply@creditexpertindia.com>`;
 
   const subject = `Your HRMS Verification Code: ${code}`;
   const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #E5E5E5; border-radius: 8px; background-color: #ffffff;">
       <div style="text-align: center; margin-bottom: 24px;">
-        <h2 style="color: #4f46e5; margin: 0;">Credit Expert India</h2>
-        <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Human Resource Management System</p>
+        <h2 style="color: #FF5A00; margin: 0;">Amortas</h2>
+        <p style="color: #737373; font-size: 14px; margin-top: 4px;">Human Resource Management System</p>
       </div>
-      <div style="padding: 20px; background-color: #f8fafc; border-radius: 6px; margin-bottom: 20px;">
-        <p style="color: #334155; font-size: 15px; margin: 0 0 12px 0;">Hello <strong>${candidateName}</strong>,</p>
-        <p style="color: #475569; font-size: 14px; margin: 0 0 20px 0;">
-          Thank you for starting your employee registration with Credit Expert India. Please enter the following 6-digit verification code to confirm your email:
+      <div style="padding: 20px; background-color: #FFF8F3; border-radius: 6px; margin-bottom: 20px;">
+        <p style="color: #575757; font-size: 15px; margin: 0 0 12px 0;">Hello <strong>${candidateName}</strong>,</p>
+        <p style="color: #575757; font-size: 14px; margin: 0 0 20px 0;">
+          Thank you for starting your employee registration with Amortas. Please enter the following 6-digit verification code to confirm your email:
         </p>
-        <div style="text-align: center; padding: 16px; background-color: #ffffff; border: 2px dashed #cbd5e1; border-radius: 6px; margin: 20px 0;">
-          <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1e293b; font-family: monospace;">${code}</span>
+        <div style="text-align: center; padding: 16px; background-color: #ffffff; border: 2px dashed #D4D4D4; border-radius: 6px; margin: 20px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2E2E2E; font-family: monospace;">${code}</span>
         </div>
-        <p style="color: #64748b; font-size: 12px; margin: 0; text-align: center;">
+        <p style="color: #737373; font-size: 12px; margin: 0; text-align: center;">
           This code is valid for 10 minutes. If you did not request this, please ignore this email.
         </p>
       </div>
-      <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
-        &copy; ${new Date().getFullYear()} Credit Expert India. All rights reserved.
+      <p style="color: #A3A3A3; font-size: 12px; text-align: center; margin: 0;">
+        &copy; ${new Date().getFullYear()} Amortas. All rights reserved.
       </p>
     </div>
   `;
@@ -251,37 +251,37 @@ export async function sendAccountApprovedEmail(
 ): Promise<boolean> {
   const normalizedEmail = email.toLowerCase().trim();
   const transporter = getTransporter();
-  const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS" <no-reply@creditexpertindia.com>`;
+  const fromAddress = process.env.SMTP_FROM || `"Amortas HRMS" <no-reply@creditexpertindia.com>`;
 
-  const subject = `Welcome to Credit Expert India! Your HRMS Account is Approved (${employeeId})`;
+  const subject = `Welcome to Amortas! Your HRMS Account is Approved (${employeeId})`;
   const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login`;
 
   const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #E5E5E5; border-radius: 8px; background-color: #ffffff;">
       <div style="text-align: center; margin-bottom: 24px;">
         <h2 style="color: #10b981; margin: 0;">Application Approved!</h2>
-        <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Credit Expert India HRMS</p>
+        <p style="color: #737373; font-size: 14px; margin-top: 4px;">Amortas HRMS</p>
       </div>
-      <div style="padding: 20px; background-color: #f8fafc; border-radius: 6px; margin-bottom: 20px;">
-        <p style="color: #334155; font-size: 15px; margin: 0 0 12px 0;">Dear <strong>${candidateName}</strong>,</p>
-        <p style="color: #475569; font-size: 14px; margin: 0 0 16px 0;">
+      <div style="padding: 20px; background-color: #FFF8F3; border-radius: 6px; margin-bottom: 20px;">
+        <p style="color: #575757; font-size: 15px; margin: 0 0 12px 0;">Dear <strong>${candidateName}</strong>,</p>
+        <p style="color: #575757; font-size: 14px; margin: 0 0 16px 0;">
           Congratulations! Your onboarding details and KYC documents have been reviewed and approved by HR & Admin.
         </p>
         <div style="padding: 16px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; margin: 16px 0;">
           <p style="margin: 0; color: #166534; font-size: 14px;"><strong>Official Employee ID:</strong> <span style="font-family: monospace; font-size: 16px;">${employeeId}</span></p>
           <p style="margin: 8px 0 0 0; color: #166534; font-size: 14px;"><strong>Account Status:</strong> Active</p>
         </div>
-        <p style="color: #475569; font-size: 14px; margin: 16px 0;">
+        <p style="color: #575757; font-size: 14px; margin: 16px 0;">
           You can now log in to the portal using your registered email address and password.
         </p>
         <div style="text-align: center; margin: 24px 0;">
-          <a href="${loginUrl}" style="background-color: #4f46e5; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
+          <a href="${loginUrl}" style="background-color: #FF5A00; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">
             Log In to HRMS Portal
           </a>
         </div>
       </div>
-      <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
-        &copy; ${new Date().getFullYear()} Credit Expert India. All rights reserved.
+      <p style="color: #A3A3A3; font-size: 12px; text-align: center; margin: 0;">
+        &copy; ${new Date().getFullYear()} Amortas. All rights reserved.
       </p>
     </div>
   `;
@@ -341,30 +341,30 @@ export async function sendPasswordResetOtp(
   }
 
   const transporter = getTransporter();
-  const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS Security" <security@creditexpertindia.com>`;
+  const fromAddress = process.env.SMTP_FROM || `"Amortas HRMS Security" <security@creditexpertindia.com>`;
 
   const subject = `Your HRMS Password Reset Code: ${code}`;
   const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #E5E5E5; border-radius: 8px; background-color: #ffffff;">
       <div style="text-align: center; margin-bottom: 24px;">
-        <h2 style="color: #4f46e5; margin: 0;">Credit Expert India</h2>
-        <p style="color: #64748b; font-size: 14px; margin-top: 4px;">HRMS Security Alert</p>
+        <h2 style="color: #FF5A00; margin: 0;">Amortas</h2>
+        <p style="color: #737373; font-size: 14px; margin-top: 4px;">HRMS Security Alert</p>
       </div>
-      <div style="padding: 20px; background-color: #f8fafc; border-radius: 6px; margin-bottom: 20px;">
-        <p style="color: #334155; font-size: 15px; margin: 0 0 12px 0;">Hello <strong>${userName}</strong>,</p>
-        <p style="color: #475569; font-size: 14px; margin: 0 0 20px 0;">
-          We received a request to reset your password for your Credit Expert India HRMS account.
+      <div style="padding: 20px; background-color: #FFF8F3; border-radius: 6px; margin-bottom: 20px;">
+        <p style="color: #575757; font-size: 15px; margin: 0 0 12px 0;">Hello <strong>${userName}</strong>,</p>
+        <p style="color: #575757; font-size: 14px; margin: 0 0 20px 0;">
+          We received a request to reset your password for your Amortas HRMS account.
           Please use the following 6-digit verification code to proceed:
         </p>
-        <div style="text-align: center; padding: 16px; background-color: #ffffff; border: 2px dashed #cbd5e1; border-radius: 6px; margin: 20px 0;">
+        <div style="text-align: center; padding: 16px; background-color: #ffffff; border: 2px dashed #D4D4D4; border-radius: 6px; margin: 20px 0;">
           <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #dc2626; font-family: monospace;">${code}</span>
         </div>
-        <p style="color: #64748b; font-size: 12px; margin: 0; text-align: center;">
+        <p style="color: #737373; font-size: 12px; margin: 0; text-align: center;">
           This code is valid for 10 minutes. If you did NOT request a password reset, please contact your HR or IT department immediately.
         </p>
       </div>
-      <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
-        &copy; ${new Date().getFullYear()} Credit Expert India. All rights reserved.
+      <p style="color: #A3A3A3; font-size: 12px; text-align: center; margin: 0;">
+        &copy; ${new Date().getFullYear()} Amortas. All rights reserved.
       </p>
     </div>
   `;
@@ -448,24 +448,24 @@ export async function sendPasswordChangedEmail(
 ): Promise<boolean> {
   const normalizedEmail = email.toLowerCase().trim();
   const transporter = getTransporter();
-  const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS Security" <security@creditexpertindia.com>`;
+  const fromAddress = process.env.SMTP_FROM || `"Amortas HRMS Security" <security@creditexpertindia.com>`;
 
   const subject = `Security Notice: Your HRMS Password Was Changed`;
   const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login`;
 
   const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #E5E5E5; border-radius: 8px; background-color: #ffffff;">
       <div style="text-align: center; margin-bottom: 24px;">
-        <h2 style="color: #4f46e5; margin: 0;">Credit Expert India</h2>
-        <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Security Notification</p>
+        <h2 style="color: #FF5A00; margin: 0;">Amortas</h2>
+        <p style="color: #737373; font-size: 14px; margin-top: 4px;">Security Notification</p>
       </div>
-      <div style="padding: 20px; background-color: #f8fafc; border-radius: 6px; margin-bottom: 20px;">
-        <p style="color: #334155; font-size: 15px; margin: 0 0 12px 0;">Hello <strong>${userName}</strong>,</p>
-        <p style="color: #475569; font-size: 14px; margin: 0 0 16px 0;">
-          This is to confirm that the password for your Credit Expert India HRMS account was successfully changed on <strong>${new Date().toLocaleString()}</strong>.
+      <div style="padding: 20px; background-color: #FFF8F3; border-radius: 6px; margin-bottom: 20px;">
+        <p style="color: #575757; font-size: 15px; margin: 0 0 12px 0;">Hello <strong>${userName}</strong>,</p>
+        <p style="color: #575757; font-size: 14px; margin: 0 0 16px 0;">
+          This is to confirm that the password for your Amortas HRMS account was successfully changed on <strong>${new Date().toLocaleString()}</strong>.
         </p>
-        <div style="padding: 14px; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; margin: 16px 0;">
-          <p style="margin: 0; color: #1e40af; font-size: 13px;">
+        <div style="padding: 14px; background-color: #eff6ff; border: 1px solid #FFD1A3; border-radius: 6px; margin: 16px 0;">
+          <p style="margin: 0; color: #E04F00; font-size: 13px;">
             If you made this change, you can safely disregard this email.
           </p>
           <p style="margin: 8px 0 0 0; color: #dc2626; font-size: 13px; font-weight: bold;">
@@ -473,13 +473,13 @@ export async function sendPasswordChangedEmail(
           </p>
         </div>
         <div style="text-align: center; margin: 20px 0;">
-          <a href="${loginUrl}" style="background-color: #4f46e5; color: #ffffff; padding: 10px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; display: inline-block;">
+          <a href="${loginUrl}" style="background-color: #FF5A00; color: #ffffff; padding: 10px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; display: inline-block;">
             Sign In with New Password
           </a>
         </div>
       </div>
-      <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
-        &copy; ${new Date().getFullYear()} Credit Expert India. All rights reserved.
+      <p style="color: #A3A3A3; font-size: 12px; text-align: center; margin: 0;">
+        &copy; ${new Date().getFullYear()} Amortas. All rights reserved.
       </p>
     </div>
   `;
@@ -547,7 +547,7 @@ export function ruleReminderHtml(rule: AttendanceRuleReminder): string {
   items.push("A Half Day deducts half a day of salary.");
   return `
       <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; margin: 16px 0;">
-        <ul style="margin: 0; padding-left: 18px; color: #475569; font-size: 13px; line-height: 1.7;">
+        <ul style="margin: 0; padding-left: 18px; color: #575757; font-size: 13px; line-height: 1.7;">
           ${items.map((i) => `<li>${i}</li>`).join("\n          ")}
         </ul>
       </div>`;
@@ -563,24 +563,24 @@ export async function sendAttendanceReminderEmail(
   rule?: AttendanceRuleReminder
 ): Promise<boolean> {
   const transporter = getTransporter();
-  const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS" <no-reply@creditexpertindia.com>`;
+  const fromAddress = process.env.SMTP_FROM || `"Amortas HRMS" <no-reply@creditexpertindia.com>`;
   const portalUrl = attendanceLink();
   const safeName = name.replace(/[<>&"]/g, "");
 
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #E5E5E5; border-radius: 8px;">
       <h2 style="color: #f59e0b; margin: 0 0 12px 0;">Attendance Reminder</h2>
-      <p style="color: #334155; font-size: 15px;">Dear <strong>${safeName}</strong>,</p>
-      <p style="color: #475569; font-size: 14px;">
+      <p style="color: #575757; font-size: 15px;">Dear <strong>${safeName}</strong>,</p>
+      <p style="color: #575757; font-size: 14px;">
         Your attendance for <strong>${date}</strong> has not been marked yet. Please clock in on the HRMS portal as soon as possible.
       </p>${rule ? ruleReminderHtml(rule) : ""}
       <div style="text-align: center; margin: 24px 0;">
-        <a href="${portalUrl}" style="background-color: #4f46e5; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Mark Attendance</a>
-        <p style="color: #64748b; font-size: 12px; margin: 12px 0 0 0;">
-          Or open this link: <a href="${portalUrl}" style="color: #4f46e5;">${portalUrl}</a>
+        <a href="${portalUrl}" style="background-color: #FF5A00; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Mark Attendance</a>
+        <p style="color: #737373; font-size: 12px; margin: 12px 0 0 0;">
+          Or open this link: <a href="${portalUrl}" style="color: #FF5A00;">${portalUrl}</a>
         </p>
       </div>
-      <p style="color: #94a3b8; font-size: 12px; text-align: center;">&copy; ${new Date().getFullYear()} Credit Expert India</p>
+      <p style="color: #A3A3A3; font-size: 12px; text-align: center;">&copy; ${new Date().getFullYear()} Amortas</p>
     </div>
   `;
 
@@ -612,7 +612,7 @@ export async function sendReportEmail(
   mail: { subject: string; html: string; text?: string }
 ): Promise<boolean> {
   const transporter = getTransporter();
-  const fromAddress = process.env.SMTP_FROM || `"Credit Expert HRMS" <no-reply@creditexpertindia.com>`;
+  const fromAddress = process.env.SMTP_FROM || `"Amortas HRMS" <no-reply@creditexpertindia.com>`;
   if (transporter) {
     try {
       await transporter.sendMail({ from: fromAddress, to: to.toLowerCase().trim(), subject: mail.subject, html: mail.html, text: mail.text });

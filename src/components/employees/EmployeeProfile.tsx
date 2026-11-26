@@ -531,7 +531,7 @@ export function EmployeeProfile({
                   e.currentTarget.onerror = null;
                   e.currentTarget.src = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150";
                 }}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-xl shadow-indigo-500/10"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-brand-500/40 shadow-xl shadow-brand-500/10"
               />
               {/* Badge: Passport Photo Default vs Custom */}
               {activePreference === "passport" ? (
@@ -545,7 +545,7 @@ export function EmployeeProfile({
               ) : (
                 <span
                   title="Custom Profile Picture"
-                  className="absolute -bottom-2 -left-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full border border-indigo-400/50 shadow flex items-center gap-1 backdrop-blur-xs transition-colors cursor-pointer"
+                  className="absolute -bottom-2 -left-1 bg-brand-600 hover:bg-brand-500 text-[#2E2E2E] text-[9px] font-bold px-2 py-0.5 rounded-full border border-brand-400/50 shadow flex items-center gap-1 backdrop-blur-xs transition-colors cursor-pointer"
                   onClick={canEditPhoto ? handleOpenPhotoModal : undefined}
                 >
                   <User className="w-2.5 h-2.5" /> Custom
@@ -560,7 +560,7 @@ export function EmployeeProfile({
                   title="Customize profile photo"
                   className="absolute inset-0 bg-slate-950/65 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white text-[10px] font-semibold backdrop-blur-xs cursor-pointer border border-white/20"
                 >
-                  <Camera className="w-5 h-5 text-indigo-300" />
+                  <Camera className="w-5 h-5 text-brand-300" />
                   <span>Edit Photo</span>
                 </button>
               )}
@@ -583,21 +583,21 @@ export function EmployeeProfile({
                 >
                   {employee.employment.employmentStatus}
                 </Badge>
-                <span className="inline-flex items-center gap-1 font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 text-[10px]">
-                  <MapPin className="w-2.5 h-2.5 text-blue-500" />
+                <span className="inline-flex items-center gap-1 font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-full border border-brand-200 text-[10px]">
+                  <MapPin className="w-2.5 h-2.5 text-brand-500" />
                   {employee.employment.branch || "Delhi"}
                 </span>
 
                 {/* System Role Badge / Dropdown */}
                 {currentUser.role === "admin" || currentUser.role === "hr" ? (
                   <div className="inline-flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-lg px-2 py-0.5 shadow-2xs">
-                    <ShieldCheck className="w-3 h-3 text-indigo-400" />
+                    <ShieldCheck className="w-3 h-3 text-brand-400" />
                     <span className="text-[10px] text-slate-400 font-medium">Role:</span>
                     <select
                       value={employeeRole}
                       disabled={isUpdatingRole}
                       onChange={(e) => handleRoleChange(e.target.value)}
-                      className="bg-transparent text-[11px] font-bold text-indigo-300 focus:outline-none cursor-pointer"
+                      className="bg-transparent text-[11px] font-bold text-brand-300 focus:outline-none cursor-pointer"
                     >
                       {availableRoles.length > 0 ? (
                         availableRoles.map((r) => (
@@ -620,8 +620,8 @@ export function EmployeeProfile({
                     )}
                   </div>
                 ) : (
-                  <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 text-[10px]">
-                    <ShieldCheck className="w-2.5 h-2.5 text-indigo-500" />
+                  <span className="inline-flex items-center gap-1 font-semibold text-brand-700 bg-brand-50 px-2.5 py-0.5 rounded-full border border-brand-200 text-[10px]">
+                    <ShieldCheck className="w-2.5 h-2.5 text-brand-500" />
                     Role: {availableRoles.find((r) => r.id === employeeRole)?.name || employeeRole.toUpperCase()}
                   </span>
                 )}
@@ -651,9 +651,9 @@ export function EmployeeProfile({
               <Button
                 size="sm"
                 variant="outline"
-                icon={<Camera className="w-4 h-4 text-indigo-400" />}
+                icon={<Camera className="w-4 h-4 text-brand-400" />}
                 onClick={handleOpenPhotoModal}
-                className="border-slate-700 hover:border-indigo-500/50 text-slate-300 hover:text-white flex-1 sm:flex-none justify-center"
+                className="border-slate-700 hover:border-brand-500/50 text-slate-300 hover:text-white flex-1 sm:flex-none justify-center"
               >
                 {activePreference === "passport" ? "Profile Photo" : "Photo Settings"}
               </Button>
@@ -688,7 +688,7 @@ export function EmployeeProfile({
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  ? "bg-brand-600 text-[#2E2E2E] shadow-md shadow-brand-600/30"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
               }`}
             >
@@ -744,7 +744,7 @@ export function EmployeeProfile({
                       </>
                     ) : (
                       <>
-                        <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <User className="w-3.5 h-3.5 text-brand-400 shrink-0" />
                         <span>Custom Profile Picture</span>
                       </>
                     )}
@@ -753,7 +753,7 @@ export function EmployeeProfile({
                     <button
                       type="button"
                       onClick={handleOpenPhotoModal}
-                      className="text-[11px] text-indigo-400 hover:text-indigo-300 underline underline-offset-2 font-medium cursor-pointer"
+                      className="text-[11px] text-brand-400 hover:text-brand-300 underline underline-offset-2 font-medium cursor-pointer"
                     >
                       Change
                     </button>
@@ -780,14 +780,14 @@ export function EmployeeProfile({
                     value={employee.employment.branch || "Delhi"}
                     disabled={isSavingBranch}
                     onChange={(e) => changeBranch(e.target.value)}
-                    className="mt-1 bg-transparent border border-slate-700 rounded-lg px-2 py-1 text-blue-600 font-semibold disabled:opacity-50"
+                    className="mt-1 bg-transparent border border-slate-700 rounded-lg px-2 py-1 text-brand-600 font-semibold disabled:opacity-50"
                   >
                     {["Delhi", "Dehradun", "Rudrapur"].map((b) => (
                       <option key={b} value={b}>{b} Branch</option>
                     ))}
                   </select>
                 ) : (
-                  <span className="text-blue-600 font-semibold">{employee.employment.branch || "Delhi"} Branch</span>
+                  <span className="text-brand-600 font-semibold">{employee.employment.branch || "Delhi"} Branch</span>
                 )}
                 {branchError && <span className="text-red-500 block mt-1">{branchError}</span>}
               </div>
@@ -820,7 +820,7 @@ export function EmployeeProfile({
           <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                <Shield className="w-3.5 h-3.5 text-brand-400" />
                 Statutory & Banking
               </h3>
               <div className="flex items-center gap-2">
@@ -850,7 +850,7 @@ export function EmployeeProfile({
                     <input
                       value={statutoryForm[key]}
                       onChange={(e) => setStatutoryForm((f) => ({ ...f, [key]: e.target.value }))}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 font-mono text-slate-200 focus:outline-none focus:border-brand-500"
                     />
                   </label>
                 ))}
@@ -905,7 +905,7 @@ export function EmployeeProfile({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-800 gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">
+                  <span className="text-xs text-brand-400 font-semibold uppercase tracking-wider">
                     Active Salary & Provident Fund
                   </span>
                   <Badge variant={employee.currentSalary.employeePf > 0 ? "indigo" : "warning"}>
@@ -971,7 +971,7 @@ export function EmployeeProfile({
                   </>
                 ) : (
                   <>
-                    <p className={`text-xl font-bold font-mono ${employee.currentSalary.employeePf > 0 ? "text-indigo-300" : "text-slate-400"}`}>
+                    <p className={`text-xl font-bold font-mono ${employee.currentSalary.employeePf > 0 ? "text-brand-300" : "text-slate-400"}`}>
                       {employee.currentSalary.employeePf > 0
                         ? `₹${employee.currentSalary.employeePf.toLocaleString("en-IN")}`
                         : "₹0"}
@@ -1081,7 +1081,7 @@ export function EmployeeProfile({
                               isIncentive
                                 ? "bg-slate-800 text-slate-400 border border-slate-700"
                                 : hasPf
-                                ? "bg-indigo-500/10 text-indigo-300 border border-indigo-500/30"
+                                ? "bg-brand-500/10 text-brand-300 border border-brand-500/30"
                                 : "bg-slate-800 text-slate-400 border border-slate-700"
                             }`}
                           >
@@ -1096,7 +1096,7 @@ export function EmployeeProfile({
                         <td className="py-3 text-slate-300 font-mono">
                           {isIncentive ? "Variable" : `₹${rev.annualCtc.toLocaleString("en-IN")}`}
                         </td>
-                        <td className="py-3 text-indigo-300 font-medium">{rev.revisionReason}</td>
+                        <td className="py-3 text-brand-300 font-medium">{rev.revisionReason}</td>
                         <td className="py-3 text-slate-400">{rev.updatedBy}</td>
                       </tr>
                     );
@@ -1173,8 +1173,8 @@ export function EmployeeProfile({
       {activeTab === "leaves" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
-              <span className="text-xs text-indigo-400 font-medium uppercase tracking-wider">Casual Leave (CL)</span>
+            <div className="p-4 rounded-2xl bg-brand-500/10 border border-brand-500/20">
+              <span className="text-xs text-brand-400 font-medium uppercase tracking-wider">Casual Leave (CL)</span>
               <p className="text-2xl font-bold text-white mt-1">{clTaken} Day{clTaken === 1 ? "" : "s"}</p>
               <span className="text-[11px] text-slate-400">
                 {clPending > 0 ? `${clPending}d pending • ` : ""}Marked as taken (No preset limit)
@@ -1324,7 +1324,7 @@ export function EmployeeProfile({
                             alt={d.title}
                             onError={(e) => {
                               e.currentTarget.onerror = null;
-                              e.currentTarget.src = "/img/logo.webp";
+                              e.currentTarget.src = "/img/logo.png";
                             }}
                             className="w-full h-full object-cover"
                           />
@@ -1364,7 +1364,7 @@ export function EmployeeProfile({
                           href={d.fileUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center text-xs text-indigo-400 hover:text-indigo-300 py-1 px-2 border border-slate-700 rounded-lg hover:border-slate-600 transition-colors"
+                          className="inline-flex items-center text-xs text-brand-400 hover:text-brand-300 py-1 px-2 border border-slate-700 rounded-lg hover:border-slate-600 transition-colors"
                         >
                           View
                         </a>
@@ -1460,7 +1460,7 @@ export function EmployeeProfile({
               <h3 className="font-semibold text-white text-base">Employee Lifecycle & Career Path</h3>
               <p className="text-xs text-slate-400 mt-0.5">
                 Current Operational Status:{" "}
-                <span className="font-bold text-indigo-400">{employee.employment.employmentStatus}</span>
+                <span className="font-bold text-brand-400">{employee.employment.employmentStatus}</span>
               </p>
             </div>
             {(currentUser.role === "admin" || currentUser.role === "hr") && (
@@ -1481,7 +1481,7 @@ export function EmployeeProfile({
                       console.error("Failed to update status:", err);
                     }
                   }}
-                  className="bg-slate-900 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 text-white font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  className="bg-slate-900 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 text-white font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
                 >
                   <option value="Candidate">Candidate</option>
                   <option value="Offer Sent">Offer Sent</option>
@@ -1521,7 +1521,7 @@ export function EmployeeProfile({
                     key={stage}
                     className={`p-2 rounded-lg border transition-all ${
                       isCurrent
-                        ? "bg-indigo-600 text-white font-bold border-indigo-400 ring-2 ring-indigo-400/30"
+                        ? "bg-brand-600 text-[#2E2E2E] font-bold border-brand-400 ring-2 ring-brand-400/30"
                         : "bg-slate-950/60 text-slate-400 border-slate-800"
                     }`}
                   >
@@ -1533,7 +1533,7 @@ export function EmployeeProfile({
             </div>
           </div>
 
-          <div className="relative border-l-2 border-indigo-500/30 ml-4 pl-6 space-y-6 text-xs">
+          <div className="relative border-l-2 border-brand-500/30 ml-4 pl-6 space-y-6 text-xs">
             <div className="relative">
               <div className="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full bg-emerald-500 ring-4 ring-slate-950" />
               <p className="font-semibold text-white">Joined Company</p>
@@ -1550,7 +1550,7 @@ export function EmployeeProfile({
               </p>
             </div>
             <div className="relative">
-              <div className="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full bg-indigo-500 ring-4 ring-slate-950" />
+              <div className="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full bg-brand-500 ring-4 ring-slate-950" />
               <p className="font-semibold text-white">Salary Appraisal & CTC Structure</p>
               <p className="text-slate-400 mt-0.5">
                 Annual CTC: ₹{employee.currentSalary.annualCtc.toLocaleString("en-IN")}
@@ -1605,7 +1605,7 @@ export function EmployeeProfile({
             </div>
             <div>
               <span className="text-[10px] uppercase font-semibold text-slate-400 block">Current PF Status</span>
-              <span className={`text-xs font-semibold ${employee.currentSalary.employeePf > 0 ? "text-indigo-400" : "text-amber-400"}`}>
+              <span className={`text-xs font-semibold ${employee.currentSalary.employeePf > 0 ? "text-brand-400" : "text-amber-400"}`}>
                 {employee.currentSalary.employeePf > 0 ? `PF Enrolled (₹${employee.currentSalary.employeePf})` : "PF Excluded"}
               </span>
             </div>
@@ -1634,11 +1634,11 @@ export function EmployeeProfile({
                 onClick={() => setSalaryBasis("monthly_gross")}
                 className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all cursor-pointer ${
                   salaryBasis === "monthly_gross"
-                    ? "bg-indigo-600/20 border-indigo-500 text-white shadow-xs"
+                    ? "bg-brand-600/20 border-brand-500 text-[#2E2E2E] shadow-xs"
                     : "bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200"
                 }`}
               >
-                <div className="font-semibold text-indigo-300">Monthly Gross Salary</div>
+                <div className="font-semibold text-brand-300">Monthly Gross Salary</div>
                 <div className="text-[10px] opacity-75">Pay before PF deductions</div>
               </button>
               <button
@@ -1703,7 +1703,7 @@ export function EmployeeProfile({
                   setMonthlyAmount(val === "" ? 0 : Number(val));
                 }}
                 placeholder={salaryBasis === "monthly_net" ? "e.g. 30000" : "e.g. 35000"}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-brand-500"
               />
             </div>
             {/* Quick adjust helper pills */}
@@ -1730,7 +1730,7 @@ export function EmployeeProfile({
                   type="checkbox"
                   checked={includePf}
                   onChange={(e) => setIncludePf(e.target.checked)}
-                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-600 cursor-pointer"
+                  className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 bg-slate-800 border-slate-600 cursor-pointer"
                 />
                 <span className="font-semibold text-white text-xs">Include Provident Fund (PF)</span>
               </label>
@@ -1762,7 +1762,7 @@ export function EmployeeProfile({
                       }}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
                         pfType === "percentage"
-                          ? "bg-indigo-600 text-white shadow-xs"
+                          ? "bg-brand-600 text-[#2E2E2E] shadow-xs"
                           : "text-slate-400 hover:text-white"
                       }`}
                     >
@@ -1776,7 +1776,7 @@ export function EmployeeProfile({
                       }}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
                         pfType === "fixed"
-                          ? "bg-indigo-600 text-white shadow-xs"
+                          ? "bg-brand-600 text-[#2E2E2E] shadow-xs"
                           : "text-slate-400 hover:text-white"
                       }`}
                     >
@@ -1794,7 +1794,7 @@ export function EmployeeProfile({
                       <button
                         type="button"
                         onClick={() => setPfValue(12)}
-                        className="px-2 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 cursor-pointer transition-colors"
+                        className="px-2 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-brand-300 border border-slate-700 cursor-pointer transition-colors"
                       >
                         Default: 12%
                       </button>
@@ -1808,7 +1808,7 @@ export function EmployeeProfile({
                         value={pfValue || ""}
                         onChange={(e) => setPfValue(Number(e.target.value))}
                         placeholder="12"
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
                       />
                       <span className="absolute right-3 top-2 text-slate-400 font-mono text-xs">%</span>
                     </div>
@@ -1827,7 +1827,7 @@ export function EmployeeProfile({
                       <button
                         type="button"
                         onClick={() => setPfValue(1800)}
-                        className="px-2 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 cursor-pointer transition-colors"
+                        className="px-2 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-brand-300 border border-slate-700 cursor-pointer transition-colors"
                       >
                         Statutory Cap: ₹1,800
                       </button>
@@ -1844,7 +1844,7 @@ export function EmployeeProfile({
                           setPfValue(val === "" ? 0 : Number(val));
                         }}
                         placeholder="1800"
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
                       />
                     </div>
                     <p className="text-[11px] text-slate-400 mt-1.5">
@@ -1885,7 +1885,7 @@ export function EmployeeProfile({
                 <span className="text-[10px] uppercase font-semibold text-slate-400 block">
                   Provident Fund (PF)
                 </span>
-                <span className={`text-base font-bold font-mono ${previewComponents.employeePf > 0 ? "text-indigo-300" : "text-slate-400"}`}>
+                <span className={`text-base font-bold font-mono ${previewComponents.employeePf > 0 ? "text-brand-300" : "text-slate-400"}`}>
                   {salaryBasis === "incentive_only"
                     ? "Exempted"
                     : previewComponents.employeePf > 0
@@ -1950,7 +1950,7 @@ export function EmployeeProfile({
               value={revisionReason}
               onChange={(e) => setRevisionReason(e.target.value)}
               placeholder="e.g. Annual Appraisal 2026 / Promotion"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -1984,11 +1984,11 @@ export function EmployeeProfile({
       >
         <div className="space-y-5">
           {/* Company Policy Banner */}
-          <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200 flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+          <div className="p-3.5 rounded-xl bg-brand-500/10 border border-brand-500/20 text-xs text-brand-200 flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-brand-400 shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p className="font-semibold text-white">Default Company Policy</p>
-              <p className="text-blue-200/90 leading-relaxed text-[11px]">
+              <p className="text-brand-200/90 leading-relaxed text-[11px]">
                 By default, your profile displays your <strong>official passport size photograph</strong> submitted during KYC verification. You can choose to keep your official passport photo or switch to a custom profile picture anytime.
               </p>
             </div>
@@ -2087,7 +2087,7 @@ export function EmployeeProfile({
               onClick={() => setPhotoPreference("custom")}
               className={`cursor-pointer rounded-2xl p-4 border transition-all relative flex flex-col justify-between ${
                 photoPreference === "custom"
-                  ? "border-indigo-500 bg-indigo-950/20 ring-2 ring-indigo-500/30"
+                  ? "border-brand-500 bg-brand-950/20 ring-2 ring-brand-500/30"
                   : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
               }`}
             >
@@ -2100,17 +2100,17 @@ export function EmployeeProfile({
                       id="pref-custom"
                       checked={photoPreference === "custom"}
                       onChange={() => setPhotoPreference("custom")}
-                      className="text-indigo-500 focus:ring-indigo-500 cursor-pointer"
+                      className="text-brand-500 focus:ring-brand-500 cursor-pointer"
                     />
                     <label
                       htmlFor="pref-custom"
                       className="text-xs font-bold text-white cursor-pointer flex items-center gap-1.5"
                     >
-                      <User className="w-3.5 h-3.5 text-indigo-400" />
+                      <User className="w-3.5 h-3.5 text-brand-400" />
                       Custom Profile Photo
                     </label>
                   </div>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">
                     Employee Choice
                   </span>
                 </div>
@@ -2141,7 +2141,7 @@ export function EmployeeProfile({
 
               <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-between">
                 <span>Custom Avatar:</span>
-                <span className={customPhotoPreview ? "text-indigo-400 font-semibold" : "text-slate-500"}>
+                <span className={customPhotoPreview ? "text-brand-400 font-semibold" : "text-slate-500"}>
                   {customPhotoPreview ? "Ready to use" : "Upload below"}
                 </span>
               </div>
@@ -2165,7 +2165,7 @@ export function EmployeeProfile({
                 />
                 <label
                   htmlFor="custom-photo-upload"
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-[#2E2E2E] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow"
                 >
                   <UploadCloud className="w-4 h-4" />
                   {customPhotoPreview ? "Change Photo File" : "Choose Image File"}
@@ -2204,7 +2204,7 @@ export function EmployeeProfile({
                     : resolvedPassportPhoto || employee.personal.avatarUrl || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150"
                 }
                 alt="Active Preview"
-                className="w-12 h-12 rounded-xl object-cover border-2 border-indigo-500/40 shadow"
+                className="w-12 h-12 rounded-xl object-cover border-2 border-brand-500/40 shadow"
               />
               <div>
                 <p className="text-xs font-semibold text-white">Active Avatar Preview</p>
@@ -2239,7 +2239,7 @@ export function EmployeeProfile({
               size="sm"
               isLoading={isUploadingPhoto}
               onClick={handleSavePhotoSettings}
-              className="bg-indigo-600 hover:bg-indigo-500"
+              className="bg-brand-600 hover:bg-brand-500"
             >
               Save Profile Photo Preference
             </Button>

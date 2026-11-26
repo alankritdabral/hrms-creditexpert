@@ -32,7 +32,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       return <>{children}</>;
     }
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f0f7ff] via-[#ffffff] to-[#e6f0fa] text-[#0a2540] flex items-center justify-center p-3 sm:p-4">
+      <div className="min-h-screen bg-gradient-to-br from-[#f0f7ff] via-[#ffffff] to-[#e6f0fa] text-[#2E2E2E] flex items-center justify-center p-3 sm:p-4">
         <div className="w-full max-w-md">
           {children}
         </div>
@@ -43,11 +43,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   // Guard protected routes: do not render children until authentication is verified
   if (isLoading || !isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-[#FFF8F3] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-xs font-medium text-slate-500 font-mono tracking-wide">
-            {isLoading ? "Verifying Credit Expert Workspace..." : "Redirecting to secure login..."}
+            {isLoading ? "Verifying Amortas Workspace..." : "Redirecting to secure login..."}
           </p>
         </div>
       </div>
@@ -67,7 +67,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <NotificationsProvider>
-        <div className="flex min-h-screen bg-[#f8fafc] text-[#0a2540] antialiased">
+        <div className="flex min-h-screen bg-[#FFF8F3] text-[#2E2E2E] antialiased">
           {/* Sidebar with Suspense boundary */}
           <Suspense
             fallback={
@@ -91,7 +91,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               <Suspense
                 fallback={
                   <div className="py-12 text-center text-slate-500 text-xs font-mono">
-                    Loading Credit Expert Workspace...
+                    Loading Amortas Workspace...
                   </div>
                 }
               >
@@ -106,7 +106,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                     </p>
                     <Link
                       href="/dashboard"
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors shadow-sm cursor-pointer"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-[#2E2E2E] font-semibold text-xs transition-colors shadow-sm cursor-pointer"
                     >
                       <ArrowLeft className="w-4 h-4" />
                       Back to Dashboard
@@ -126,7 +126,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#f8fafc]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#FFF8F3]" />}>
       <AppShellInner>{children}</AppShellInner>
     </Suspense>
   );

@@ -189,7 +189,7 @@ export const INITIAL_ONBOARDING_RECORDS: OnboardingRecord[] = [];
 export const INITIAL_OFFICES: OfficeLocation[] = [
   {
     id: "office-delhi",
-    name: "Credit Expert - Delhi Branch",
+    name: "Amortas - Delhi Branch",
     branch: "Delhi",
     latitude: 28.6289,
     longitude: 77.2065,
@@ -202,7 +202,7 @@ export const INITIAL_OFFICES: OfficeLocation[] = [
   },
   {
     id: "office-dehradun",
-    name: "Credit Expert - Dehradun Branch",
+    name: "Amortas - Dehradun Branch",
     branch: "Dehradun",
     latitude: 30.3165,
     longitude: 78.0322,
@@ -215,7 +215,7 @@ export const INITIAL_OFFICES: OfficeLocation[] = [
   },
   {
     id: "office-rudrapur",
-    name: "Credit Expert - Rudrapur Branch",
+    name: "Amortas - Rudrapur Branch",
     branch: "Rudrapur",
     latitude: 28.9800,
     longitude: 79.4000,

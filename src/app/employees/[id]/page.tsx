@@ -64,7 +64,7 @@ function EmployeeDetailContent() {
   if (isLoading) {
     return (
       <div className="py-24 text-center text-slate-500 text-xs">
-        <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3" />
+        <div className="animate-spin w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full mx-auto mb-3" />
         Loading employee profile workspace...
       </div>
     );
@@ -102,7 +102,7 @@ export default function SingleEmployeePage() {
     <Suspense
       fallback={
         <div className="py-24 text-center text-slate-500 text-xs">
-          <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3" />
+          <div className="animate-spin w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full mx-auto mb-3" />
           Loading employee profile...
         </div>
       }

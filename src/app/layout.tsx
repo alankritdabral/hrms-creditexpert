@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Poppins, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Suspense } from "react";
 import { AuthProvider } from "@/lib/auth-context";
@@ -15,22 +15,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const poppins = Poppins({
+  variable: "--font-poppins",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#2563eb",
+  themeColor: "#FF5A00",
 };
 
 export const metadata: Metadata = {
-  title: "Credit Expert India | HRMS Enterprise Portal",
+  title: "Amortas | HRMS Enterprise Portal",
   description:
-    "Official Human Resource Management System for Credit Expert India - Attendance, payroll engine, leaves, incentives, and workforce administration.",
+    "Official Human Resource Management System for Amortas - Attendance, payroll engine, leaves, incentives, and workforce administration.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
       { url: "/icon.png", type: "image/png", sizes: "192x192" },
-      { url: "/img/logo.webp", type: "image/webp" },
     ],
     shortcut: "/favicon.ico",
     apple: [
@@ -49,10 +54,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#f8fafc] text-[#0a2540]">
-        <Suspense fallback={<div className="min-h-screen bg-[#f8fafc]" />}>
+      <body className="min-h-full flex flex-col bg-[#FFF8F3] text-[#2E2E2E]">
+        <Suspense fallback={<div className="min-h-screen bg-[#FFF8F3]" />}>
           <AuthProvider>
             <AppShell>{children}</AppShell>
           </AuthProvider>

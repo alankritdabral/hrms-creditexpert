@@ -210,8 +210,8 @@ export default function HolidaysPage() {
     switch (type) {
       case "National":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
-            <Flag className="w-2.5 h-2.5 text-blue-500" /> National
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-brand-50 text-brand-700 border border-brand-200">
+            <Flag className="w-2.5 h-2.5 text-brand-500" /> National
           </span>
         );
       case "Regional":
@@ -235,7 +235,7 @@ export default function HolidaysPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Calendar className="w-6 h-6 text-blue-600" />
+            <Calendar className="w-6 h-6 text-brand-600" />
             Corporate & Branch Holidays
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -254,11 +254,11 @@ export default function HolidaysPage() {
       </div>
 
       {/* Policy Notice Box */}
-      <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200 flex items-start gap-3">
-        <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-        <div className="text-xs text-blue-900 leading-relaxed">
-          <p className="font-semibold text-blue-950">Holiday Policy Notice (Current Version)</p>
-          <p className="text-blue-800/90 mt-0.5">
+      <div className="p-4 rounded-2xl bg-brand-50/70 border border-brand-200 flex items-start gap-3">
+        <Info className="w-5 h-5 text-brand-600 shrink-0 mt-0.5" />
+        <div className="text-xs text-brand-900 leading-relaxed">
+          <p className="font-semibold text-brand-950">Holiday Policy Notice (Current Version)</p>
+          <p className="text-brand-800/90 mt-0.5">
             Holidays are centrally managed by <strong>Admin</strong> & <strong>HR</strong> across our three branches:{" "}
             <span className="font-semibold">Delhi</span>, <span className="font-semibold">Dehradun</span>, and{" "}
             <span className="font-semibold">Rudrapur</span>. Employees can view holidays applicable to their branch.
@@ -275,7 +275,7 @@ export default function HolidaysPage() {
             onClick={() => setSelectedBranch("All")}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
               selectedBranch === "All"
-                ? "bg-blue-600 text-white shadow-sm"
+                ? "bg-brand-600 text-[#2E2E2E] shadow-sm"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
@@ -287,7 +287,7 @@ export default function HolidaysPage() {
               onClick={() => setSelectedBranch(b)}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 selectedBranch === b
-                  ? "bg-blue-600 text-white shadow-sm"
+                  ? "bg-brand-600 text-[#2E2E2E] shadow-sm"
                   : "text-slate-600 hover:bg-slate-100"
               }`}
             >
@@ -305,7 +305,7 @@ export default function HolidaysPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search holiday name, branch, or type..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600 font-medium"
           />
         </div>
       </div>
@@ -326,7 +326,7 @@ export default function HolidaysPage() {
             <div
               key={h.id}
               className={`bg-white rounded-2xl p-5 border transition-all space-y-4 shadow-xs hover:shadow-md ${
-                isUpcoming ? "border-slate-200 hover:border-blue-300" : "border-slate-200/60 opacity-80"
+                isUpcoming ? "border-slate-200 hover:border-brand-300" : "border-slate-200/60 opacity-80"
               }`}
             >
               {/* Card Top */}
@@ -342,7 +342,7 @@ export default function HolidaysPage() {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => handleOpenEditModal(h)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                       title="Edit Holiday"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -361,7 +361,7 @@ export default function HolidaysPage() {
               {/* Date Block */}
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-slate-700 font-semibold font-mono">
-                  <Calendar className="w-4 h-4 text-blue-600" />
+                  <Calendar className="w-4 h-4 text-brand-600" />
                   <span>{formattedDate}</span>
                 </div>
                 {isUpcoming ? (
@@ -413,7 +413,7 @@ export default function HolidaysPage() {
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
               placeholder="e.g. Diwali (Deepavali), Uttarakhand Day"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600 font-medium"
             />
           </div>
 
@@ -425,7 +425,7 @@ export default function HolidaysPage() {
                 required
                 value={formDate}
                 onChange={(e) => setFormDate(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600 font-mono"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600 font-mono"
               />
             </div>
 
@@ -434,7 +434,7 @@ export default function HolidaysPage() {
               <select
                 value={formBranch}
                 onChange={(e) => setFormBranch(e.target.value as Branch | "All")}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600 font-medium"
               >
                 <option value="All">All Branches</option>
                 {BRANCHES.map((b) => (
@@ -456,7 +456,7 @@ export default function HolidaysPage() {
                   onClick={() => setFormType(type)}
                   className={`p-2 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer ${
                     formType === type
-                      ? "bg-blue-50 border-blue-500 text-blue-700 font-semibold"
+                      ? "bg-brand-50 border-brand-500 text-brand-700 font-semibold"
                       : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
                   }`}
                 >
@@ -473,7 +473,7 @@ export default function HolidaysPage() {
               value={formDescription}
               onChange={(e) => setFormDescription(e.target.value)}
               placeholder="Provide context regarding this holiday declaration..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600"
             />
           </div>
 
