@@ -79,7 +79,7 @@ export default function EmployeesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Users className="w-6 h-6 text-blue-600" />
+            <Users className="w-6 h-6 text-brand-600" />
             Employee Management
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -106,7 +106,7 @@ export default function EmployeesPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, ID, designation..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600"
           />
         </div>
 
@@ -117,7 +117,7 @@ export default function EmployeesPage() {
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600"
             >
               <option value="All">All Departments</option>
               {departments.map((d) => (
@@ -134,7 +134,7 @@ export default function EmployeesPage() {
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
-              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600"
             >
               <option value="All">All Branches</option>
               {BRANCHES.map((b) => (
@@ -150,7 +150,7 @@ export default function EmployeesPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-blue-600"
+              className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-brand-600"
             >
               <option value="All">All Statuses</option>
               <option value="Active">Active</option>
@@ -167,17 +167,17 @@ export default function EmployeesPage() {
           <Link
             key={emp.id}
             href={`/employees/${emp.employeeId}`}
-            className="bg-white rounded-2xl p-5 border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 group relative block shadow-xs"
+            className="bg-white rounded-2xl p-5 border border-slate-200 hover:border-brand-300 hover:shadow-md transition-all duration-200 group relative block shadow-xs"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3.5">
                 <img
                   src={emp.personal.avatarUrl}
                   alt={emp.personal.fullName}
-                  className="w-12 h-12 rounded-xl object-cover border border-slate-200 group-hover:border-blue-400 transition-colors shadow-2xs"
+                  className="w-12 h-12 rounded-xl object-cover border border-slate-200 group-hover:border-brand-400 transition-colors shadow-2xs"
                 />
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm group-hover:text-blue-600 transition-colors">
+                  <h3 className="font-bold text-slate-900 text-sm group-hover:text-brand-600 transition-colors">
                     {emp.personal.fullName}
                     {emp.isTemporary && (
                       <span className="ml-1.5 align-middle text-[9px] font-bold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
@@ -186,7 +186,7 @@ export default function EmployeesPage() {
                     )}
                   </h3>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] font-mono text-blue-600 font-semibold">
+                    <span className="text-[11px] font-mono text-brand-600 font-semibold">
                       {emp.employeeId}
                     </span>
                     <span className="text-slate-300">•</span>
@@ -214,8 +214,8 @@ export default function EmployeesPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Branch</span>
-                <span className="inline-flex items-center gap-1 font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[10px]">
-                  <MapPin className="w-2.5 h-2.5 text-blue-500" />
+                <span className="inline-flex items-center gap-1 font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200 text-[10px]">
+                  <MapPin className="w-2.5 h-2.5 text-brand-500" />
                   {emp.employment.branch || "Delhi"}
                 </span>
               </div>
@@ -256,7 +256,7 @@ export default function EmployeesPage() {
               </div>
             </div>
 
-            <div className="mt-4 flex items-center justify-between text-xs text-blue-600 font-semibold group-hover:translate-x-0.5 transition-transform">
+            <div className="mt-4 flex items-center justify-between text-xs text-brand-600 font-semibold group-hover:translate-x-0.5 transition-transform">
               <span>Open Employee Workspace</span>
               <ChevronRight className="w-4 h-4" />
             </div>

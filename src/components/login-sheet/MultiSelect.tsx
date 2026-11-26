@@ -42,8 +42,8 @@ export function MultiSelect({ label, anyLabel, options, value, onChange }: Props
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center justify-between gap-2 w-full py-1.5 px-2.5 text-xs rounded-xl border text-left cursor-pointer focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
-          active ? "border-blue-300 bg-blue-50/60 text-blue-900 font-semibold" : "border-slate-200 bg-slate-50/50 text-slate-700"
+        className={`flex items-center justify-between gap-2 w-full py-1.5 px-2.5 text-xs rounded-xl border text-left cursor-pointer focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 ${
+          active ? "border-brand-300 bg-brand-50/60 text-brand-900 font-semibold" : "border-slate-200 bg-slate-50/50 text-slate-700"
         }`}
       >
         <span className="truncate">{summary}</span>
@@ -62,7 +62,7 @@ export function MultiSelect({ label, anyLabel, options, value, onChange }: Props
                 onClick={() => toggle(opt)}
                 className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-slate-800 hover:bg-slate-50 cursor-pointer text-left"
               >
-                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${checked ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300 bg-white"}`}>
+                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${checked ? "bg-brand-600 border-brand-600 text-[#2E2E2E]" : "border-slate-300 bg-white"}`}>
                   {checked && <Check className="w-3 h-3" />}
                 </span>
                 <span className="truncate">{opt}</span>
@@ -70,7 +70,7 @@ export function MultiSelect({ label, anyLabel, options, value, onChange }: Props
             );
           })}
           {active && (
-            <button type="button" onClick={() => onChange([])} className="w-full mt-1 pt-1.5 border-t border-slate-100 text-[11px] font-semibold text-blue-700 hover:underline cursor-pointer">
+            <button type="button" onClick={() => onChange([])} className="w-full mt-1 pt-1.5 border-t border-slate-100 text-[11px] font-semibold text-brand-700 hover:underline cursor-pointer">
               Clear selection
             </button>
           )}

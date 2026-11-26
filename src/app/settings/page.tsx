@@ -67,11 +67,11 @@ interface RoleUser {
 }
 
 const ROLE_COLORS: Record<string, { badge: string; border: string; bg: string }> = {
-  blue: { badge: "bg-blue-50 text-blue-700 border-blue-200", border: "border-blue-500", bg: "bg-blue-500" },
+  blue: { badge: "bg-brand-50 text-brand-700 border-brand-200", border: "border-brand-500", bg: "bg-brand-500" },
   emerald: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", border: "border-emerald-500", bg: "bg-emerald-500" },
   purple: { badge: "bg-purple-50 text-purple-700 border-purple-200", border: "border-purple-500", bg: "bg-purple-500" },
   amber: { badge: "bg-amber-50 text-amber-700 border-amber-200", border: "border-amber-500", bg: "bg-amber-500" },
-  indigo: { badge: "bg-indigo-50 text-indigo-700 border-indigo-200", border: "border-indigo-500", bg: "bg-indigo-500" },
+  indigo: { badge: "bg-brand-50 text-brand-700 border-brand-200", border: "border-brand-500", bg: "bg-brand-500" },
   rose: { badge: "bg-rose-50 text-rose-700 border-rose-200", border: "border-rose-500", bg: "bg-rose-500" },
   teal: { badge: "bg-teal-50 text-teal-700 border-teal-200", border: "border-teal-500", bg: "bg-teal-500" },
 };
@@ -199,7 +199,7 @@ export default function SettingsPage() {
 
   const handleNewOffice = () => {
     setSelectedOfficeId("");
-    setOfficeName("Credit Expert - New Branch");
+    setOfficeName("Amortas - New Branch");
     setOfficeBranch("Delhi");
     setOfficeLat(28.6289);
     setOfficeLon(77.2065);
@@ -595,7 +595,7 @@ export default function SettingsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Sliders className="w-6 h-6 text-blue-600" />
+            <Sliders className="w-6 h-6 text-brand-600" />
             System Configuration & Settings
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -611,13 +611,13 @@ export default function SettingsPage() {
           onClick={() => setActiveTab("roles")}
           className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === "roles"
-              ? "bg-white text-blue-700 shadow-sm border border-slate-200/80"
+              ? "bg-white text-brand-700 shadow-sm border border-slate-200/80"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
-          <ShieldCheck className="w-4 h-4 text-blue-600" />
+          <ShieldCheck className="w-4 h-4 text-brand-600" />
           <span>Roles & Access Control</span>
-          <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold">
+          <span className="px-1.5 py-0.5 rounded-md bg-brand-100 text-brand-700 text-[10px] font-bold">
             {customRoles.length}
           </span>
         </button>
@@ -627,7 +627,7 @@ export default function SettingsPage() {
           onClick={() => setActiveTab("policy")}
           className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === "policy"
-              ? "bg-white text-blue-700 shadow-sm border border-slate-200/80"
+              ? "bg-white text-brand-700 shadow-sm border border-slate-200/80"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
@@ -640,7 +640,7 @@ export default function SettingsPage() {
           onClick={() => setActiveTab("offices")}
           className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === "offices"
-              ? "bg-white text-blue-700 shadow-sm border border-slate-200/80"
+              ? "bg-white text-brand-700 shadow-sm border border-slate-200/80"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
@@ -656,7 +656,7 @@ export default function SettingsPage() {
           onClick={() => setActiveTab("cloud")}
           className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === "cloud"
-              ? "bg-white text-blue-700 shadow-sm border border-slate-200/80"
+              ? "bg-white text-brand-700 shadow-sm border border-slate-200/80"
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
@@ -682,7 +682,7 @@ export default function SettingsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+                  <div className="p-2 rounded-xl bg-brand-50 text-brand-700">
                     <KeyRound className="w-5 h-5" />
                   </div>
                   <div>
@@ -702,7 +702,7 @@ export default function SettingsPage() {
                     value={roleSearchQuery}
                     onChange={(e) => setRoleSearchQuery(e.target.value)}
                     placeholder="Search roles..."
-                    className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 w-44"
+                    className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-brand-600 w-44"
                   />
                 </div>
 
@@ -728,7 +728,7 @@ export default function SettingsPage() {
                 return (
                   <div
                     key={role.id}
-                    className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/90 hover:border-blue-300 hover:shadow-sm transition-all flex flex-col justify-between"
+                    className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/90 hover:border-brand-300 hover:shadow-sm transition-all flex flex-col justify-between"
                   >
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-2">
@@ -802,7 +802,7 @@ export default function SettingsPage() {
                           <button
                             type="button"
                             onClick={() => handleOpenEditRole(role)}
-                            className="p-1.5 text-xs text-blue-700 hover:bg-blue-50 rounded-lg transition-colors font-medium flex items-center gap-1 cursor-pointer"
+                            className="p-1.5 text-xs text-brand-700 hover:bg-brand-50 rounded-lg transition-colors font-medium flex items-center gap-1 cursor-pointer"
                             title="Edit Section Access"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -837,7 +837,7 @@ export default function SettingsPage() {
                 <div>
                   <h2 className="text-base font-bold text-slate-900">People & Role Assignments</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Assign or change roles for any staff member in Credit Expert. Role changes take effect immediately.
+                    Assign or change roles for any staff member in Amortas. Role changes take effect immediately.
                   </p>
                 </div>
               </div>
@@ -852,7 +852,7 @@ export default function SettingsPage() {
                     value={peopleSearchQuery}
                     onChange={(e) => setPeopleSearchQuery(e.target.value)}
                     placeholder="Search people, code..."
-                    className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 w-44 sm:w-52"
+                    className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-brand-600 w-44 sm:w-52"
                   />
                 </div>
 
@@ -860,7 +860,7 @@ export default function SettingsPage() {
                 <select
                   value={peopleBranchFilter}
                   onChange={(e) => setPeopleBranchFilter(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-blue-600"
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-brand-600"
                 >
                   <option value="ALL">All Branches</option>
                   {BRANCHES.map((b) => (
@@ -874,7 +874,7 @@ export default function SettingsPage() {
                 <select
                   value={peopleRoleFilter}
                   onChange={(e) => setPeopleRoleFilter(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-blue-600"
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-brand-600"
                 >
                   <option value="ALL">All Roles</option>
                   {customRoles.map((r) => (
@@ -938,7 +938,7 @@ export default function SettingsPage() {
                                 {u.employeeId || "—"}
                               </span>
                               <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                                <MapPin className="w-3 h-3 text-blue-600" />
+                                <MapPin className="w-3 h-3 text-brand-600" />
                                 {u.branch || "Delhi"} • {u.department || "General"}
                               </div>
                             </div>
@@ -966,7 +966,7 @@ export default function SettingsPage() {
                             {canEdit ? (
                               <div className="inline-flex items-center gap-2">
                                 {isAssigning ? (
-                                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                  <div className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
                                 ) : (
                                   <select
                                     value={u.role}
@@ -974,7 +974,7 @@ export default function SettingsPage() {
                                     onChange={(e) =>
                                       handleAssignRole(u.id || u.employeeId || "", u.name, e.target.value)
                                     }
-                                    className="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-blue-600 cursor-pointer hover:bg-white font-medium"
+                                    className="bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-brand-600 cursor-pointer hover:bg-white font-medium"
                                   >
                                     {customRoles.map((r) => (
                                       <option key={r.id} value={r.id}>
@@ -1008,7 +1008,7 @@ export default function SettingsPage() {
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100">
+                <div className="p-2.5 rounded-2xl bg-brand-50 text-brand-700 border border-brand-100">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
@@ -1016,7 +1016,7 @@ export default function SettingsPage() {
                     {editingRoleId ? "Edit Role & Section Access" : "Create New Custom Role"}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Specify which sections and tools this role can view in Credit Expert HRMS.
+                    Specify which sections and tools this role can view in Amortas HRMS.
                   </p>
                 </div>
               </div>
@@ -1041,7 +1041,7 @@ export default function SettingsPage() {
                     value={roleFormName}
                     onChange={(e) => setRoleFormName(e.target.value)}
                     placeholder="e.g. Branch Auditor, Loan Verification Specialist"
-                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-brand-600 focus:ring-1 focus:ring-brand-600 font-medium"
                   />
                 </div>
 
@@ -1050,7 +1050,7 @@ export default function SettingsPage() {
                   <select
                     value={roleFormColor}
                     onChange={(e) => setRoleFormColor(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-brand-600 font-medium"
                   >
                     <option value="indigo">Indigo</option>
                     <option value="emerald">Emerald</option>
@@ -1069,7 +1069,7 @@ export default function SettingsPage() {
                     value={roleFormDesc}
                     onChange={(e) => setRoleFormDesc(e.target.value)}
                     placeholder="Briefly describe the responsibilities or team context for this role"
-                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-brand-600 font-medium"
                   />
                 </div>
 
@@ -1078,7 +1078,7 @@ export default function SettingsPage() {
                   <select
                     value={roleFormTiming}
                     onChange={(e) => setRoleFormTiming(e.target.value as TimingSlotId)}
-                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-blue-600 font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:bg-white focus:border-brand-600 font-medium"
                   >
                     <option value="timing1">
                       Timing 1 · starts {t1Start}, late after {addMinutesToTime(t1Start, Number(t1Grace))}, automatic half days
@@ -1095,7 +1095,7 @@ export default function SettingsPage() {
               <div className="space-y-3 pt-2 border-t border-slate-100">
                 <div>
                   <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-blue-600" />
+                    <Shield className="w-3.5 h-3.5 text-brand-600" />
                     Extra Data Permissions
                   </h4>
                   <p className="text-[11px] text-slate-500">
@@ -1116,7 +1116,7 @@ export default function SettingsPage() {
                             prev.includes(g.permission) ? prev.filter((p) => p !== g.permission) : [...prev, g.permission]
                           )
                         }
-                        className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
+                        className="mt-0.5 h-3.5 w-3.5 accent-brand-600"
                       />
                       <span>
                         <span className="block text-xs font-semibold text-slate-800">{g.label}</span>
@@ -1132,7 +1132,7 @@ export default function SettingsPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-blue-600" />
+                      <Lock className="w-3.5 h-3.5 text-brand-600" />
                       Section Access Permissions ({roleFormSections.length} of {APP_SECTIONS.length} selected)
                     </h4>
                     <p className="text-[11px] text-slate-500">
@@ -1143,7 +1143,7 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={handleSelectAllSections}
-                      className="text-[11px] font-semibold text-blue-700 hover:bg-blue-50 px-2 py-1 rounded-lg border border-blue-200 transition-colors cursor-pointer"
+                      className="text-[11px] font-semibold text-brand-700 hover:bg-brand-50 px-2 py-1 rounded-lg border border-brand-200 transition-colors cursor-pointer"
                     >
                       Select All (18)
                     </button>
@@ -1181,7 +1181,7 @@ export default function SettingsPage() {
                               key={sec.id}
                               className={`flex items-start gap-3 p-2.5 rounded-xl border transition-all cursor-pointer ${
                                 isChecked
-                                  ? "bg-blue-50/70 border-blue-200 shadow-2xs"
+                                  ? "bg-brand-50/70 border-brand-200 shadow-2xs"
                                   : "bg-white border-slate-200 hover:border-slate-300"
                               }`}
                             >
@@ -1189,7 +1189,7 @@ export default function SettingsPage() {
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={() => handleToggleSection(sec.id)}
-                                className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                className="mt-0.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
                               />
                               <div className="min-w-0">
                                 <p className="text-xs font-semibold text-slate-900 leading-tight">
@@ -1258,10 +1258,10 @@ export default function SettingsPage() {
             <form onSubmit={handleSavePolicy} className="space-y-4">
               {/* Timing slots: each role is assigned to one of these in the Roles tab */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4 space-y-3">
+                <div className="rounded-xl border border-brand-500/30 bg-brand-500/5 p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <h4 className="text-xs font-bold text-white">Timing 1 · automatic half days</h4>
-                    <span className="text-[10px] text-indigo-300 text-right">{rolesOnSlot("timing1")}</span>
+                    <span className="text-[10px] text-brand-300 text-right">{rolesOnSlot("timing1")}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1271,7 +1271,7 @@ export default function SettingsPage() {
                         disabled={!canEdit}
                         value={t1Start}
                         onChange={(e) => setT1Start(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                       />
                     </div>
                     <div>
@@ -1281,7 +1281,7 @@ export default function SettingsPage() {
                         disabled={!canEdit}
                         value={t1Grace}
                         onChange={(e) => setT1Grace(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                       />
                       <span className="text-[10px] text-slate-500 mt-1 block">
                         Late after {addMinutesToTime(t1Start, Number(t1Grace))}
@@ -1294,7 +1294,7 @@ export default function SettingsPage() {
                         disabled={!canEdit}
                         value={t1Allowance}
                         onChange={(e) => setT1Allowance(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                       />
                       <span className="text-[10px] text-slate-500 mt-1 block">The next late arrival is a half day</span>
                     </div>
@@ -1305,7 +1305,7 @@ export default function SettingsPage() {
                         disabled={!canEdit}
                         value={t1HardCutoff}
                         onChange={(e) => setT1HardCutoff(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                       />
                       <span className="text-[10px] text-slate-500 mt-1 block">Leave empty to turn this off</span>
                     </div>
@@ -1325,7 +1325,7 @@ export default function SettingsPage() {
                         disabled={!canEdit}
                         value={t2Start}
                         onChange={(e) => setT2Start(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                       />
                     </div>
                     <div>
@@ -1335,7 +1335,7 @@ export default function SettingsPage() {
                         disabled={!canEdit}
                         value={t2Grace}
                         onChange={(e) => setT2Grace(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                       />
                       <span className="text-[10px] text-slate-500 mt-1 block">
                         Late after {addMinutesToTime(t2Start, Number(t2Grace))}, no automatic half day
@@ -1353,30 +1353,30 @@ export default function SettingsPage() {
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1">Office Start (HH:MM)</label>
                       <input type="time" disabled={!canEdit} value={dStart} onChange={(e) => setDStart(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1">Grace Period (Minutes)</label>
                       <input type="number" disabled={!canEdit} value={dGrace} onChange={(e) => setDGrace(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60" />
                       <span className="text-[10px] text-slate-500 mt-1 block">Late after {addMinutesToTime(dStart, Number(dGrace))}</span>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1">Late Arrivals Allowed / Week</label>
                       <input type="number" disabled={!canEdit} value={dAllowance} onChange={(e) => setDAllowance(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60" />
                       <span className="text-[10px] text-slate-500 mt-1 block">The next late arrival is a half day</span>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1">Always Half Day After (HH:MM)</label>
                       <input type="time" disabled={!canEdit} value={dHardCutoff} onChange={(e) => setDHardCutoff(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60" />
                       <span className="text-[10px] text-slate-500 mt-1 block">Leave empty to turn this off</span>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1">Strikes Count From</label>
                       <input type="date" disabled={!canEdit} value={dEffectiveFrom} onChange={(e) => setDEffectiveFrom(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60" />
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60" />
                       <span className="text-[10px] text-slate-500 mt-1 block">Earlier late arrivals are not counted</span>
                     </div>
                   </div>
@@ -1393,7 +1393,7 @@ export default function SettingsPage() {
                     disabled={!canEdit}
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                   />
                 </div>
                 <div>
@@ -1405,7 +1405,7 @@ export default function SettingsPage() {
                     disabled={!canEdit}
                     value={fullDayHours}
                     onChange={(e) => setFullDayHours(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">Standard full workday duration</span>
                 </div>
@@ -1418,7 +1418,7 @@ export default function SettingsPage() {
                     disabled={!canEdit}
                     value={halfDayHours}
                     onChange={(e) => setHalfDayHours(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">Not used: half days come from arrival time</span>
                 </div>
@@ -1444,7 +1444,7 @@ export default function SettingsPage() {
           <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
+                <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-400">
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div>
@@ -1482,7 +1482,7 @@ export default function SettingsPage() {
                   onClick={() => selectOffice(off)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
                     selectedOfficeId === off.id
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                      ? "bg-brand-600 text-[#2E2E2E] shadow-md shadow-brand-600/20"
                       : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
                   }`}
                 >
@@ -1504,8 +1504,8 @@ export default function SettingsPage() {
                     disabled={!canEdit}
                     value={officeName}
                     onChange={(e) => setOfficeName(e.target.value)}
-                    placeholder="Credit Expert - Delhi Branch"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                    placeholder="Amortas - Delhi Branch"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 disabled:opacity-60"
                   />
                 </div>
                 <div>
@@ -1514,7 +1514,7 @@ export default function SettingsPage() {
                     disabled={!canEdit}
                     value={officeBranch}
                     onChange={(e) => setOfficeBranch(e.target.value as Branch)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 disabled:opacity-60"
                   >
                     {BRANCHES.map((b) => (
                       <option key={b} value={b}>
@@ -1535,7 +1535,7 @@ export default function SettingsPage() {
                     disabled={!canEdit}
                     value={officeLat}
                     onChange={(e) => setOfficeLat(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                   />
                 </div>
 
@@ -1548,7 +1548,7 @@ export default function SettingsPage() {
                     disabled={!canEdit}
                     value={officeLon}
                     onChange={(e) => setOfficeLon(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                   />
                 </div>
 
@@ -1562,7 +1562,7 @@ export default function SettingsPage() {
                     disabled={!canEdit}
                     value={officeRadius}
                     onChange={(e) => setOfficeRadius(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">Geofence boundary around office</span>
                 </div>
@@ -1577,7 +1577,7 @@ export default function SettingsPage() {
                     disabled={!canEdit}
                     value={officeMaxAccuracy}
                     onChange={(e) => setOfficeMaxAccuracy(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500 disabled:opacity-60"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">Rejects clock-in if GPS drift &gt; value</span>
                 </div>
@@ -1591,7 +1591,7 @@ export default function SettingsPage() {
                   value={officeAddress}
                   onChange={(e) => setOfficeAddress(e.target.value)}
                   placeholder="e.g. Connaught Place, New Delhi"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 disabled:opacity-60"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 disabled:opacity-60"
                 />
               </div>
 
@@ -1602,7 +1602,7 @@ export default function SettingsPage() {
                   disabled={!canEdit}
                   checked={officeActive}
                   onChange={(e) => setOfficeActive(e.target.checked)}
-                  className="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500"
+                  className="rounded bg-slate-900 border-slate-700 text-brand-600 focus:ring-brand-500"
                 />
                 <label htmlFor="officeActive" className="text-xs text-slate-300 select-none cursor-pointer">
                   Active Location (Enforce attendance geofence for this office)
@@ -1687,7 +1687,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-slate-400">Database Mode</span>
-                  <span className="text-indigo-400 font-medium">Exclusive Cloud Store (In-Memory Offline Cache)</span>
+                  <span className="text-brand-400 font-medium">Exclusive Cloud Store (In-Memory Offline Cache)</span>
                 </div>
               </div>
 
@@ -1741,7 +1741,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Read Optimization Layer</span>
-                  <span className="text-indigo-400 font-medium">60s TTL In-Memory Read Cache</span>
+                  <span className="text-brand-400 font-medium">60s TTL In-Memory Read Cache</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-800">
                   <span className="text-slate-400">Write Optimization Layer</span>

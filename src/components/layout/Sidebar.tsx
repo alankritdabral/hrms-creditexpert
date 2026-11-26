@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
+import { Logo } from "@/components/Logo";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useSidebar } from "@/lib/sidebar-context";
@@ -61,7 +61,7 @@ export function Sidebar() {
       sectionId: "profile",
       icon: <User className="w-4 h-4" />,
       badge: "Photo & KYC",
-      badgeColor: "bg-blue-50 text-blue-700 border border-blue-200",
+      badgeColor: "bg-brand-50 text-brand-700 border border-brand-200",
     },
     {
       name: "Employees",
@@ -77,7 +77,7 @@ export function Sidebar() {
       sectionId: "onboarding",
       icon: <UserCheck className="w-4 h-4" />,
       badge: counts.activeOnboarding > 0 ? `${counts.activeOnboarding} Active` : undefined,
-      badgeColor: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+      badgeColor: "bg-brand-50 text-brand-700 border border-brand-200",
     },
     {
       name: "Attendance",
@@ -113,7 +113,7 @@ export function Sidebar() {
       sectionId: "logins",
       icon: <TrendingUp className="w-4 h-4" />,
       badge: counts.loginsCount > 0 ? `${counts.loginsCount} Files` : undefined,
-      badgeColor: "bg-blue-50 text-blue-700 border border-blue-200",
+      badgeColor: "bg-brand-50 text-brand-700 border border-brand-200",
     },
     {
       name: "Login Sheet",
@@ -161,7 +161,7 @@ export function Sidebar() {
       sectionId: "announcements",
       icon: <Megaphone className="w-4 h-4" />,
       badge: counts.announcements > 0 ? `${counts.announcements} Active` : undefined,
-      badgeColor: "bg-sky-50 text-sky-700 border border-sky-200",
+      badgeColor: "bg-brand-50 text-brand-700 border border-brand-200",
     },
     {
       name: "Reports & Analytics",
@@ -203,28 +203,17 @@ export function Sidebar() {
         }`}
         aria-label="Sidebar navigation"
       >
-        {/* Brand Header with Credit Expert India Official Logo */}
+        {/* Brand Header with Amortas Official Logo */}
         <div className="h-16 lg:h-18 flex items-center justify-between px-4 sm:px-5 border-b border-slate-100 bg-white">
           <Link
             href="/dashboard"
             onClick={closeSidebar}
             className="flex items-center gap-2.5 sm:gap-3 group"
           >
-            <div className="relative h-9 w-auto flex items-center">
-              <Image
-                src="/img/logo.webp"
-                alt="Credit Expert India Logo"
-                width={130}
-                height={35}
-                className="h-7 sm:h-8 w-auto object-contain group-hover:opacity-90 transition-opacity"
-                priority
-              />
-            </div>
+            <Logo size="sm" />
             <div>
-              <span className="font-extrabold text-[#0a2540] text-xs sm:text-sm tracking-tight block leading-tight">
-                Credit Expert
-              </span>
-              <span className="text-[9px] sm:text-[10px] text-blue-600 font-bold tracking-wide uppercase font-mono">
+              <span className="sr-only">Amortas</span>
+              <span className="text-[9px] sm:text-[10px] text-brand-600 font-bold tracking-wide uppercase font-mono">
                 HRMS Portal
               </span>
             </div>
@@ -254,12 +243,12 @@ export function Sidebar() {
                 onClick={closeSidebar}
                 className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all group ${
                   isActive
-                    ? "sidebar-active bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 font-semibold"
-                    : "text-slate-600 hover:text-blue-700 hover:bg-blue-50/70"
+                    ? "sidebar-active bg-gradient-to-r from-brand-600 to-brand-600 text-white shadow-md shadow-brand-500/20 font-semibold"
+                    : "text-slate-600 hover:text-brand-700 hover:bg-brand-50/70"
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className={`${isActive ? "text-white" : "text-slate-400 group-hover:text-blue-600 transition-colors"}`}>
+                  <span className={`${isActive ? "text-white" : "text-slate-400 group-hover:text-brand-600 transition-colors"}`}>
                     {item.icon}
                   </span>
                   <span>{item.name}</span>
@@ -267,7 +256,7 @@ export function Sidebar() {
                 {item.badge && (
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                      isActive ? "bg-white/20 text-white" : item.badgeColor || "bg-blue-50 text-blue-700 border border-blue-200"
+                      isActive ? "bg-white/20 text-white" : item.badgeColor || "bg-brand-50 text-brand-700 border border-brand-200"
                     }`}
                   >
                     {item.badge}
@@ -281,12 +270,12 @@ export function Sidebar() {
         {/* RBAC footer badge */}
         <div className="p-3 sm:p-4 border-t border-slate-100 bg-slate-50/60">
           <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-slate-200 flex items-center gap-3 shadow-xs">
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600 shrink-0">
+            <div className="p-2 rounded-lg bg-brand-50 text-brand-600 shrink-0">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-semibold text-slate-900 truncate">Role-Based Access</p>
-              <p className="text-[10px] text-blue-600 font-medium capitalize truncate">
+              <p className="text-[10px] text-brand-600 font-medium capitalize truncate">
                 {currentUser.role.replace("_", " ")} Mode
               </p>
             </div>

@@ -134,7 +134,7 @@ export default function DocumentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <FolderLock className="w-6 h-6 text-blue-600" />
+            <FolderLock className="w-6 h-6 text-brand-600" />
             Employee Documents & Compliance
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -186,7 +186,7 @@ export default function DocumentsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search documents by title or employee..."
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
           />
         </div>
 
@@ -195,7 +195,7 @@ export default function DocumentsPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
           >
             <option value="All">All Types</option>
             <option value="Offer Letter">Offer Letter</option>
@@ -211,11 +211,11 @@ export default function DocumentsPage() {
         {filteredDocs.map((d) => (
           <div
             key={d.id}
-            className="glass-card rounded-2xl p-5 border border-slate-800 hover:border-indigo-500/40 transition-all space-y-4"
+            className="glass-card rounded-2xl p-5 border border-slate-800 hover:border-brand-500/40 transition-all space-y-4"
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400">
+                <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-400">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
@@ -273,7 +273,7 @@ export default function DocumentsPage() {
             <select
               value={selectedEmployeeId}
               onChange={(e) => setSelectedEmployeeId(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             >
               {employees.map((e) => (
                 <option key={e.id} value={e.employeeId}>
@@ -288,7 +288,7 @@ export default function DocumentsPage() {
             <select
               value={documentType}
               onChange={(e) => setDocumentType(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             >
               <option value="Offer Letter">Offer Letter</option>
               <option value="Appointment Letter">Appointment Letter</option>
@@ -312,7 +312,7 @@ export default function DocumentsPage() {
                 setFile(f);
                 if (f && !title) setTitle(f.name);
               }}
-              className="w-full text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+              className="w-full text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
             />
           </div>
 
@@ -324,7 +324,7 @@ export default function DocumentsPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Passport_Renewal_2026.pdf"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -336,7 +336,7 @@ export default function DocumentsPage() {
               type="date"
               value={expiryDate}
               onChange={(e) => setExpiryDate(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
             />
             <span className="text-[10px] text-slate-500 mt-1 block">
               HR will receive automatic warnings when within 30 days of expiry.
@@ -350,7 +350,7 @@ export default function DocumentsPage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Scanned original, verified in person"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 

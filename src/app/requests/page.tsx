@@ -127,7 +127,7 @@ export default function RequestsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <HelpCircle className="w-6 h-6 text-blue-600" />
+            <HelpCircle className="w-6 h-6 text-brand-600" />
             Centralized HR Helpdesk & Requests
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -179,7 +179,7 @@ export default function RequestsPage() {
               </div>
               {r.resolutionNotes && (
                 <div className="mt-2 p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300">
-                  <span className="text-indigo-400 font-semibold block mb-0.5">
+                  <span className="text-brand-400 font-semibold block mb-0.5">
                     HR Resolution by {r.resolvedBy || "HR Admin"}:
                   </span>
                   {r.resolutionNotes}
@@ -238,7 +238,7 @@ export default function RequestsPage() {
             <select
               value={reqType}
               onChange={(e) => setReqType(e.target.value as any)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             >
               <option value="Salary Certificate">Salary Certificate</option>
               <option value="Experience Letter">Experience Letter</option>
@@ -257,7 +257,7 @@ export default function RequestsPage() {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="e.g. Salary certificate for visa application"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -271,7 +271,7 @@ export default function RequestsPage() {
               value={details}
               onChange={(e) => setDetails(e.target.value)}
               placeholder="Provide complete context, supporting details, and any deadline..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -306,7 +306,7 @@ export default function RequestsPage() {
             <select
               value={resolutionStatus}
               onChange={(e) => setResolutionStatus(e.target.value as any)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             >
               <option value="Approved">Approved</option>
               <option value="Completed">Completed & Dispatched</option>
@@ -324,7 +324,7 @@ export default function RequestsPage() {
               value={resolutionNotes}
               onChange={(e) => setResolutionNotes(e.target.value)}
               placeholder="e.g. Document generated and emailed to employee's official email address."
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 

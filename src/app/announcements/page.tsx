@@ -77,7 +77,7 @@ export default function AnnouncementsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <Megaphone className="w-6 h-6 text-blue-600" />
+            <Megaphone className="w-6 h-6 text-brand-600" />
             Company Announcements & Notices
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -147,7 +147,7 @@ export default function AnnouncementsPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Annual Company Offsite 2026 Announcement"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -159,7 +159,7 @@ export default function AnnouncementsPage() {
               <select
                 value={targetAudience}
                 onChange={(e) => setTargetAudience(e.target.value as any)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
               >
                 <option value="All">All Company Employees</option>
                 <option value="Engineering">Engineering Team Only</option>
@@ -173,7 +173,7 @@ export default function AnnouncementsPage() {
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as any)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
               >
                 <option value="Normal">Normal Notice</option>
                 <option value="High">High Priority / Urgent</option>
@@ -191,7 +191,7 @@ export default function AnnouncementsPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Full announcement description with details and dates..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 

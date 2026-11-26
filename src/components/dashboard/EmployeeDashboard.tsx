@@ -163,20 +163,20 @@ export function EmployeeDashboard() {
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Welcome Banner */}
-      <div className="hero-banner flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white shadow-md shadow-blue-500/15 relative overflow-hidden">
+      <div className="hero-banner flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-brand-600 via-brand-700 to-brand-700 text-white shadow-md shadow-brand-500/15 relative overflow-hidden">
         <div>
           <div className="flex items-center gap-2">
             <span className="banner-pill px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-semibold backdrop-blur-xs">
-              Credit Expert India
+              Amortas
             </span>
-            <span className="text-xs text-blue-100 font-medium tracking-wide uppercase font-mono">
+            <span className="text-xs text-brand-100 font-medium tracking-wide uppercase font-mono">
               Employee Self-Service • {currentUser.department}
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white mt-2 tracking-tight">
             Welcome back, {currentUser.name}! 👋
           </h1>
-          <p className="text-xs sm:text-sm text-blue-100 mt-1 max-w-xl">
+          <p className="text-xs sm:text-sm text-brand-100 mt-1 max-w-xl">
             You are logged into your employee portal. Manage your attendance, leave applications, view payslips,
             and monitor performance incentives.
           </p>
@@ -186,7 +186,7 @@ export function EmployeeDashboard() {
         <div className="p-4 rounded-2xl bg-white/15 backdrop-blur-md border border-white/25 shadow-lg flex flex-col gap-3 w-full lg:w-auto min-w-0 sm:min-w-[280px]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div>
-              <div className="text-[11px] text-blue-100 font-semibold uppercase tracking-wider">Today&apos;s Attendance</div>
+              <div className="text-[11px] text-brand-100 font-semibold uppercase tracking-wider">Today&apos;s Attendance</div>
               <div className="text-sm font-bold text-white mt-0.5">
                 {hasCheckedIn ? (
                   <span className="text-emerald-200 flex items-center gap-1.5">
@@ -204,9 +204,9 @@ export function EmployeeDashboard() {
                 <button
                   onClick={handleClockIn}
                   disabled={isPunching}
-                  className="w-full sm:w-auto justify-center px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-blue-700 hover:bg-blue-50 shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+                  className="w-full sm:w-auto justify-center px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-brand-700 hover:bg-brand-50 shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-75 disabled:cursor-wait"
                 >
-                  <MapPin className="w-4 h-4 text-blue-600 animate-pulse shrink-0" />
+                  <MapPin className="w-4 h-4 text-brand-600 animate-pulse shrink-0" />
                   {isPunching ? "Verifying..." : "Clock In"}
                 </button>
               ) : (
@@ -227,7 +227,7 @@ export function EmployeeDashboard() {
           )}
 
           {punchStatusMessage && (
-            <div className="text-xs text-blue-100 flex items-center gap-1.5 animate-pulse">
+            <div className="text-xs text-brand-100 flex items-center gap-1.5 animate-pulse">
               <span className="w-2 h-2 rounded-full bg-amber-300 animate-ping" />
               {punchStatusMessage}
             </div>
@@ -265,7 +265,7 @@ export function EmployeeDashboard() {
                       type="button"
                       onClick={handleClockIn}
                       disabled={isPunching}
-                      className="px-2.5 py-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                      className="px-2.5 py-1 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-[#2E2E2E] rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                     >
                       {isPunching ? "Retrying..." : "Try Again"}
                     </button>
@@ -442,10 +442,10 @@ export function EmployeeDashboard() {
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-blue-600" />
+              <Calendar className="w-4 h-4 text-brand-600" />
               Upcoming Holidays
             </h3>
-            <Link href="/holidays" className="text-xs font-semibold text-blue-600 hover:text-blue-700">
+            <Link href="/holidays" className="text-xs font-semibold text-brand-600 hover:text-brand-700">
               View all
             </Link>
           </div>
@@ -462,7 +462,7 @@ export function EmployeeDashboard() {
                     {new Date(h.date).toLocaleDateString("en-IN", { month: "short", day: "numeric", weekday: "short" })}
                   </p>
                 </div>
-                <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                <span className="text-[10px] font-medium text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
                   {h.branch}
                 </span>
               </div>

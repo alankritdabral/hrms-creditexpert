@@ -64,7 +64,7 @@ interface Props {
 const NEW_EMPLOYEE = "__new__";
 
 const inputCls =
-  "w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
+  "w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white text-slate-900 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 const labelCls = "block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1";
 
 function nowIST(): string {

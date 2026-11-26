@@ -12,7 +12,7 @@ const ANONYMOUS_USER: User = {
   employeeId: "",
   branch: "Delhi",
   department: "Unassigned",
-  avatar: "/img/logo.webp",
+  avatar: "/img/logo.png",
 };
 
 interface AuthContextType {

@@ -150,22 +150,22 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-brand-500 selection:text-white">
       {/* Background ambient radial glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-600/10 blur-[130px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 blur-[130px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-brand-600/10 blur-[130px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-brand-600/10 blur-[130px] rounded-full" />
       </div>
 
       {/* Top Header */}
       <header className="relative z-10 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-4 sm:px-6 py-3.5 sm:py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
               <ShieldCheck className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-white tracking-tight">Credit Expert India</h1>
+              <h1 className="text-base font-bold text-white tracking-tight">Amortas</h1>
               <p className="text-xs text-slate-400">Account Recovery & Password Reset</p>
             </div>
           </div>
@@ -199,7 +199,7 @@ export default function ForgotPasswordPage() {
           {step === 1 && (
             <form onSubmit={handleSendOtp} className="space-y-5">
               <div className="text-center space-y-2">
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 mx-auto flex items-center justify-center shadow-md shadow-indigo-500/10">
+                <div className="w-12 h-12 rounded-xl bg-brand-500/20 border border-brand-500/40 text-brand-400 mx-auto flex items-center justify-center shadow-md shadow-brand-500/10">
                   <KeyRound className="w-6 h-6" />
                 </div>
                 <h2 className="text-xl font-bold text-white tracking-tight">
@@ -222,7 +222,7 @@ export default function ForgotPasswordPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@creditexpertindia.com"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
                   />
                 </div>
               </div>
@@ -242,7 +242,7 @@ export default function ForgotPasswordPage() {
                 <span className="text-xs text-slate-500">Remembered your password? </span>
                 <Link
                   href="/login"
-                  className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 underline"
+                  className="text-xs font-semibold text-brand-400 hover:text-brand-300 underline"
                 >
                   Sign In
                 </Link>
@@ -296,7 +296,7 @@ export default function ForgotPasswordPage() {
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                   placeholder="••••••"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-center text-xl font-mono tracking-widest text-white focus:outline-none focus:border-indigo-400"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-center text-xl font-mono tracking-widest text-white focus:outline-none focus:border-brand-400"
                 />
               </div>
 
@@ -328,7 +328,7 @@ export default function ForgotPasswordPage() {
                     type="button"
                     disabled={isLoading}
                     onClick={handleSendOtp}
-                    className="text-xs text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                    className="text-xs text-brand-400 hover:text-brand-300 underline cursor-pointer"
                   >
                     Resend Code
                   </button>
@@ -343,7 +343,7 @@ export default function ForgotPasswordPage() {
           {step === 3 && (
             <form onSubmit={handleResetPassword} className="space-y-5">
               <div className="text-center space-y-2">
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 mx-auto flex items-center justify-center shadow-md shadow-indigo-500/10">
+                <div className="w-12 h-12 rounded-xl bg-brand-500/20 border border-brand-500/40 text-brand-400 mx-auto flex items-center justify-center shadow-md shadow-brand-500/10">
                   <Lock className="w-6 h-6" />
                 </div>
                 <h2 className="text-xl font-bold text-white tracking-tight">
@@ -367,7 +367,7 @@ export default function ForgotPasswordPage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="At least 6 characters"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 transition-colors"
                     />
                   </div>
                 </div>
@@ -384,7 +384,7 @@ export default function ForgotPasswordPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Repeat your new password"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 transition-colors"
                     />
                   </div>
                 </div>
@@ -441,7 +441,7 @@ export default function ForgotPasswordPage() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-900 bg-slate-950 px-6 py-4 text-center text-xs text-slate-500">
-        &copy; {new Date().getFullYear()} Credit Expert India HRMS. Encrypted & ISO Compliant Employee Data Management.
+        &copy; {new Date().getFullYear()} Amortas HRMS. Encrypted & ISO Compliant Employee Data Management.
       </footer>
     </div>
   );

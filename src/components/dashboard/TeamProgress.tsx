@@ -10,7 +10,7 @@ type Health = "ahead" | "on-track" | "behind" | "no-target";
 
 const HEALTH_STYLE: Record<Health, { bar: string; chip: string; label: string }> = {
   ahead: { bar: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700", label: "Ahead" },
-  "on-track": { bar: "bg-blue-500", chip: "bg-blue-50 text-blue-700", label: "On track" },
+  "on-track": { bar: "bg-brand-500", chip: "bg-brand-50 text-brand-700", label: "On track" },
   behind: { bar: "bg-amber-500", chip: "bg-amber-50 text-amber-700", label: "Behind" },
   "no-target": { bar: "bg-slate-300", chip: "bg-slate-100 text-slate-500", label: "No target" },
 };
@@ -83,13 +83,13 @@ export function TeamProgress() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-            <Target className="w-4 h-4 text-blue-600" /> Team Progress — this month
+            <Target className="w-4 h-4 text-brand-600" /> Team Progress — this month
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             {Math.round(elapsedPct)}% of the month has passed. Bars show achievement against target.
           </p>
         </div>
-        <Link href="/logins" className="text-xs font-semibold text-blue-600 hover:text-blue-700">
+        <Link href="/logins" className="text-xs font-semibold text-brand-600 hover:text-brand-700">
           Open logins & disbursals
         </Link>
       </div>

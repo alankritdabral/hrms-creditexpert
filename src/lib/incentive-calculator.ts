@@ -34,7 +34,7 @@ export const DEFAULT_DISBURSAL_SLABS: DisbursalSlabConfig[] = [
 ];
 
 /**
- * Credit Expert India - Sales Disbursal Incentive Calculator
+ * Amortas - Sales Disbursal Incentive Calculator
  * 
  * Rules:
  * 1. Axis Bank Disbursal is kept APART from the salary deduction:

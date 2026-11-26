@@ -29,7 +29,7 @@ export default function DashboardPage() {
               onClick={() => setViewMode("admin")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 viewMode === "admin"
-                  ? "bg-indigo-600 text-white shadow-sm"
+                  ? "bg-brand-600 text-[#2E2E2E] shadow-sm"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -40,7 +40,7 @@ export default function DashboardPage() {
               onClick={() => setViewMode("employee")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 viewMode === "employee"
-                  ? "bg-indigo-600 text-white shadow-sm"
+                  ? "bg-brand-600 text-[#2E2E2E] shadow-sm"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >

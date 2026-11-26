@@ -135,7 +135,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
             type="button"
             onClick={() => setActiveStep(1)}
             className={`text-xs font-semibold pb-1 cursor-pointer transition-colors whitespace-nowrap flex-1 text-center ${
-              activeStep === 1 ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-400"
+              activeStep === 1 ? "text-brand-600 border-b-2 border-brand-600" : "text-slate-400"
             }`}
           >
             1. Personal Info
@@ -144,7 +144,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
             type="button"
             onClick={() => setActiveStep(2)}
             className={`text-xs font-semibold pb-1 cursor-pointer transition-colors whitespace-nowrap flex-1 text-center ${
-              activeStep === 2 ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-400"
+              activeStep === 2 ? "text-brand-600 border-b-2 border-brand-600" : "text-slate-400"
             }`}
           >
             2. Employment & CTC
@@ -153,7 +153,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
             type="button"
             onClick={() => setActiveStep(3)}
             className={`text-xs font-semibold pb-1 cursor-pointer transition-colors whitespace-nowrap flex-1 text-center ${
-              activeStep === 3 ? "text-blue-600 border-b-2 border-blue-600" : "text-slate-400"
+              activeStep === 3 ? "text-brand-600 border-b-2 border-brand-600" : "text-slate-400"
             }`}
           >
             3. Statutory & Bank
@@ -172,7 +172,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   required
                   value={formData.firstName}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                   placeholder="e.g. Rohan"
                 />
               </div>
@@ -183,7 +183,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                   placeholder="e.g. Verma"
                 />
               </div>
@@ -196,7 +196,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   name="gender"
                   value={formData.gender}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                 >
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
@@ -210,7 +210,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   name="dob"
                   value={formData.dob}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                 />
               </div>
             </div>
@@ -224,7 +224,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   required
                   value={formData.mobileNumber}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                   placeholder="9876543210"
                 />
               </div>
@@ -236,7 +236,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   required
                   value={formData.workEmail}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                   placeholder="rohan.verma@company.com"
                 />
               </div>
@@ -249,7 +249,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                 rows={2}
                 value={formData.address}
                 onChange={handleChange}
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                 placeholder="Residential address with city & PIN"
               />
             </div>
@@ -266,7 +266,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   name="department"
                   value={formData.department}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                 >
                   <option value="Technology">Technology</option>
                   <option value="Product Design">Product Design</option>
@@ -284,7 +284,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   required
                   value={formData.designation}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                   placeholder="e.g. Backend Engineer"
                 />
               </div>
@@ -297,7 +297,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   name="employmentType"
                   value={formData.employmentType}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                 >
                   <option value="Full-time">Full-time</option>
                   <option value="Part-time">Part-time</option>
@@ -312,7 +312,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   name="employmentStatus"
                   value={formData.employmentStatus}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                 >
                   <option value="Active">Active</option>
                   <option value="Confirmed">Confirmed</option>
@@ -324,7 +324,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   name="branch"
                   value={formData.branch}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                 >
                   <option value="Delhi">Delhi Branch</option>
                   <option value="Dehradun">Dehradun Branch</option>
@@ -338,7 +338,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   name="dateOfJoining"
                   value={formData.dateOfJoining}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                 />
               </div>
             </div>
@@ -361,11 +361,11 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   }
                   className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all cursor-pointer ${
                     !formData.isIncentiveOnly
-                      ? "bg-indigo-600/20 border-indigo-500 text-white shadow-xs"
+                      ? "bg-brand-600/20 border-brand-500 text-[#2E2E2E] shadow-xs"
                       : "bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  <div className="font-semibold text-indigo-300">Fixed Monthly Salary</div>
+                  <div className="font-semibold text-brand-300">Fixed Monthly Salary</div>
                   <div className="text-[10px] opacity-75">Standard salary & CTC package</div>
                 </button>
                 <button
@@ -427,7 +427,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                       const monthly = val === "" ? 0 : Number(val);
                       setFormData((prev) => ({ ...prev, annualCtc: monthly * 12 }));
                     }}
-                    className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
                     placeholder="40000"
                   />
                 </div>
@@ -450,7 +450,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                       const val = e.target.value;
                       setFormData((prev) => ({ ...prev, annualCtc: val === "" ? 0 : Number(val) }));
                     }}
-                    className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
                     placeholder="480000"
                   />
                 </div>
@@ -465,7 +465,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                     type="checkbox"
                     checked={formData.includePf}
                     onChange={(e) => setFormData((prev) => ({ ...prev, includePf: e.target.checked }))}
-                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-600 cursor-pointer"
+                    className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 bg-slate-800 border-slate-600 cursor-pointer"
                   />
                   <span className="font-semibold text-white text-xs">Include Provident Fund (PF)</span>
                 </label>
@@ -500,7 +500,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                         }
                         className={`px-2 py-0.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
                           formData.pfType === "percentage"
-                            ? "bg-indigo-600 text-white"
+                            ? "bg-brand-600 text-[#2E2E2E]"
                             : "text-slate-400 hover:text-white"
                         }`}
                       >
@@ -517,7 +517,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                         }
                         className={`px-2 py-0.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
                           formData.pfType === "fixed"
-                            ? "bg-indigo-600 text-white"
+                            ? "bg-brand-600 text-[#2E2E2E]"
                             : "text-slate-400 hover:text-white"
                         }`}
                       >
@@ -535,7 +535,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                         <button
                           type="button"
                           onClick={() => setFormData((prev) => ({ ...prev, pfValue: 12 }))}
-                          className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 cursor-pointer"
+                          className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-brand-300 border border-slate-700 cursor-pointer"
                         >
                           Default 12%
                         </button>
@@ -550,7 +550,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                           onChange={(e) =>
                             setFormData((prev) => ({ ...prev, pfValue: Number(e.target.value) }))
                           }
-                          className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                          className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
                           placeholder="12"
                         />
                         <span className="absolute right-3 top-2 text-slate-400 font-mono text-xs">%</span>
@@ -565,7 +565,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                         <button
                           type="button"
                           onClick={() => setFormData((prev) => ({ ...prev, pfValue: 1800 }))}
-                          className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 cursor-pointer"
+                          className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 hover:bg-slate-700 text-brand-300 border border-slate-700 cursor-pointer"
                         >
                           Statutory Cap ₹1,800
                         </button>
@@ -581,7 +581,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                             const val = e.target.value;
                             setFormData((prev) => ({ ...prev, pfValue: val === "" ? 0 : Number(val) }));
                           }}
-                          className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                          className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
                           placeholder="1800"
                         />
                       </div>
@@ -608,7 +608,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   maxLength={10}
                   value={formData.pan}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-brand-500"
                   placeholder="ABCDE1234F"
                 />
               </div>
@@ -621,7 +621,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   maxLength={12}
                   value={formData.aadhaar}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
                   placeholder="123456789012"
                 />
               </div>
@@ -636,7 +636,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   required
                   value={formData.bankAccountNumber}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-500"
                   placeholder="5010023456789"
                 />
               </div>
@@ -648,7 +648,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                   required
                   value={formData.ifscCode}
                   onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono uppercase focus:outline-none focus:border-brand-500"
                   placeholder="HDFC0000123"
                 />
               </div>
@@ -661,7 +661,7 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                 name="bankName"
                 value={formData.bankName}
                 onChange={handleChange}
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
                 placeholder="HDFC Bank Ltd"
               />
             </div>

@@ -46,7 +46,7 @@ export function SensitiveDataMask({
         <button
           type="button"
           onClick={() => setRevealed(!revealed)}
-          className="text-slate-500 hover:text-indigo-400 transition-colors p-1 rounded cursor-pointer"
+          className="text-slate-500 hover:text-brand-400 transition-colors p-1 rounded cursor-pointer"
           title={revealed ? "Mask sensitive value" : "Unmask sensitive data (Admin)"}
         >
           {revealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}

@@ -47,7 +47,7 @@ const PAGE_SIZE = 50;
 
 const STATUS_STYLE: Record<string, string> = {
   SENT: "bg-slate-100 text-slate-700 border-slate-200",
-  LOGIN: "bg-blue-50 text-blue-700 border-blue-200",
+  LOGIN: "bg-brand-50 text-brand-700 border-brand-200",
   APPROVED: "bg-amber-50 text-amber-700 border-amber-200",
   DISBURSED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   REJECT: "bg-rose-50 text-rose-700 border-rose-200",
@@ -116,8 +116,8 @@ function defaultRange() {
 }
 
 const filterCls = (active: boolean) =>
-  `w-full py-1.5 px-2.5 text-xs rounded-xl border focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
-    active ? "border-blue-300 bg-blue-50/60 text-blue-900 font-semibold" : "border-slate-200 bg-slate-50/50 text-slate-700"
+  `w-full py-1.5 px-2.5 text-xs rounded-xl border focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 ${
+    active ? "border-brand-300 bg-brand-50/60 text-brand-900 font-semibold" : "border-slate-200 bg-slate-50/50 text-slate-700"
   }`;
 
 /** Relative width of each column (about pixels at a 1440px-wide screen); the table scales them to fill the page width. */
@@ -645,7 +645,7 @@ export default function LoginSheetPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
         <div className="flex items-center gap-2.5">
-          <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
+          <div className="p-2.5 rounded-xl bg-brand-50 text-brand-600 border border-brand-100">
             <Table2 className="w-5 h-5" />
           </div>
           <div>
@@ -711,12 +711,12 @@ export default function LoginSheetPage() {
                 placeholder="Search customer, PAN, number, login ID, file..."
                 value={filters.search}
                 onChange={(e) => setFilter("search", e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/50"
+                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-slate-50/50"
               />
             </div>
             <div className="text-xs text-slate-500">
               Showing {filtered.length.toLocaleString("en-IN")} of {entries.length.toLocaleString("en-IN")} rows
-              {pendingSaves > 0 && <span className="ml-2 font-semibold text-blue-600" role="status">Saving…</span>}
+              {pendingSaves > 0 && <span className="ml-2 font-semibold text-brand-600" role="status">Saving…</span>}
             </div>
           </div>
           {canManage && (
@@ -767,7 +767,7 @@ export default function LoginSheetPage() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="py-1.5 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded-xl border border-blue-200 transition-colors cursor-pointer"
+                className="py-1.5 px-3 text-xs font-semibold text-brand-700 hover:bg-brand-50 rounded-xl border border-brand-200 transition-colors cursor-pointer"
               >
                 Clear filters{filterCount > 0 ? ` (${filterCount})` : ""}
               </button>
@@ -786,7 +786,7 @@ export default function LoginSheetPage() {
                     setFilter("status", filters.status.includes(status) ? filters.status.filter((x) => x !== status) : [...filters.status, status])
                   }
                   className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold cursor-pointer transition-shadow ${statusStyle(status)} ${
-                    filters.status.includes(status) ? "ring-2 ring-blue-400" : ""
+                    filters.status.includes(status) ? "ring-2 ring-brand-400" : ""
                   }`}
                   title={filters.status.includes(status) ? `Stop filtering by ${status}` : `Also show ${status}`}
                 >
@@ -832,7 +832,7 @@ export default function LoginSheetPage() {
                 <tr>
                   <td colSpan={LOGIN_SHEET_COLUMNS.length + 2} className="py-14 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
                       <span>Loading the login sheet...</span>
                     </div>
                   </td>
@@ -872,7 +872,7 @@ export default function LoginSheetPage() {
                   const cell = "border-b border-r border-slate-100 py-1.5 px-1 align-top break-words";
                   const editable = canEdit(r);
                   return (
-                    <tr key={r.id} className="hover:bg-blue-50/30 transition-colors">
+                    <tr key={r.id} className="hover:bg-brand-50/30 transition-colors">
                       <td className={`${cell} px-1 text-center text-slate-400 bg-slate-50/60 font-mono`}>{(safePage - 1) * PAGE_SIZE + i + 1}</td>
                       {SHEET_COLUMNS.map((c, ci) => {
                         const isActive = active?.id === r.id && active.col === ci;
@@ -899,7 +899,7 @@ export default function LoginSheetPage() {
                               if (!isEditing) beginEdit({ id: r.id, col: ci });
                             }}
                             className={`${cell} ${CELL_STYLE[c.key] ?? ""} relative outline-none ${writable ? "cursor-cell" : ""} ${
-                              isActive ? "bg-blue-50/60 shadow-[inset_0_0_0_2px_rgb(59,130,246)]" : ""
+                              isActive ? "bg-brand-50/60 shadow-[inset_0_0_0_2px_rgb(59,130,246)]" : ""
                             }`}
                           >
                             <div className={isEditing ? "invisible" : undefined}>
@@ -913,7 +913,7 @@ export default function LoginSheetPage() {
                                   }}
                                   onDoubleClick={(ev) => ev.stopPropagation()}
                                   onKeyDown={(ev) => ev.stopPropagation()}
-                                  className="ml-1 inline-flex align-middle p-0.5 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
+                                  className="ml-1 inline-flex align-middle p-0.5 rounded text-slate-400 hover:text-brand-600 hover:bg-brand-50 cursor-pointer"
                                   title={`Rename ${r.empName} (${r.employeeId}); the emp code stays the same`}
                                   aria-label={`Rename employee ${r.empName}`}
                                 >
@@ -947,7 +947,7 @@ export default function LoginSheetPage() {
                               <button
                                 type="button"
                                 onClick={() => openEdit(r)}
-                                className="p-1 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                className="p-1 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer"
                                 title="Edit row"
                                 aria-label={`Edit ${r.customerName} at ${r.bankName}`}
                               >

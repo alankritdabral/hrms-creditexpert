@@ -151,7 +151,7 @@ export default function LeavesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <CalendarDays className="w-6 h-6 text-blue-600" />
+            <CalendarDays className="w-6 h-6 text-brand-600" />
             Leave Management & Workflow
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -168,9 +168,9 @@ export default function LeavesPage() {
       </div>
 
       {/* On-Demand Leave Policy Notice */}
-      <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 flex items-center justify-between text-xs text-blue-300">
+      <div className="bg-brand-500/10 border border-brand-500/20 rounded-2xl p-4 flex items-center justify-between text-xs text-brand-300">
         <div className="flex items-center gap-2.5">
-          <Info className="w-4 h-4 text-blue-400 shrink-0" />
+          <Info className="w-4 h-4 text-brand-400 shrink-0" />
           <span>
             <strong>Company Leave Policy:</strong> Employees are eligible for <strong>Casual Leave (CL)</strong> and <strong>Sick Leave (SL)</strong> only (no Earned Leave). There are no predefined quota limits—leaves are officially marked and logged in your employment and payroll record as and when taken upon approval.
           </span>
@@ -181,7 +181,7 @@ export default function LeavesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="glass-card rounded-2xl p-5 border border-slate-800 relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-brand-400 uppercase tracking-wider">
               Casual Leave (CL)
             </span>
             <Badge variant="indigo">Marked As Taken</Badge>
@@ -258,7 +258,7 @@ export default function LeavesPage() {
                       <span className="font-bold text-white text-sm">{req.employeeName}</span>
                       <Badge variant="indigo">{req.department}</Badge>
                     </div>
-                    <p className="text-indigo-300 font-semibold mt-1">
+                    <p className="text-brand-300 font-semibold mt-1">
                       {req.leaveType} • {req.days} Day(s)
                     </p>
                     <p className="text-slate-400 text-[11px] mt-0.5">
@@ -366,13 +366,13 @@ export default function LeavesPage() {
             <select
               value={leaveType}
               onChange={(e) => setLeaveType(e.target.value as LeaveType)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             >
               <option value="Casual Leave">Casual Leave (CL)</option>
               <option value="Sick Leave">Sick Leave (SL)</option>
             </select>
             <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <Info className="w-3.5 h-3.5 text-brand-400 shrink-0" />
               <span>No predefined quota limits. Leave will be officially marked in your record upon HR approval.</span>
             </p>
           </div>
@@ -385,7 +385,7 @@ export default function LeavesPage() {
                 required
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
               />
             </div>
             <div>
@@ -395,7 +395,7 @@ export default function LeavesPage() {
                 required
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
               />
             </div>
           </div>
@@ -411,7 +411,7 @@ export default function LeavesPage() {
               required
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -425,7 +425,7 @@ export default function LeavesPage() {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="State the reason for leave and handover details if applicable..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 
@@ -500,7 +500,7 @@ export default function LeavesPage() {
               value={reviewNotes}
               onChange={(e) => setReviewNotes(e.target.value)}
               placeholder="e.g. Approved. Client handover verified."
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             />
           </div>
 

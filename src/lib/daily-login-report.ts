@@ -131,19 +131,19 @@ const monthLabel = (month: string) => `${MONTHS_LONG[Number(month.slice(5, 7)) -
 const rupees = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
 const STATUS_COLORS: Record<string, [string, string]> = {
-  SENT: ["#f1f5f9", "#475569"],
-  LOGIN: ["#dbeafe", "#1d4ed8"],
+  SENT: ["#F5F0EB", "#575757"],
+  LOGIN: ["#dbeafe", "#E04F00"],
   APPROVED: ["#fef3c7", "#b45309"],
   DISBURSED: ["#d1fae5", "#047857"],
   REJECT: ["#ffe4e6", "#be123c"],
 };
 function pill(status: string): string {
-  const [bg, fg] = STATUS_COLORS[upper(status)] || ["#f1f5f9", "#475569"];
+  const [bg, fg] = STATUS_COLORS[upper(status)] || ["#F5F0EB", "#575757"];
   return `<span style="display:inline-block;background:${bg};color:${fg};border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold;">${esc(status)}</span>`;
 }
 
-const th = "padding:6px 8px;text-align:left;background:#f1f5f9;color:#475569;font-size:11px;border-bottom:1px solid #e2e8f0;white-space:nowrap;";
-const td = "padding:6px 8px;border-bottom:1px solid #eef2f7;font-size:12px;color:#334155;vertical-align:top;";
+const th = "padding:6px 8px;text-align:left;background:#F5F0EB;color:#575757;font-size:11px;border-bottom:1px solid #E5E5E5;white-space:nowrap;";
+const td = "padding:6px 8px;border-bottom:1px solid #eef2f7;font-size:12px;color:#575757;vertical-align:top;";
 
 function statusSummary(statuses: Record<string, number>): string {
   const order = ["SENT", "LOGIN", "APPROVED", "DISBURSED", "REJECT"];
@@ -162,10 +162,10 @@ export function renderDailyLoginReport(r: DailyLoginReport, opts: { isTest?: boo
   const subject = `${opts.isTest ? "[TEST] " : ""}Login progress for ${r.employeeName}: ${longDate(r.today)}`;
 
   const stat = (label: string, value: string, sub = "") =>
-    `<td style="padding:12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;width:25%;vertical-align:top;">
-       <div style="font-size:11px;color:#64748b;text-transform:uppercase;">${esc(label)}</div>
-       <div style="font-size:20px;font-weight:bold;color:#0f172a;margin-top:4px;">${value}</div>
-       ${sub ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">${sub}</div>` : ""}
+    `<td style="padding:12px;border:1px solid #E5E5E5;border-radius:8px;background:#FFF8F3;width:25%;vertical-align:top;">
+       <div style="font-size:11px;color:#737373;text-transform:uppercase;">${esc(label)}</div>
+       <div style="font-size:20px;font-weight:bold;color:#2E2E2E;margin-top:4px;">${value}</div>
+       ${sub ? `<div style="font-size:11px;color:#737373;margin-top:2px;">${sub}</div>` : ""}
      </td>`;
 
   const bankRows = r.banks
@@ -198,9 +198,9 @@ export function renderDailyLoginReport(r: DailyLoginReport, opts: { isTest?: boo
     .join("");
 
   const html = `
-  <div style="font-family:Arial,sans-serif;max-width:900px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:8px;color:#334155;">
+  <div style="font-family:Arial,sans-serif;max-width:900px;margin:0 auto;padding:24px;border:1px solid #E5E5E5;border-radius:8px;color:#575757;">
     ${opts.isTest ? `<div style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:14px;"><strong>TEST EMAIL.</strong> The names and figures below are made-up sample data.</div>` : ""}
-    <h2 style="margin:0 0 4px 0;color:#1d4ed8;">Your logins: ${esc(monthLabel(r.month))}</h2>
+    <h2 style="margin:0 0 4px 0;color:#E04F00;">Your logins: ${esc(monthLabel(r.month))}</h2>
     <p style="margin:0 0 16px 0;font-size:14px;">Dear <strong>${esc(r.employeeName)}</strong>, here is your progress for the month so far, as of ${esc(longDate(r.today))}.</p>
 
     <table role="presentation" cellspacing="8" cellpadding="0" style="width:100%;border-collapse:separate;margin:0 -8px 8px -8px;"><tr>
@@ -210,22 +210,22 @@ export function renderDailyLoginReport(r: DailyLoginReport, opts: { isTest?: boo
       ${stat("Last login date", r.lastLoginDate ? esc(dmy(r.lastLoginDate)) : "None yet", r.lastLoginDate ? "" : "no file past SENT")}
     </tr></table>
 
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin:12px 0 20px 0;">
-      <span style="font-size:13px;">CIBILs pulled today: </span><strong style="font-size:18px;color:#1d4ed8;">${r.cibilToday}</strong>
-      <div style="font-size:11px;color:#64748b;margin-top:2px;">Counted as the customers you entered on the Login Sheet today.</div>
+    <div style="background:#eff6ff;border:1px solid #FFD1A3;border-radius:8px;padding:12px 16px;margin:12px 0 20px 0;">
+      <span style="font-size:13px;">CIBILs pulled today: </span><strong style="font-size:18px;color:#E04F00;">${r.cibilToday}</strong>
+      <div style="font-size:11px;color:#737373;margin-top:2px;">Counted as the customers you entered on the Login Sheet today.</div>
     </div>
 
-    <h3 style="margin:0 0 8px 0;font-size:14px;color:#0f172a;">Where your files are going this month</h3>
+    <h3 style="margin:0 0 8px 0;font-size:14px;color:#2E2E2E;">Where your files are going this month</h3>
     ${
       r.banks.length
         ? `<table cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin-bottom:22px;">
       <tr><th style="${th}">Bank</th><th style="${th}text-align:right;">Files</th><th style="${th}text-align:right;">Amount</th><th style="${th}">Status</th></tr>
       ${bankRows}
     </table>`
-        : `<p style="font-size:13px;color:#64748b;">No files yet this month.</p>`
+        : `<p style="font-size:13px;color:#737373;">No files yet this month.</p>`
     }
 
-    <h3 style="margin:0 0 8px 0;font-size:14px;color:#0f172a;">Today's logins (${esc(dmy(r.today))})</h3>
+    <h3 style="margin:0 0 8px 0;font-size:14px;color:#2E2E2E;">Today's logins (${esc(dmy(r.today))})</h3>
     ${
       r.todayRows.length
         ? `<table cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">
@@ -236,11 +236,11 @@ export function renderDailyLoginReport(r: DailyLoginReport, opts: { isTest?: boo
       </tr>
       ${todayRows}
     </table>`
-        : `<p style="font-size:13px;color:#64748b;">You did not add any logins today.</p>`
+        : `<p style="font-size:13px;color:#737373;">You did not add any logins today.</p>`
     }
 
-    ${opts.portalUrl ? `<p style="margin:22px 0 0 0;font-size:12px;"><a href="${esc(opts.portalUrl)}" style="color:#4f46e5;">Open the Login Sheet</a></p>` : ""}
-    <p style="color:#94a3b8;font-size:11px;text-align:center;margin:18px 0 0 0;">Sent automatically every evening at 8 PM IST. &copy; ${esc(r.today.slice(0, 4))} Credit Expert India</p>
+    ${opts.portalUrl ? `<p style="margin:22px 0 0 0;font-size:12px;"><a href="${esc(opts.portalUrl)}" style="color:#FF5A00;">Open the Login Sheet</a></p>` : ""}
+    <p style="color:#A3A3A3;font-size:11px;text-align:center;margin:18px 0 0 0;">Sent automatically every evening at 8 PM IST. &copy; ${esc(r.today.slice(0, 4))} Amortas</p>
   </div>`;
 
   const lines = [

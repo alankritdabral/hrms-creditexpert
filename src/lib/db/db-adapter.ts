@@ -1358,7 +1358,7 @@ export async function punchAttendance(
     accuracy: number;
   }
 ): Promise<AttendanceRecord> {
-  // Reject clock-out since Credit Expert India operations only use clock-in
+  // Reject clock-out since Amortas operations only use clock-in
   if (type === "checkOut") {
     throw new Error("Clock-out is disabled. Attendance is automatically completed upon Clock-In.");
   }

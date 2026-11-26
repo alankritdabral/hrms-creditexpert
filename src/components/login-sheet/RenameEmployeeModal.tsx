@@ -31,7 +31,7 @@ interface Props {
 }
 
 const inputCls =
-  "w-full py-2 px-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
+  "w-full py-2 px-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 function DetailsGrid({ details }: { details: Details }) {
   const facts: [string, string][] = [
