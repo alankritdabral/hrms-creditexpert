@@ -6,7 +6,6 @@ A modern, cloud-native Human Resource Management System (HRMS) built for enterpr
 [![React](https://img.shields.io/badge/React-19.3.0-blue?style=flat&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=flat&logo=tailwind-css)](https://tailwindcss.com/)
-[![Firebase Firestore](https://img.shields.io/badge/Firebase-Firestore-FFCA28?style=flat&logo=firebase)](https://firebase.google.com/)
 [![Cloudinary](https://img.shields.io/badge/Cloudinary-KYC_Storage-3448C5?style=flat&logo=cloudinary)](https://cloudinary.com/)
 
 ---
@@ -101,15 +100,6 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 5. Seeding Initial Demo Data (Optional)
-
-To initialize sample branches, departments, policies, and demo users in your Firestore database, visit:
-
-```
-http://localhost:3000/api/firestore/seed
-```
-*(Available in development mode for initial database seeding)*
-
 ---
 
 ## 📁 Repository Structure
@@ -118,9 +108,6 @@ http://localhost:3000/api/firestore/seed
 hrms/
 ├── CODEBASE_DOCUMENTATION.md   # Comprehensive architectural and functional documentation
 ├── README.md                   # Project overview & quickstart guide
-├── firestore.rules             # Cloud Firestore security rules
-├── firebase.json               # Firebase configuration
-├── .firebaserc                 # Firebase project mapping
 ├── .env.example                # Sanitized environment variable template
 ├── public/                     # Static assets, branding, and icons
 └── src/
@@ -143,8 +130,7 @@ hrms/
         ├── auth-context.tsx    # Client authentication context & session guard
         ├── cloudinary.ts       # KYC upload handler with local fallback
         ├── email.ts            # Nodemailer transactional email delivery
-        ├── firebase.ts         # Firebase client initialization
-        ├── firestore-service.ts# Firestore data layer & collection operations
+        ├── firestore-service.ts# Data layer (name kept from the Firestore days; now backed by RDS via the backend API)
         ├── payroll-engine.ts   # Indian statutory payroll calculation logic
         ├── permissions.ts      # RBAC definitions and route guard matrices
         └── types.ts            # Complete TypeScript types and domain entities
@@ -157,7 +143,7 @@ hrms/
 1. **Environment Variables**: Never commit `.env` or `.env.local` files to Git. The `.gitignore` is preconfigured to prevent secret leakage.
 2. **KYC Documents**: All KYC documents are stored securely in Cloudinary. Local upload fallbacks (`public/uploads`) are ignored from Git.
 3. **Data Masking**: Sensitive fields like PAN, Aadhaar, Bank Account Numbers, and UAN are masked client-side for unauthorized roles.
-4. **Firestore Security**: Production rules in `firestore.rules` restrict read and write access to authenticated users.
+4. **Data access**: The database is private to the backend; the HRMS reaches it only through the backend's key-guarded internal API.
 
 ---
 

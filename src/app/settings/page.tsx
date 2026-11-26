@@ -141,10 +141,6 @@ export default function SettingsPage() {
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [officeStatusMessage, setOfficeStatusMessage] = useState("");
 
-  // Firestore Sync State
-  const [isSyncingFirestore, setIsSyncingFirestore] = useState(false);
-  const [firestoreSyncResult, setFirestoreSyncResult] = useState<string | null>(null);
-
   const canEdit = ["admin", "hr"].includes(currentUser.role);
 
   const rolesOnSlot = (slot: TimingSlotId) => {
@@ -363,27 +359,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSyncFirestore = async () => {
-    setIsSyncingFirestore(true);
-    setFirestoreSyncResult(null);
-    try {
-      const res = await fetch("/api/firestore/seed", { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        const counts = data.counts || {};
-        setFirestoreSyncResult(
-          `Successfully seeded Firestore! (${counts.employees || 0} employees, ${counts.attendance || 0} attendance, ${counts.leaves || 0} leaves, ${counts.assets || 0} assets)`
-        );
-      } else {
-        setFirestoreSyncResult(`Firestore sync notice: ${data.error || "Completed with offline fallback"}`);
-      }
-    } catch (err: any) {
-      setFirestoreSyncResult("Synced and cached data for Firestore.");
-    } finally {
-      setIsSyncingFirestore(false);
-    }
-  };
-
   // Assign Role Handler
   const handleAssignRole = async (userIdOrEmpId: string, targetName: string, newRole: string) => {
     setAssigningUserId(userIdOrEmpId);
@@ -599,7 +574,7 @@ export default function SettingsPage() {
             System Configuration & Settings
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Custom user roles, section-level permissions, office geofences, and Google Cloud Firestore cloud engine.
+            Custom user roles, section-level permissions, office geofences, and statutory payroll rules.
           </p>
         </div>
       </div>
@@ -1646,118 +1621,6 @@ export default function SettingsPage() {
       {/* ======================================================== */}
       {activeTab === "cloud" && (
         <div className="space-y-6 animate-fadeIn">
-          {/* Cloud Database Engine & Spark Quota Telemetry (Firestore Only) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Firebase & Firestore Connector */}
-            <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
-                    <Flame className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-sm">Google Cloud Firestore</h3>
-                    <p className="text-[11px] text-slate-400">Primary Cloud Database Engine</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="warning" className="text-[10px] text-amber-400 border-amber-500/30 bg-amber-500/10">
-                    Spark Free Plan (₹0)
-                  </Badge>
-                  <Badge variant="success" className="text-[10px]">
-                    Active
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Database Engine</span>
-                  <span className="text-emerald-400 font-semibold">Google Cloud Firestore</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Access</span>
-                  <span className="text-slate-300 font-medium">Server-side Admin SDK only (browser access denied by rules)</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Collections Managed</span>
-                  <span className="text-slate-300 font-medium">
-                    employees, attendance, leaves, payroll_runs, assets, requests, announcements, audit_logs, holidays, onboarding, users, sessions, custom_roles
-                  </span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-400">Database Mode</span>
-                  <span className="text-brand-400 font-medium">Exclusive Cloud Store (In-Memory Offline Cache)</span>
-                </div>
-              </div>
-
-              {firestoreSyncResult && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>{firestoreSyncResult}</span>
-                </div>
-              )}
-
-              {canEdit && isLocalhost && (
-                <div className="pt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    isLoading={isSyncingFirestore}
-                    icon={<UploadCloud className="w-4 h-4" />}
-                    onClick={handleSyncFirestore}
-                  >
-                    Reseed / Sync Firestore Schema
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {/* Firebase Spark Plan Quota & Optimization */}
-            <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
-                    <Shield className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-sm">Spark Plan Quota & Protection</h3>
-                    <p className="text-[11px] text-slate-400">Zero-Cost Free Tier Guardrails</p>
-                  </div>
-                </div>
-                <Badge variant="success" className="text-[10px]">
-                  Quota Guard On
-                </Badge>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Daily Read Quota</span>
-                  <span className="text-emerald-400 font-mono font-medium">50,000 document reads / day</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Daily Write Quota</span>
-                  <span className="text-amber-400 font-mono font-medium">20,000 document writes / day</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Read Optimization Layer</span>
-                  <span className="text-brand-400 font-medium">60s TTL In-Memory Read Cache</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800">
-                  <span className="text-slate-400">Write Optimization Layer</span>
-                  <span className="text-cyan-400 font-medium">Atomic Batch Writes (Max 500 ops/batch)</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-400">Quota Circuit Breaker</span>
-                  <span className="text-emerald-400 font-medium">Active (Graceful In-Memory Fallback)</span>
-                </div>
-              </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-                Optimized exclusively for Google Cloud Firestore. Read caching and batch operations ensure operations stay well within free Spark limits.
-              </p>
-            </div>
-          </div>
-
           {/* Statutory Payroll Configuration Slabs */}
           <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
             <h3 className="font-bold text-white text-base">Statutory Compliance Rules & Constants</h3>
