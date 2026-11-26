@@ -3,7 +3,7 @@
  * Two-step variant of the Firestore -> RDS import, for when the Firestore quota is tight:
  *
  *   node scripts/firestore-local-dump.mjs export --dir=<folder> --only=a,b,c   # Firestore -> local JSON files
- *   node scripts/firestore-local-dump.mjs import --dir=<folder>                # local files -> RDS (no Firestore reads)
+ *   node scripts/firestore-local-dump.mjs import --dir=<folder> [--overwrite]    # local files -> RDS (no Firestore reads)
  *
  * Firestore is read once (one read per document) and never written. Files are plain JSON, one per
  * collection, with Timestamps already converted to ISO strings (same conversion as the direct import).
@@ -21,6 +21,7 @@ const [mode, ...rest] = process.argv.slice(2);
 const arg = (n) => (rest.find((a) => a.startsWith(`--${n}=`)) || "").slice(n.length + 3);
 const dir = arg("dir");
 const only = arg("only").split(",").filter(Boolean);
+const OVERWRITE = rest.includes("--overwrite");
 const PAGE = 400;
 const CHUNK = 100;
 
@@ -95,7 +96,7 @@ if (mode === "export") {
     expected[name] = docs.length;
     let written = 0;
     for (let i = 0; i < docs.length; i += CHUNK) {
-      const r = await call("POST", "/import", { collection: name, docs: docs.slice(i, i + CHUNK), overwrite: false });
+      const r = await call("POST", "/import", { collection: name, docs: docs.slice(i, i + CHUNK), overwrite: OVERWRITE });
       written += r.written;
     }
     console.log(`${name.padEnd(24)} file=${docs.length}  imported=${written}  already-there=${docs.length - written}`);
